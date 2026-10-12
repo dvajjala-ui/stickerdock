@@ -36,6 +36,8 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.02.00"))
     implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.core:core:1.15.0")
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
