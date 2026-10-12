@@ -140,6 +140,9 @@ def validate_ideas(raw, count, excluded, source_count):
 
 
 def reference_image(path):
+    from video_stickers import CLIP_EXTENSIONS, clip_frames
+    if path.suffix.lower() in CLIP_EXTENSIONS:
+        return clip_frames(path)[0].convert("RGB")
     if path.stat().st_size > 20_000_000:
         raise ValueError("Reference image exceeds 20MB")
     with Image.open(path) as original:
@@ -212,6 +215,23 @@ def caption_lines(draw, caption, font):
     return lines
 
 
+def draw_caption(image, caption, font_path):
+    draw = ImageDraw.Draw(image)
+    for size in range(42, 17, -2):
+        font = font_at(size, font_path)
+        lines = caption_lines(draw, caption, font)
+        if lines:
+            break
+    else:
+        raise ValueError("Caption cannot fit sticker")
+    draw.rounded_rectangle((25, 347, 487, 488), radius=28, fill="white")
+    line_height = size + 6
+    y = 347 + (141 - line_height * len(lines)) / 2
+    for line in lines:
+        draw.text((256, y), line, font=font, anchor="mt", fill="#242424")
+        y += line_height
+
+
 def render(idea, font_path, image_path=None, animated=False):
     image = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
@@ -239,19 +259,7 @@ def render(idea, font_path, image_path=None, animated=False):
         image = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
         image.alpha_composite(photo, ((512 - photo.width) // 2, 20))
         draw = ImageDraw.Draw(image)
-    for size in range(42, 17, -2):
-        font = font_at(size, font_path)
-        lines = caption_lines(draw, idea["caption"], font)
-        if lines:
-            break
-    else:
-        raise ValueError("Caption cannot fit sticker")
-    draw.rounded_rectangle((25, 347, 487, 488), radius=28, fill="white")
-    line_height = size + 6
-    y = 347 + (141 - line_height * len(lines)) / 2
-    for line in lines:
-        draw.text((256, y), line, font=font, anchor="mt", fill="#242424")
-        y += line_height
+    draw_caption(image, idea["caption"], font_path)
     output = io.BytesIO()
     if animated:
         frames = []
@@ -325,7 +333,7 @@ def run(config, root, font_path, now=None):
     modes = config.get("modes", ["illustration"])
     topics = config.get("topics", [config.get("topic", "technology, light news, everyday reactions")])
     rating = config.get("rating", "GENERAL")
-    if (not isinstance(modes, list) or not modes or any(m not in ("illustration", "photo", "animated") for m in modes)
+    if (not isinstance(modes, list) or not modes or any(m not in ("illustration", "photo", "animated", "clip") for m in modes)
             or not isinstance(topics, list) or not topics or any(not isinstance(t, str) for t in topics)
             or rating not in ("GENERAL", "MATURE")):
         raise ValueError("Invalid modes, topics or rating")
@@ -335,6 +343,9 @@ def run(config, root, font_path, now=None):
             or type(max_attempts) is not int or not 1 <= max_attempts <= 100):
         raise ValueError("Invalid daily target, batch size, interval or request budget")
     root = root.resolve()
+    if config.get("media_library", {}).get("enabled"):
+        from media_library import sync
+        sync(config["media_library"], Path(config.get("image_directory", "reference-images")), now)
     with locked(root):
         directory = root / day
         directory.mkdir(exist_ok=True)
@@ -365,9 +376,11 @@ def run(config, root, font_path, now=None):
             topic = topics[batch_index % len(topics)]
             image_path = None
             model = config.get("model", "llama-3.3-70b-versatile")
-            if mode == "photo":
+            if mode in ("photo", "clip"):
+                from video_stickers import CLIP_EXTENSIONS
                 input_dir = Path(config.get("image_directory", "reference-images"))
-                images = sorted(p for p in input_dir.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"))
+                extensions = CLIP_EXTENSIONS if mode == "clip" else {".png", ".jpg", ".jpeg", ".webp"}
+                images = sorted(p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in extensions)
                 if not images or not config.get("vision_model"):
                     raise ValueError("Photo mode requires supplied images and a configured Groq vision model")
                 image_path = str(images[batch_index % len(images)].resolve())
@@ -406,13 +419,23 @@ def run(config, root, font_path, now=None):
         for index, idea in enumerate(pending["ideas"], start):
             sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"stickerdock:{day}:{index}"))
             path = directory / (sticker_id + ".webp")
-            kind = "ANIMATED" if pending["mode"] == "animated" else "STATIC"
-            path.write_bytes(render(idea, font_path, pending.get("image_path"), kind == "ANIMATED"))
+            kind = "ANIMATED" if pending["mode"] in ("animated", "clip") else "STATIC"
+            if pending["mode"] == "clip":
+                from video_stickers import render_clip
+                data = render_clip(pending["image_path"], idea, font_path)
+            else:
+                data = render(idea, font_path, pending.get("image_path"), kind == "ANIMATED")
+            path.write_bytes(data)
+            media_credit = None
+            if pending.get("image_path"):
+                from media_library import provenance
+                media_credit = provenance(Path(pending["image_path"]))
             records.append({**idea, "id": sticker_id, "file": str(path),
                             "sources": pending["sources"], "mode": pending["mode"],
                             "reference_mode": pending.get("reference_mode", "everyday reactions"),
                             "kind": kind, "rating": pending.get("rating", "GENERAL"),
-                            "image_path": pending.get("image_path"), "topic": pending.get("topic")})
+                            "image_path": pending.get("image_path"), "topic": pending.get("topic"),
+                            "media_credit": media_credit})
         archive = directory / f"batch-{start + 1:02d}-{start + len(records):02d}.zip"
         export_zip(archive, records, day)
         state["records"].extend(records)
@@ -421,7 +444,7 @@ def run(config, root, font_path, now=None):
         atomic_json(directory / "references.json", [{"caption": r["caption"],
                     "source": r["source"], "sources": r["sources"], "mode": r["mode"],
                     "image_path": r.get("image_path"), "topic": r.get("topic"),
-                    "reference_mode": r.get("reference_mode")}
+                    "reference_mode": r.get("reference_mode"), "media_credit": r.get("media_credit")}
                     for r in state["records"]])
         if len(state["records"]) >= target:
             export_zip(directory / "daily-complete.zip", state["records"], day)

@@ -40,6 +40,11 @@ Requires a privately configured `GROQ_API_KEY` and a computer/server scheduler;
 live generation is not activated yet. This version uses template illustrations;
 custom AI image rendering needs a separate image provider.
 
+The [free media input guide](docs/FREE_MEDIA_FACTORY.md) adds a scheduled CC0/
+public-domain Commons download queue, optional authorized Pinterest-board inputs,
+local reference files and actual GIF/MP4-to-captioned-animated-WebP conversion.
+Uses local FFmpeg; no paid image/video provider is configured.
+
 ## Build
 JDK 17, Android SDK 35, Gradle 8.9:
 

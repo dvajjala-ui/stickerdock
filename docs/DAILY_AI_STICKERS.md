@@ -73,6 +73,9 @@ Static and animated assets are separated into different packs; all packs have at
 most 30 assets. Set `rating` to `MATURE` for private non-explicit adult humor.
 Automatic photo masking/background removal, generative image synthesis and video
 synthesis need additional implementations/providers and are not available here.
+For actual clip-frame animations (`clip` mode), free downloadable reference
+inputs and optional official Pinterest board access, see
+[Free media factory inputs](FREE_MEDIA_FACTORY.md).
 
 To target **100/day**, set `daily_target` to 100, `batch_size` to 5,
 `interval_seconds` to 3600 and `max_requests_per_day` to at least 20. That requires

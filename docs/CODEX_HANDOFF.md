@@ -30,6 +30,12 @@ Groq caption/vision client, rotating Hinglish topics, supplied-photo memes, stat
 illustrations and simple animated WebP pulse rendering, rate-limit headers/usage,
 crash recovery and schema-3 ZIP export. See `docs/DAILY_AI_STICKERS.md`.
 It also fixes over-escaped backup WebP allowlist regexes and adds regression tests.
+Free-input extension: `tools/media_library.py` has bounded CC0/public-domain
+Commons discovery, direct media queue, provenance/dedup and optional authorized
+Pinterest board ingestion with per-pin reuse declarations. `tools/video_stickers.py`
+converts local GIF/MP4/WebM/MOV first 2s to captioned animated WebP with FFmpeg;
+factory `clip` mode uses its first frame for Groq vision. No new paid provider.
+See `docs/FREE_MEDIA_FACTORY.md`; live sources/Groq remain blocked by proxy policy.
 Generation target defaults to 40/day in batches of five; 100/day is configurable.
 No schedule/key is installed or deployed. Live calls remain blocked by environment
 network policy; actual account quotas, vision support and phone QA are unverified.
