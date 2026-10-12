@@ -32,7 +32,7 @@ class StickerFiles(private val context: Context, private val store: StickerStore
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Import failed") }
     }
 
-    fun importBytes(packId: String, input: ByteArray): ImportResult {
+    fun importBytes(packId: String, input: ByteArray, globalDedup: Boolean = false): ImportResult {
         return try {
         val pack = store.getPack(packId) ?: return ImportResult.Failed("Pack not found")
         if (store.listStickers(packId).size >= 30) return ImportResult.Failed("Pack full")
@@ -49,7 +49,7 @@ class StickerFiles(private val context: Context, private val store: StickerStore
             normalize(input)
         }
         val hash = MessageDigest.getInstance("SHA-256").digest(image).joinToString("") { "%02x".format(it) }
-        if (store.listStickers(packId).any { it.sha256 == hash }) return ImportResult.Duplicate
+        if ((globalDedup && store.hasStickerHash(hash)) || store.listStickers(packId).any { it.sha256 == hash }) return ImportResult.Duplicate
         val id = UUID.randomUUID().toString()
         val name = "$id.webp"
         val dest = stickerFile(packId, name)
