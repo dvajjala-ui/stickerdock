@@ -49,8 +49,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
         ZipInputStream(input).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                require(!entry.isDirectory && (entry.name == "manifest.json" ||
-                    Regex("packs/[0-9a-f-]{36}/[0-9a-f-]{36}\\.webp").matches(entry.name))) { "Invalid ZIP path" }
+                require(!entry.isDirectory && BackupArchivePaths.isEntry(entry.name)) { "Invalid ZIP path" }
                 require(!archive.containsKey(entry.name) && ++count <= 4000) { "Duplicate/oversized archive" }
                 val data = StickerFiles.boundedRead(zip, 1_000_000)
                 total += data.size
@@ -80,7 +79,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
             for (j in 0 until stickers.length()) {
                 val item = stickers.getJSONObject(j)
                 val nameOfFile = item.getString("name")
-                require(Regex("[0-9a-f-]{36}\\.webp").matches(nameOfFile))
+                require(BackupArchivePaths.isStickerName(nameOfFile))
                 val path = "packs/$id/$nameOfFile"
                 require(expected.add(path))
                 val data = archive[path] ?: error("Missing sticker")

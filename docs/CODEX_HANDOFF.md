@@ -24,6 +24,16 @@ Sticker.ly's Android app is proprietary (the published open-source attribution p
 - Sticker.ly user-content terms: https://sticker.ly/terms-of-use
 
 ## Validation state
+Latest main `f7f1dec` passed [Android CI run 38242344260](https://github.com/dvajjala-ui/stickerdock/actions/runs/38242344260).
+The `feat/daily-groq-stickers` branch adds an optional private desktop scheduler,
+Groq caption/vision client, rotating Hinglish topics, supplied-photo memes, static
+illustrations and simple animated WebP pulse rendering, rate-limit headers/usage,
+crash recovery and schema-3 ZIP export. See `docs/DAILY_AI_STICKERS.md`.
+It also fixes over-escaped backup WebP allowlist regexes and adds regression tests.
+Generation target defaults to 40/day in batches of five; 100/day is configurable.
+No schedule/key is installed or deployed. Live calls remain blocked by environment
+network policy; actual account quotas, vision support and phone QA are unverified.
+
 Prior commit `94ad982` passed Android CI with earlier feature set; later commits have pending builds until a newer green run is inspected. Device/emulator validation has **not** happened. Never represent compilation or CI as proof of real-world WhatsApp behavior.
 
 ## Next tasks

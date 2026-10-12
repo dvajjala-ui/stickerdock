@@ -1,0 +1,11 @@
+[Unit]
+Description=StickerDock daily Groq sticker batch
+
+[Service]
+Type=oneshot
+# Replace these absolute paths before installing as a user service.
+WorkingDirectory=/ABSOLUTE/PATH/TO/stickerdock
+EnvironmentFile=/ABSOLUTE/PRIVATE/PATH/stickerdock-groq.env
+ExecStart=/ABSOLUTE/PATH/TO/stickerdock/.venv/bin/python tools/daily_stickers.py --config daily-stickers.local.json --output generated-stickers
+UMask=0077
+NoNewPrivileges=true

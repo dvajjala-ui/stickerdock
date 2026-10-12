@@ -27,11 +27,25 @@ python tools/adb_sticker_export.py --account both --output StickerDock-Phone-Exp
 
 Then transfer files from `StickerDock-Phone-Export/sticker_zips/` to the phone and choose **Import sticker ZIP** (supports batch selection).
 
+## Daily AI stickers
+
+The optional [Groq daily generator](docs/DAILY_AI_STICKERS.md) targets **40 stickers
+per day in batches of five**, spaced three hours apart. It turns recent public
+RSS titles or supplied references into original Hinglish caption stickers, draws
+reaction artwork locally, and exports StickerDock ZIPs. Rotates topics, supports
+supplied-photo memes with a configured vision model and animated pulse stickers,
+and separates static/animated packs (40 split into two packs of 20).
+Includes saved progress, duplicate checks, request caps and rate-limit cooldowns.
+Requires a privately configured `GROQ_API_KEY` and a computer/server scheduler;
+live generation is not activated yet. This version uses template illustrations;
+custom AI image rendering needs a separate image provider.
+
 ## Build
 JDK 17, Android SDK 35, Gradle 8.9:
 
 ```sh
 gradle :app:testDebugUnitTest :app:assembleDebug
+python3 -m pip install -r tools/requirements-stickers.txt
 python3 -m unittest discover -s tools -p 'test_*.py' -v
 ```
 

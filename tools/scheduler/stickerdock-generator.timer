@@ -1,0 +1,10 @@
+[Unit]
+Description=Check StickerDock generation queue every fifteen minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+Unit=stickerdock-generator.service
+
+[Install]
+WantedBy=timers.target
