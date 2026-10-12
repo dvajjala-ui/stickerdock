@@ -42,7 +42,7 @@ object StickerPackMetadata {
         return null
     }
 
-    private fun String.cleanMetadata() = trim().filter { it != '/' && it != '\\' && !it.isISOControl() }.take(60)
+    private fun String.cleanMetadata() = trim().filter { it != '/' && it != '\\' && it.code >= 32 && it.code != 127 }.take(60)
     private fun ascii(bytes: ByteArray, offset: Int, length: Int) = String(bytes, offset, length, Charsets.US_ASCII)
     private fun uint32(bytes: ByteArray, i: Int): Long = (bytes[i].toLong() and 255) or
         ((bytes[i + 1].toLong() and 255) shl 8) or
