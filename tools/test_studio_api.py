@@ -16,6 +16,13 @@ def image_data_url():
 
 
 class StudioApiTest(unittest.TestCase):
+    def test_truncated_jpeg_is_rejected(self):
+        image = io.BytesIO()
+        Image.new("RGB", (64, 64), "red").save(image, "JPEG")
+        data = "data:image/jpeg;base64," + base64.b64encode(image.getvalue()[:-20]).decode()
+        with self.assertRaises(studio.StudioError):
+            studio.decode_image(data)
+
     def test_header_only_image_is_rejected_before_upload(self):
         fake = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\ninvalid data").decode()
         with patch.object(studio, "supabase_request") as request:

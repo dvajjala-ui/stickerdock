@@ -213,6 +213,8 @@ def sync_inbox(client, runtime, max_files=30):
                         if image.width * image.height > 20_000_000:
                             raise ValueError("Input image exceeds pixel limit")
                         image.verify()
+                    with Image.open(local) as image:
+                        image.load()
             except (OSError, ValueError, Image.DecompressionBombError):
                 local.unlink(missing_ok=True)
                 processed.add(remote_path)

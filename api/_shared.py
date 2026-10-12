@@ -111,6 +111,8 @@ def decode_image(data_url: str, max_bytes=4_000_000) -> tuple[bytes, str, str]:
                     getattr(image, "is_animated", False)):
                 raise StudioError("Use a static image under 20 million pixels")
             image.verify()
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
     except (OSError, ValueError, Image.DecompressionBombError) as error:
         if isinstance(error, StudioError):
             raise
