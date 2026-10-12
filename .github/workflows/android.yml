@@ -29,7 +29,13 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Validate local ADB migration helper
-        run: python3 -m unittest discover -s tools -p 'test_*.py' -v
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ffmpeg fonts-dejavu-core
+          fi
+          python3 -m pip install -r tools/requirements-stickers.txt
+          python3 -m unittest discover -s tools -p 'test_*.py' -v
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - uses: actions/upload-artifact@v4

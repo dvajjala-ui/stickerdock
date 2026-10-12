@@ -9,3 +9,12 @@ local.properties
 *.jks
 *.keystore
 .DS_Store
+work/
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+generated-stickers/
+daily-stickers.local.json
+reference-images/

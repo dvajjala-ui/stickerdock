@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "daily_download_limit": 6,
+  "max_downloads_per_run": 2,
+  "interval_seconds": 3600,
+  "commons_queries": ["funny cat", "dog", "space", "tea"],
+  "queue": []
+}
