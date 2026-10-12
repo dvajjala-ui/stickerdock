@@ -24,9 +24,15 @@ class IncomingStickers(
         val packs = mutableMapOf<StickerKind, StickerPack>()
         uris.forEach { uri ->
             if (intent.type == "application/zip" || uri.toString().endsWith(".zip", true)) {
-                val report = PackZipImporter(context, store, files).import(uri, "Shared")
-                imported += report.imported
-                rejected += report.skipped + report.duplicates
+                try {
+                    val result = StickerBackup(context, store, files).restore(uri)
+                    imported += result.stickers
+                    rejected += result.rejected
+                } catch (_: Exception) {
+                    val report = PackZipImporter(context, store, files).import(uri, "Shared")
+                    imported += report.imported
+                    rejected += report.skipped + report.duplicates
+                }
             } else {
                 try {
                     val bytes = context.contentResolver.openInputStream(uri)?.use {
