@@ -339,6 +339,7 @@ def run(config, root, font_path, now=None):
         directory = root / day
         directory.mkdir(exist_ok=True)
         state_path = directory / "state.json"
+        cooldown_path = root / "cooldown.json"
         state = json.loads(state_path.read_text()) if state_path.exists() else {
             "records": [], "requests": 0, "next_request_at": 0, "pending": None}
         if len(state["records"]) >= target:
@@ -346,7 +347,8 @@ def run(config, root, font_path, now=None):
             export_zip(directory / "daily-complete.zip", state["records"], day)
             return "Daily target already reached"
         if not state["pending"]:
-            if now < state["next_request_at"]:
+            cooldown = json.loads(cooldown_path.read_text()) if cooldown_path.exists() else {}
+            if now < max(state["next_request_at"], cooldown.get("next_request_at", 0)):
                 return "Waiting for next batch or rate-limit cooldown"
             if state["requests"] >= max_attempts:
                 return "Daily request budget reached; no more API calls today"
@@ -376,6 +378,8 @@ def run(config, root, font_path, now=None):
             # Reserve before the call; a crash still consumes budget and cooldown.
             state["next_request_at"] = now + interval
             atomic_json(state_path, state)
+            atomic_json(cooldown_path, {"next_request_at": state["next_request_at"]})
+            LAST_GROQ_METRICS.clear()
             try:
                 remaining = target - len(state["records"])
                 count = min(batch, remaining)
@@ -388,6 +392,7 @@ def run(config, root, font_path, now=None):
                     delay = 86400
                 state["next_request_at"] = max(state["next_request_at"], now + delay)
                 atomic_json(state_path, state)
+                atomic_json(cooldown_path, {"next_request_at": state["next_request_at"]})
                 raise ValueError(f"Groq HTTP {error.code}; cooldown saved; response body omitted") from None
             state["pending"] = {"ideas": ideas, "sources": sources, "warnings": warnings,
                                  "mode": mode, "topic": topic, "image_path": image_path,

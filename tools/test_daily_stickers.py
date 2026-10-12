@@ -92,6 +92,16 @@ class DailyStickersTest(unittest.TestCase):
             self.assertEqual(len(state["records"]), 5)
             self.assertIsNone(state["pending"])
 
+    def test_provider_cooldown_survives_midnight(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            error = urllib.error.HTTPError(generator.API_URL, 429, "limited", {"Retry-After": "20000"}, None)
+            with patch.object(generator, "groq_ideas", side_effect=error) as call:
+                with self.assertRaises(ValueError):
+                    generator.run({}, root, FONT, NOW + 86300)
+                generator.run({}, root, FONT, NOW + 86400)
+                self.assertEqual(call.call_count, 1)
+
     def test_request_cap_and_daily_reset(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
             root = Path(temporary)
