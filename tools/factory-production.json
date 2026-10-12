@@ -1,7 +1,7 @@
 {
   "daily_target": 40,
   "batch_size": 5,
-  "interval_seconds": 10800,
+  "interval_seconds": 9900,
   "max_requests_per_day": 16,
   "model": "llama-3.3-70b-versatile",
   "modes": ["illustration", "animated", "photo", "clip"],

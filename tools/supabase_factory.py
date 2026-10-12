@@ -37,6 +37,13 @@ class SupabaseFactory:
         except urllib.error.HTTPError as error:
             if missing_ok and error.code == 404:
                 return None
+            if missing_ok and error.code == 400:
+                try:
+                    detail = json.loads(error.read(4096))
+                except (ValueError, OSError):
+                    detail = {}
+                if isinstance(detail, dict) and (detail.get("code") in ("NoSuchKey", "not_found") or detail.get("message") == "Object not found"):
+                    return None
             raise SupabaseError(f"Supabase HTTP {error.code}; response body omitted") from None
 
     @staticmethod
@@ -63,9 +70,9 @@ class SupabaseFactory:
         self._request("POST", "/storage/v1/object/" + endpoint, data=data, headers={
             "Content-Type": content_type, "x-upsert": "true"})
 
-    def list_objects(self, bucket, prefix, limit=100):
+    def list_objects(self, bucket, prefix, limit=100, offset=0):
         payload = json.dumps({"prefix": prefix, "limit": min(limit, 100),
-                              "offset": 0, "sortBy": {"column": "name", "order": "asc"}}).encode()
+                              "offset": offset, "sortBy": {"column": "name", "order": "asc"}}).encode()
         data = self._request("POST", "/storage/v1/object/list/" + urllib.parse.quote(bucket),
                              data=payload, headers={"Content-Type": "application/json"})
         parsed = json.loads(data or b"[]")
@@ -85,6 +92,14 @@ class SupabaseFactory:
                 urllib.parse.quote(column) + "=eq." + urllib.parse.quote(str(value)))
         self._request("PATCH", path, data=json.dumps(values).encode(), headers={
             "Content-Type": "application/json", "Prefer": "return=minimal"})
+
+    def find(self, table, column, value):
+        path = ("/rest/v1/" + urllib.parse.quote(table) + "?" +
+                urllib.parse.quote(column) + "=eq." + urllib.parse.quote(str(value)) + "&limit=1")
+        rows = json.loads(self._request("GET", path) or b"[]")
+        if not isinstance(rows, list):
+            raise SupabaseError("Invalid database response")
+        return rows[0] if rows else None
 
 
 def public_catalog_base(url):

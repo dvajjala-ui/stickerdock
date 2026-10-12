@@ -47,7 +47,8 @@ def state_archive(runtime):
     output = __import__("io").BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(runtime.rglob("*")):
-            if path.is_file() and not path.name.endswith(".lock"):
+            if (path.is_file() and not path.name.endswith(".lock") and
+                    not ("generated-stickers" in path.relative_to(runtime).parts and path.suffix == ".zip")):
                 archive.write(path, path.relative_to(runtime).as_posix())
     data = output.getvalue()
     if len(data) > 75_000_000:
@@ -56,10 +57,90 @@ def state_archive(runtime):
 
 
 def prune_old_days(generated, now, keep_days=8):
+    today = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
     oldest = (datetime.fromtimestamp(now, timezone.utc).date() - timedelta(days=keep_days)).isoformat()
     for path in generated.iterdir() if generated.exists() else []:
         if path.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", path.name) and path.name < oldest:
             shutil.rmtree(path)
+        elif path.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", path.name) and path.name < today:
+            for asset in path.iterdir():
+                if asset.suffix in (".webp", ".zip"):
+                    asset.unlink()
+
+
+def relocate_state(runtime):
+    """Remote state resumes under a new temporary runner directory each time."""
+    generated = runtime / "generated-stickers"
+    for state_path in generated.glob("*/state.json"):
+        state = json.loads(state_path.read_text())
+        for record in state.get("records", []):
+            record["file"] = str(state_path.parent / Path(record["file"]).name)
+            if record.get("image_path"):
+                record["image_path"] = str(runtime / "reference-images" / Path(record["image_path"]).name)
+        pending = state.get("pending")
+        if pending and pending.get("image_path"):
+            pending["image_path"] = str(runtime / "reference-images" / Path(pending["image_path"]).name)
+        atomic_json(state_path, state)
+
+
+def trim_reference_cache(runtime, max_bytes=20_000_000):
+    references = runtime / "reference-images"
+    if not references.exists():
+        return
+    protected = set()
+    for state_path in (runtime / "generated-stickers").glob("*/state.json"):
+        pending = json.loads(state_path.read_text()).get("pending")
+        if pending and pending.get("image_path"):
+            protected.add(Path(pending["image_path"]).name)
+    files = sorted((path for path in references.iterdir()
+                    if path.is_file() and path.suffix.lower() in INBOX_EXTENSIONS),
+                   key=lambda path: path.stat().st_mtime)
+    total = sum(path.stat().st_size for path in files)
+    for path in files:
+        if total <= max_bytes:
+            break
+        if path.name not in protected:
+            total -= path.stat().st_size
+            path.unlink()
+    manifest_path = references / "library.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+        manifest["assets"] = [asset for asset in manifest.get("assets", [])
+                              if (references / asset["file"]).is_file()]
+        atomic_json(manifest_path, manifest)
+
+
+def inbox_objects(client):
+    for offset in range(0, 10000, 100):
+        page = client.list_objects(PRIVATE_BUCKET, "inbox", 100, offset=offset)
+        yield from page
+        if len(page) < 100:
+            break
+
+
+def mirror_licensed_inputs(client, runtime):
+    references = runtime / "reference-images"
+    manifest_path = references / "library.json"
+    if not manifest_path.exists():
+        return
+    manifest = json.loads(manifest_path.read_text())
+    for asset in manifest.get("assets", []):
+        if asset.get("license") not in ("CC0", "PUBLIC_DOMAIN") or asset.get("inbox_path"):
+            continue
+        path = references / Path(asset["file"]).name
+        if not path.is_file() or path.suffix.lower() != ".png":
+            continue
+        data = path.read_bytes()
+        if len(data) > 20_000_000:
+            continue
+        digest = hashlib.sha256(data).hexdigest()
+        remote_path = "inbox/" + digest + ".png"
+        client.upload(PRIVATE_BUCKET, SOURCE_METADATA_PREFIX + digest + ".json",
+                      json.dumps({**asset, "source": "licensed-library"}).encode(), "application/json")
+        client.upload(PRIVATE_BUCKET, remote_path, data, "image/png")
+        asset["inbox_path"] = remote_path
+        asset["content_sha256"] = digest
+    atomic_json(manifest_path, manifest)
 
 
 def inbox_metadata(client, digest, remote_path):
@@ -96,10 +177,11 @@ def sync_inbox(client, runtime, max_files=30):
     processed = set(state.get("processed", []))
     manifest_path = references / "library.json"
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"assets": []}
-    known_hashes = {item.get("sha256") for item in manifest.get("assets", [])}
+    known_hashes = {digest for item in manifest.get("assets", [])
+                    for digest in (item.get("sha256"), item.get("content_sha256")) if digest}
     added = 0
     considered = 0
-    for item in client.list_objects(PRIVATE_BUCKET, "inbox", 100):
+    for item in inbox_objects(client):
         name = str(item.get("name", ""))
         remote_path = name if name.startswith("inbox/") else "inbox/" + name
         suffix = Path(remote_path).suffix.lower()
@@ -146,6 +228,7 @@ def configure(config, runtime, now):
     if config.get("media_library", {}).get("enabled"):
         sync_media(config["media_library"], references, now)
         config["media_library"] = {**config["media_library"], "enabled": False}
+    trim_reference_cache(runtime)
     files = list(references.iterdir()) if references.exists() else []
     has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
     has_clips = any(path.suffix.lower() in CLIP_EXTENSIONS for path in files)
@@ -179,6 +262,9 @@ def persist_run(client, generated, config, now, result):
         remote = "generated/" + day + "/daily-complete.zip"
         data = complete.read_bytes()
         digest = hashlib.sha256(data).hexdigest()
+        existing = client.find("sticker_packs", "id", pack_id)
+        pack_status = ("approved" if existing and existing.get("status") == "approved" and
+                       existing.get("sha256") == digest else "pending")
         client.upload(PRIVATE_BUCKET, remote, data, "application/zip")
         references = day_dir / "references.json"
         if references.exists():
@@ -187,7 +273,7 @@ def persist_run(client, generated, config, now, result):
         client.upsert("sticker_packs", [{
             "id": pack_id, "day": day, "name": "Daily " + day,
             "creator": "StickerDock AI Factory", "rating": config["rating"],
-            "status": "pending", "private_path": remote, "sha256": digest,
+            "status": pack_status, "private_path": remote, "sha256": digest,
             "sticker_count": count, "metadata": {"modes": config["modes"]}}], "id")
     return {"day": day, "status": status, "generated": count,
             "target": config["daily_target"], "result": result}
@@ -207,12 +293,14 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
     now = __import__("time").time() if now is None else now
     runtime.mkdir(parents=True, exist_ok=True)
     safe_restore(client.download(PRIVATE_BUCKET, STATE_OBJECT, missing_ok=True), runtime)
+    relocate_state(runtime)
     try:
         generated = runtime / "generated-stickers"
         generated.mkdir(exist_ok=True)
         prune_old_days(generated, now)
         inbox_added = sync_inbox(client, runtime)
         configured = configure(config, runtime, now)
+        mirror_licensed_inputs(client, runtime)
         result = generator(configured, generated,
                            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"), now)
         summary = persist_run(client, generated, configured, now, result)

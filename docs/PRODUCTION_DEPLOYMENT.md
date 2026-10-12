@@ -65,6 +65,10 @@ The schedule runs at 05:45, 08:45, 11:45, 14:45, 17:45, 20:45, 23:45 and
 02:45 India time. Its production default is five stickers per run, 40 per UTC day.
 Provider cooldowns can lower the total. Increase to 100 only after the state row's
 recorded Groq headers show the selected model/account can sustain 20 daily calls.
+The worker's cooldown is 165 minutes to tolerate small scheduler delays while
+the workflow cadence remains three hours. Five stickers per scheduled run gives
+a maximum of 40 at this cadence; reaching 100 requires an explicitly faster
+schedule or larger batches as well as sufficient account quota.
 
 ## 3. Add your own photos and clips
 
@@ -78,6 +82,10 @@ Commons CC0/public-domain discovery is already enabled with a daily network
 budget. Photo and clip modes activate only when the inbox/library has matching
 media and `GROQ_VISION_MODEL` is set. Otherwise the run continues using original
 illustration and pulse-animation modes.
+The local input cache is capped at 20 MB and completed older-day images are
+removed from runner state after their private ZIP upload. Originals remain in
+Supabase. Monitor the project's free storage allowance and choose retention
+before scaling daily media ingestion; no unlimited free-storage promise is made.
 
 Pinterest source ingestion is a separate, persistent workflow. Follow
 [`PINTEREST_AND_CREATOR_STUDIO.md`](PINTEREST_AND_CREATOR_STUDIO.md) to add an

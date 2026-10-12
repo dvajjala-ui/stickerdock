@@ -165,6 +165,8 @@ class MainActivity : ComponentActivity() {
         }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
                 if (pack == null) {
+                    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Column {
                     Text("Your stickers, organized offline.")
                     Text("To migrate saved WhatsApp/Sticker.ly stickers, choose Android/media → com.whatsapp → WhatsApp → Media → WhatsApp Stickers (or the Business equivalent).")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -209,7 +211,7 @@ class MainActivity : ComponentActivity() {
                     }
                     OutlinedTextField(value = query, onValueChange = { query = it },
                         label = { Text("Search packs") }, modifier = Modifier.fillMaxWidth())
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    } }
                         items(packs.filter { it.name.contains(query, true) &&
                                 (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
                                 (categoryFilter == null || it.category == categoryFilter) }, key = { it.id }) { item ->

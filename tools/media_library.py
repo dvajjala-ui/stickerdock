@@ -169,8 +169,9 @@ def sync(config, root, now=None):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return {"status": "busy", "added": 0}
-        state = json.loads(state_path.read_text()) if state_path.exists() else {
-            "day": day, "attempts": 0, "next_sync_at": 0, "assets": [], "query_index": 0}
+        state = {"day": day, "attempts": 0, "next_sync_at": 0, "assets": [], "query_index": 0}
+        if state_path.exists():
+            state.update(json.loads(state_path.read_text()))
         if state["day"] != day:
             state["day"], state["attempts"] = day, 0
         if now < state["next_sync_at"] or state["attempts"] >= daily:

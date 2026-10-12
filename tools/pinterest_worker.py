@@ -80,7 +80,7 @@ def metadata_for(row, license_id: str) -> dict:
         "download_url": row["media_url"] or row["pin_url"] or "https://www.pinterest.com/",
         "license": license_id,
         "title": title,
-        "credit": str(raw.get("creator_name") or raw.get("dominant_color") or "Pinterest source")[:400],
+        "credit": str(raw.get("creator_name") or "Pinterest source")[:400],
         "source_ref": row["source_ref"],
         "pin_id": row["pin_id"],
     }
@@ -116,10 +116,10 @@ def upload_downloads(client, runtime: Path, pin_rights: dict[str, str]) -> int:
                             "image/gif" if suffix == ".gif" else
                             "image/png" if suffix == ".png" else
                             "image/webp" if suffix == ".webp" else "image/jpeg")
-            client.upload(PRIVATE_BUCKET, object_path, data, content_type)
             client.upload(PRIVATE_BUCKET, METADATA_PREFIX + digest + ".json",
                           json.dumps(metadata_for(row, license_id), separators=(",", ":")).encode(),
                           "application/json")
+            client.upload(PRIVATE_BUCKET, object_path, data, content_type)
             uploaded.add(digest)
             uploaded_path.write_text(json.dumps({"hashes": sorted(uploaded)}, indent=2))
             local.write_bytes(b"")

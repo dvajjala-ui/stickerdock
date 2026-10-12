@@ -307,9 +307,13 @@ def export_zip(path, records, day):
         packs.append(pack)
     temporary = path.with_suffix(".tmp")
     with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("manifest.json", json.dumps({"schema": 3, "packs": packs}))
+        def write(name, content):
+            entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(entry, content)
+        write("manifest.json", json.dumps({"schema": 3, "packs": packs}))
         for name, data in assets.items():
-            archive.writestr(name, data)
+            write(name, data)
     temporary.replace(path)
 
 

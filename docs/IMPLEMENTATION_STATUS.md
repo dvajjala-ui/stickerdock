@@ -40,12 +40,17 @@ tests/builds. It does not replace live account, device or provider testing.
 
 - Forty-sticker daily target, five per Groq request, three-hour scheduling,
   saved cooldowns, request caps, deduplication and crash-safe persistent state.
+- Restores file paths on fresh runners, paginates the private inbox and keeps a
+  bounded local reference cache. Licensed library inputs are mirrored into the
+  private inbox for manual editing.
 - Original local illustration/pulse rendering, supplied-photo captioning, and
   GIF/MP4/WebM/MOV to animated WebP conversion.
 - Hinglish topic rotation plus recent RSS title references.
 - Supabase SQL tables, RLS, private/public buckets, persistent factory state,
   manual inbox, pending pack records and explicit GENERAL-only publish workflow.
 - Publication gate that refuses MATURE packs and Pinterest/reference-only pixels.
+- Publisher verifies sticker dimensions, checksums, sizes and media type; repeat
+  generation keeps deterministic ZIP checksums and preserves prior approval.
 - Signed Android APK/AAB workflow with configurable public catalog URL.
 
 ### Image and video sources
@@ -107,6 +112,9 @@ tests/builds. It does not replace live account, device or provider testing.
   create the visual output.
 - Complete store/release work: privacy policy, app identity, signing, Play listing
   and production device regression tests.
+- Add storage usage alerts and a chosen remote retention policy before scaling
+  Pinterest to 90/100 media per day. Free Supabase storage is finite; local cache
+  bounds do not delete remote media or guarantee unlimited free hosting.
 
 ## Credentials needed to activate production
 

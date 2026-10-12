@@ -24,6 +24,14 @@ def asset(url="https://example.org/photo.jpg", license_id="CC0"):
 
 
 class MediaLibraryTest(unittest.TestCase):
+    def test_manual_manifest_can_be_extended_by_commons_sync(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(
+                library, "commons_candidates", return_value=[]):
+            root = Path(temporary)
+            library.atomic_json(root / "library.json", {"assets": []})
+            result = library.sync({"commons_queries": ["cat"]}, root, NOW)
+            self.assertEqual(result["status"], "completed")
+
     def test_commons_filters_license_metadata(self):
         def page(name):
             return {"title": "File:Cat.jpg", "imageinfo": [{"thumburl": "https://upload.wikimedia.org/cat.jpg",

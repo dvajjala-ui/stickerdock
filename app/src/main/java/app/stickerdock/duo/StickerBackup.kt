@@ -76,7 +76,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
             val name = pack.getString("name")
             val kind = if (schema >= 2) StickerKind.valueOf(pack.getString("kind")) else StickerKind.STATIC
             val rating = if (schema >= 3) PackRating.valueOf(pack.getString("rating")) else PackRating.GENERAL
-            val category = if (schema >= 4) PackCategory.valueOf(pack.getString("category")) else PackCategory.GENERAL
+            val category = BackupPackCategory.read(pack, schema)
             require(name.isNotBlank() && name.length <= 60)
             val stickers = pack.getJSONArray("stickers")
             require(stickers.length() <= 30)

@@ -29,5 +29,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install pack validation dependency
+        run: python -m pip install -r tools/requirements-stickers.txt
       - name: Publish after environment approval
         run: python tools/publish_factory_pack.py --day "$PUBLISH_DAY"
