@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         var query by remember { mutableStateOf("") }
         var packFilter by remember { mutableStateOf("All") }
         var newPackKind by remember { mutableStateOf(StickerKind.STATIC) }
+        var newPackRating by remember { mutableStateOf(PackRating.GENERAL) }
         var busy by remember { mutableStateOf(false) }
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
@@ -127,7 +128,7 @@ class MainActivity : ComponentActivity() {
                 if (pack == null) {
                     Text("Your stickers, organized offline.")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; dialog = "create" }) { Text("New pack") }
+                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; dialog = "create" }) { Text("New pack") }
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
@@ -144,13 +145,13 @@ class MainActivity : ComponentActivity() {
                             Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
                                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)", modifier = Modifier.weight(1f))
-                                    Text("${counts[item.id] ?: 0} stickers")
+                                    Text("${counts[item.id] ?: 0} ${if (item.rating == PackRating.MATURE) "Mature" else "stickers"}")
                                 }
                             }
                         }
                     }
                 } else {
-                    Text("${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} pack • ${stickers.size}/30 stickers")
+                    Text("${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} pack • ${pack.rating.name.lowercase().replaceFirstChar { it.uppercase() }} • ${stickers.size}/30 stickers")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(enabled = !busy && stickers.size < 30, onClick = { picker.launch(arrayOf("image/*")) }) { Text("Import") }
                         OutlinedButton(onClick = { name = pack.name; dialog = "rename" }) { Text("Rename") }
@@ -240,6 +241,11 @@ class MainActivity : ComponentActivity() {
                                 FilterChip(selected = newPackKind == kind, onClick = { newPackKind = kind }, label = { Text(kind.name.lowercase().replaceFirstChar { it.uppercase() }) })
                             }
                         }
+                        if (mode == "create") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PackRating.entries.forEach { rating ->
+                                FilterChip(selected = newPackRating == rating, onClick = { newPackRating = rating }, label = { Text(rating.name.lowercase().replaceFirstChar { it.uppercase() }) })
+                            }
+                        }
                     }
                 },
                 confirmButton = {
@@ -248,7 +254,7 @@ class MainActivity : ComponentActivity() {
                         val value = name
                         dialog = null
                         when (mode) {
-                            "create" -> operation { store.createPack(value, newPackKind); "Pack created" }
+                            "create" -> operation { store.createPack(value, newPackKind, newPackRating); "Pack created" }
                             "rename" -> if (id != null) operation { store.renamePack(id, value); "Renamed" }
                             "delete" -> if (id != null) operation { files.deletePack(id); "Deleted" }
                         }
