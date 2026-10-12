@@ -54,6 +54,10 @@ class MainActivity : ComponentActivity() {
         var busy by remember { mutableStateOf(false) }
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
+        var showCommunity by remember { mutableStateOf(false) }
+        var communityLoading by remember { mutableStateOf(false) }
+        var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
+        var communityError by remember { mutableStateOf<String?>(null) }
         var moving by remember { mutableStateOf<StickerItem?>(null) }
         var target by remember { mutableStateOf<String?>(null) }
         val pack = packs.firstOrNull { it.id == selectedId }
@@ -138,6 +142,16 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
                     OutlinedButton(onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
+                    OutlinedButton(onClick = {
+                        showCommunity = true
+                        communityLoading = true
+                        communityError = null
+                        scope.launch {
+                            try { communityPacks = withContext(Dispatchers.IO) { CommunityCatalog(this@MainActivity, backup).browse() } }
+                            catch (e: Exception) { communityError = e.message ?: "Unable to load catalog" }
+                            finally { communityLoading = false }
+                        }
+                    }) { Text("Community packs") }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("All", "Static", "Animated").forEach { type ->
                             FilterChip(selected = packFilter == type, onClick = { packFilter = type }, label = { Text(type) })
@@ -203,6 +217,28 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        if (showCommunity) AlertDialog(onDismissRequest = { showCommunity = false },
+            title = { Text("Community packs") },
+            text = {
+                Column {
+                    Text("Only moderator-approved general-audience packs are shown.")
+                    if (communityLoading) CircularProgressIndicator()
+                    else if (communityError != null) Text(communityError ?: "")
+                    else if (communityPacks.isEmpty()) Text("No approved public packs yet. Contributors can submit via GitHub pull request.")
+                    else LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                        items(communityPacks, key = { it.id }) { entry ->
+                            TextButton(enabled = !busy, onClick = {
+                                showCommunity = false
+                                operation {
+                                    val summary = CommunityCatalog(this@MainActivity, backup).downloadAndImport(entry)
+                                    "Imported ${summary.packs} packs and ${summary.stickers} stickers"
+                                }
+                            }) { Text("${entry.name} — ${entry.creator} (import)") }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showCommunity = false }) { Text("Close") } })
         moving?.let { item ->
             AlertDialog(onDismissRequest = { moving = null },
                 title = { Text("Transfer sticker") },
