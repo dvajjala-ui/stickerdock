@@ -43,7 +43,8 @@ class PackZipImporter(
                     continue
                 }
                 val animated = WebpSticker.isAnimatedHeader(bytes)
-                val group = path.substringBeforeLast('/', title).takeIf { it != path && it.isNotBlank() } ?: title
+                val recoveredName = if (extension == "webp") StickerPackMetadata.read(bytes)?.packName else null
+                val group = (recoveredName ?: path.substringBeforeLast('/', title).takeIf { it != path && it.isNotBlank() } ?: title).take(60)
                 assets += Asset(group.take(60), if (animated) StickerKind.ANIMATED else StickerKind.STATIC, bytes)
                 zip.closeEntry()
             }
