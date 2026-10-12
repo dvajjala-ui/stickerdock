@@ -1,21 +1,30 @@
-# QA matrix — all unverified until run
+# StickerDock verification checklist
 
-| Test | Expected |
+**Never mark runtime behavior as proven by GitHub Actions alone.**
+
+| Test | Expected / current status |
 |---|---|
-| Gradle build | :app:assembleDebug succeeds |
-| Pack CRUD | Persists after restart |
-| PNG/JPEG import | Alpha-preserving 512px WebP under 100KB |
-| Duplicate import | Rejected inside pack, permitted across packs |
-| Animated input | Rejected with clear message |
-| Limit | No more than 30 stickers in pack |
-| Rename/delete | DB, provider metadata and assets consistent |
-| Copy/move | Files and DB remain consistent |
-| Backup/restore | ZIP integrity, checksum, new IDs |
-| ZIP traversal/bomb | Rejected |
-| WhatsApp consumer | User-confirmed pack import |
-| WhatsApp Business | User-confirmed pack import |
-| In-app Switch Account | Determine whether second account can be targeted; expect limitation |
-| Samsung Dual Messenger | Test with real device |
-| Offline usage | Works in airplane mode |
+| Android test/build | GitHub Actions `:app:testDebugUnitTest :app:assembleDebug`; check current run |
+| ADB ZIP smoke tests | Python unittest, duplicate collapse, bounded ZIPs; check current run |
+| Pack create/rename/delete | Persists after restart, files cleaned |
+| SQLite v1/v2/v3 to v4 | Non-destructive migration retains sticker and content labels |
+| Static input | PNG/JPEG/WebP → 512px WebP <=100KB; alpha preserved |
+| Animated input | Existing WebP 512px <=500KB, frame >=8ms, duration <=10s |
+| Animated previews | Grid animates smoothly, releases drawable |
+| Duplicate import | Folder import dedups globally; manual packs may contain shared artwork across packs |
+| SAF folder import | Select WhatsApp and WhatsApp Business folders; 11k files; no root |
+| EXIF grouping | Recover name/publisher from authentic WebP EXIF when present; fallback sensible |
+| Failure/cancel | No file corruption; no unintended deletion; report partial imports |
+| 30-sticker boundary | Multiple same-named packs, each <=30 |
+| Multi-ZIP | Up to 100 archives, preserve names/kind/rating for StickerDock backups |
+| ADB | Never touches private app data or credentials; works without root when accessible |
+| Pack link bookmarks | Share text/plain URLs and paste many; only allow sticker.ly/s/ codes |
+| ZIP traversal/bombs | Reject traversal, oversized size, entries, duplicate filenames |
+| WhatsApp / Business | Official provider accepts pack; per-app intent works |
+| Two accounts in one WhatsApp | Do not claim routing without real test/official support |
+| Public catalog | Only review-approved GENERAL packs downloaded after integrity verification |
+| Private MATURE label | No automatic public uploading |
+| Offline usage | Local features remain functional without internet |
+| Process death | Large-import recovery remains to implement |
 
-Use JDK 17, Gradle 8.9, Android SDK35. Test on Galaxy S24 Ultra and emulator. Never mark as passing without evidence.
+Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing APK as production ready.

@@ -1,30 +1,50 @@
 # StickerDock — Android sticker manager
 
-An offline-first, Kotlin/Jetpack Compose app for managing large sticker libraries independently of WhatsApp and Sticker.ly.
+A Kotlin/Jetpack Compose Android app that keeps your own sticker library independently from WhatsApp and Sticker.ly. Source is actively developed; install the latest GitHub Actions debug APK for testing only.
 
-## Implemented source features
-- Static and animated packs are **strictly separate**. PNG/JPEG/static WebP converts to 512px WebP; existing animated WebP is inspected for 512px size, frame durations and <=10s duration with a 500KB max.
-- SQLite-backed pack CRUD with incremental schema migrations, local SHA-256 deduplication, copy/move/delete, pack search and static/animated filters.
-- **Local content labels**: GENERAL or MATURE, retained by backup and direct share; **public catalog only exposes GENERAL**.
-- Bulk import of user-supplied ZIP/.wastickers image archives with path, count and decompression limits. Receives actual shared images/ZIP via Android share sheet (not a Sticker.ly link).
-- Full-library backup/restore with previous-schema compatibility, single-pack portable StickerDock ZIP sharing through Android FileProvider.
-- Consumer WhatsApp and WhatsApp Business pack installation intents/provider. **Does not claim secondary in-app WhatsApp account routing.**
-- Read-only, manually approved **Community packs** catalog from `catalog/packs.json`, with SHA-256-verified downloads. No public packs have been approved/published yet; see [public catalog README](catalog/README.md).
-- GitHub Actions Android debug APK/test workflow and pure Kotlin animated WebP parser tests.
+## Current source features
+- **Local sticker organization:** create/rename/delete packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs and filter Static/Animated.
+- **Static and animated WebP:** WhatsApp-compliant separate pack types, 512×512 static conversion, animated frame/duration checks, animated previews (real-device QA pending).
+- **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, split into 30-sticker packs, deduplicate across previously imported items. This is not access to other apps' private databases.
+- **Desktop ADB assistant:** `python tools/adb_sticker_export.py --account both` copies accessible WhatsApp sticker media folders from your own authorized phone and creates safe ZIP batches. No root, ADB requires your consent.
+- **Batch ZIP ingestion:** select up to 100 ZIP files; supports images from directories, simple generic ZIPs and StickerDock archives. A separate guide covers limitations of Sticker.ly personal migration.
+- **Sticker.ly public links:** save/paste bulk pack URLs or share links into the app; follow back to Sticker.ly. **Does not mass-download or rehost Sticker.ly's catalog.**
+- **Sharing:** send a StickerDock pack as a portable ZIP through Android share sheet; import archives and received images.
+- **Two WhatsApp installations:** supports separate consumer WhatsApp and Business integration intents; Android's public API does not route to a specified account within one WhatsApp app.
+- **Community:** read-only, reviewed GENERAL-content catalog from `catalog/packs.json`. No public packs are included yet, and no unmoderated uploads; MATURE labels stay local/private.
+- **Persistence:** SQLite migrations, app-private storage, local backup/restore, no user account or paid cloud required. Public gallery is networked and opt-in.
 
-## Current status
-**Active source prototype, not yet certified release.** GitHub Actions is used to check the build. Android device QA remains required; a successful CI build is not proof of WhatsApp integration. No production cloud backend and no anonymous content uploads.
+## Migrate your phone's stickers
+[Detailed phone/ADB/Sticker.ly guide](docs/PHONE_MIGRATION.md) · [Sticker.ly legal export limitations](docs/STICKERLY_MIGRATION.md)
 
-## Limitations
-- No official Sticker.ly account-wide export API is documented; a full account download is **not implemented**. See [migration guide](docs/STICKERLY_MIGRATION.md).
-- Animated **WebP** input is supported; GIF/MP4 transcoding has not been implemented.
-- Google Play does not permit primarily pornographic user-content apps. Private MATURE labels do not authorize public explicit uploads. [Safety design](docs/PUBLIC_SHARING_AND_SAFETY.md).
-- Curated community publishing presently requires a maintainer-approved PR, not a public upload API.
+Android: **Import phone sticker folder** → select `Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers` or your WhatsApp Business equivalent. Note that sent/received stickers in this folder are not necessarily every installed or browsed Sticker.ly sticker.
+
+Windows/macOS/Linux with platform-tools and Python:
+
+```sh
+python tools/adb_sticker_export.py --account both --output StickerDock-Phone-Export
+```
+
+Then transfer files from `StickerDock-Phone-Export/sticker_zips/` to the phone and choose **Import sticker ZIP** (supports batch selection).
 
 ## Build
-Open with Android Studio, JDK 17, SDK 35 and Gradle 8.9. Run `gradle :app:testDebugUnitTest :app:assembleDebug` (the workflow installs Gradle; wrapper binaries are not currently committed).
+JDK 17, Android SDK 35, Gradle 8.9:
 
-## Developer documentation
-[AGENTS.md](AGENTS.md) · [Codex handoff](docs/CODEX_HANDOFF.md) · [Product spec](docs/PRODUCT_SPEC.md) · [QA matrix](docs/QA_MATRIX.md) · [Sticker.ly migration](docs/STICKERLY_MIGRATION.md) · [Community safety](docs/PUBLIC_SHARING_AND_SAFETY.md)
+```sh
+gradle :app:testDebugUnitTest :app:assembleDebug
+python3 -m unittest discover -s tools -p 'test_*.py' -v
+```
 
-StickerDock does not read private app data, auto-publish personal stickers, or require a subscription for local features.
+The repository does not currently include a full Gradle wrapper binary; CI installs Gradle. Get the newest debug artifact under [GitHub Actions](https://github.com/dvajjala-ui/stickerdock/actions).
+
+## Known limitations and cautions
+- **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
+- A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
+- Folder migration is best-effort and isn't yet process-death/resume-safe for enormous libraries. Android system picker visibility varies with OS/version.
+- GIF/MP4-to-animated-WebP conversion and user-uploaded public packs are not implemented.
+- WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.
+
+## Further documentation
+[Codex instructions](AGENTS.md) · [Codex handoff](docs/CODEX_HANDOFF.md) · [Product spec](docs/PRODUCT_SPEC.md) · [QA plan](docs/QA_MATRIX.md) · [Community moderation](docs/PUBLIC_SHARING_AND_SAFETY.md)
+
+The project is independent and not endorsed by WhatsApp or Sticker.ly. We referenced but did **not** copy GPL-3.0 StickerVault implementation into this project's MIT code.
