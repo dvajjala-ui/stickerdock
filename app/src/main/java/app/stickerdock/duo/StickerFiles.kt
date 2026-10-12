@@ -24,13 +24,16 @@ class StickerFiles(private val context: Context, private val store: StickerStore
     fun stickerFile(packId: String, name: String) = File(File(stickersDir, packId), name)
     fun trayFile(packId: String) = File(traysDir, "$packId.png")
 
-    fun importUri(packId: String, uri: Uri): ImportResult = try {
+    fun importUri(packId: String, uri: Uri): ImportResult {
+        return try {
         val bytes = context.contentResolver.openInputStream(uri)?.use { boundedRead(it, 20_000_000) }
             ?: return ImportResult.Failed("Could not open file")
         importBytes(packId, bytes)
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Import failed") }
+    }
 
-    fun importBytes(packId: String, input: ByteArray): ImportResult = try {
+    fun importBytes(packId: String, input: ByteArray): ImportResult {
+        return try {
         val pack = store.getPack(packId) ?: return ImportResult.Failed("Pack not found")
         if (store.listStickers(packId).size >= 30) return ImportResult.Failed("Pack full")
         val image = if (pack.kind == StickerKind.ANIMATED) {
@@ -58,8 +61,10 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         refreshTray(packId)
         ImportResult.Added
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Image conversion failed") }
+    }
 
-    fun transferSticker(item: StickerItem, targetPackId: String, move: Boolean): ImportResult = try {
+    fun transferSticker(item: StickerItem, targetPackId: String, move: Boolean): ImportResult {
+        return try {
         if (targetPackId == item.packId) return ImportResult.Failed("Choose another pack")
         val origin = store.getPack(item.packId) ?: return ImportResult.Failed("Source pack not found")
         val target = store.getPack(targetPackId) ?: return ImportResult.Failed("Target pack not found")
@@ -79,6 +84,7 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         if (move) deleteSticker(item)
         ImportResult.Added
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Transfer failed") }
+    }
 
     fun deleteSticker(item: StickerItem) {
         store.deleteSticker(item.packId, item.id)
