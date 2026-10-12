@@ -31,10 +31,20 @@ class StickerFiles(private val context: Context, private val store: StickerStore
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Import failed") }
 
     fun importBytes(packId: String, input: ByteArray): ImportResult = try {
-        if (store.getPack(packId) == null) return ImportResult.Failed("Pack not found")
+        val pack = store.getPack(packId) ?: return ImportResult.Failed("Pack not found")
         if (store.listStickers(packId).size >= 30) return ImportResult.Failed("Pack full")
-        if (isGif(input) || isAnimatedWebp(input)) return ImportResult.Failed("Animated images are not supported yet")
-        val image = normalize(input)
+        val image = if (pack.kind == StickerKind.ANIMATED) {
+            if (input.size > 500_000 || !WebpSticker.isAnimatedHeader(input))
+                return ImportResult.Failed("Animated packs require animated WebP files up to 500 KB")
+            val inspected = WebpSticker.inspect(input)
+            if (inspected == null || !inspected.animated)
+                return ImportResult.Failed("Animation must be 512x512, each frame >=8ms, max 10 seconds")
+            input
+        } else {
+            if (isGif(input) || WebpSticker.isAnimatedHeader(input))
+                return ImportResult.Failed("Animated stickers need a separate animated pack")
+            normalize(input)
+        }
         val hash = MessageDigest.getInstance("SHA-256").digest(image).joinToString("") { "%02x".format(it) }
         if (store.listStickers(packId).any { it.sha256 == hash }) return ImportResult.Duplicate
         val id = UUID.randomUUID().toString()
@@ -51,7 +61,9 @@ class StickerFiles(private val context: Context, private val store: StickerStore
 
     fun transferSticker(item: StickerItem, targetPackId: String, move: Boolean): ImportResult = try {
         if (targetPackId == item.packId) return ImportResult.Failed("Choose another pack")
-        if (store.getPack(targetPackId) == null) return ImportResult.Failed("Target pack not found")
+        val origin = store.getPack(item.packId) ?: return ImportResult.Failed("Source pack not found")
+        val target = store.getPack(targetPackId) ?: return ImportResult.Failed("Target pack not found")
+        if (origin.kind != target.kind) return ImportResult.Failed("Static and animated stickers must use separate packs")
         if (store.listStickers(targetPackId).size >= 30) return ImportResult.Failed("Target pack full")
         if (store.listStickers(targetPackId).any { it.sha256 == item.sha256 }) return ImportResult.Duplicate
         val id = UUID.randomUUID().toString()
@@ -115,10 +127,6 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         } finally { dest.recycle() }
     }
     private fun isGif(data: ByteArray) = data.size >= 3 && String(data, 0, 3, Charsets.US_ASCII) == "GIF"
-    private fun isAnimatedWebp(data: ByteArray) = data.size > 20 &&
-        String(data, 0, 4, Charsets.US_ASCII) == "RIFF" &&
-        String(data, 8, 4, Charsets.US_ASCII) == "WEBP" &&
-        String(data, 12, 4, Charsets.US_ASCII) == "VP8X" && (data[20].toInt() and 0x02 != 0)
     companion object {
         fun boundedRead(stream: java.io.InputStream, limit: Int): ByteArray {
             val out = ByteArrayOutputStream()
