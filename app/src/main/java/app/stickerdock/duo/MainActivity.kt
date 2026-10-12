@@ -2,6 +2,10 @@ package app.stickerdock.duo
 
 import android.content.ActivityNotFoundException
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.widget.ImageView
+import java.io.File
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -228,11 +233,24 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         gridItems(stickers, key = { it.id }) { item ->
                             val path = files.stickerFile(item.packId, item.fileName).path
-                            val image = remember(path) { BitmapFactory.decodeFile(path)?.asImageBitmap() }
+                            val image = remember(path) { if (pack.kind == StickerKind.STATIC) BitmapFactory.decodeFile(path)?.asImageBitmap() else null }
+                            val animation = remember(path) {
+                                if (pack.kind == StickerKind.ANIMATED) try {
+                                    ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path)))
+                                } catch (_: Exception) { null } else null
+                            }
+                            DisposableEffect(animation) {
+                                (animation as? AnimatedImageDrawable)?.start()
+                                onDispose { (animation as? AnimatedImageDrawable)?.stop() }
+                            }
                             Card {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
-                                        if (image == null) Text("Missing")
+                                        if (pack.kind == StickerKind.ANIMATED) {
+                                            if (animation == null) Text("Invalid animation")
+                                            else AndroidView(factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+                                                update = { it.setImageDrawable(animation) }, modifier = Modifier.fillMaxSize())
+                                        } else if (image == null) Text("Missing")
                                         else Image(image, contentDescription = "Sticker", modifier = Modifier.fillMaxSize())
                                     }
                                     TextButton(onClick = { moving = item; target = packs.firstOrNull { it.id != item.packId }?.id },
