@@ -74,6 +74,14 @@ class FakeOfficial:
 
 
 class PinterestAutoSyncTest(unittest.TestCase):
+    def test_failures_are_bounded_by_attempt_budget(self):
+        self.config["limits"]["max_attempts_per_scan"] = 4
+        with patch("pinterest_autosync.runner.save_candidate", side_effect=OSError("unavailable")) as save:
+            result = run_scan(self.config, self.root, official=FakeOfficial(), public=FakePublic(100))
+        self.assertEqual(save.call_count, 4)
+        self.assertEqual(result["download_attempts"], 4)
+        self.assertEqual(result["failed"], 4)
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)

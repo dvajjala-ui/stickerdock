@@ -41,7 +41,12 @@ rejects those derived packs. `studio/` plus `api/` is a Vercel-ready manual meme
 editor and inbox browser; its AI control and Android entry are Coming soon. Groq
 remains only in the private Factory. See `docs/PINTEREST_AND_CREATOR_STUDIO.md`.
 
-Latest main `f7f1dec` passed [Android CI run 38242344260](https://github.com/dvajjala-ui/stickerdock/actions/runs/38242344260).
+The production branch at `8d623b8` passed [Android CI run 38254739016](https://github.com/dvajjala-ui/stickerdock/actions/runs/38254739016).
+The current optimization review adds grouped Android counts/direct sticker
+lookup, shared clip-render decoding, invalid-input skipping, source-rights
+inheritance in Studio, finite Pinterest attempts/staging and matching public
+archive/animation bounds. Latest checks must cover these changes; CI now builds
+the unsigned optimized release as well as debug to validate R8/resource shrinking.
 The `feat/daily-groq-stickers` branch adds an optional private desktop scheduler,
 Groq caption/vision client, rotating Hinglish topics, supplied-photo memes, static
 illustrations and simple animated WebP pulse rendering, rate-limit headers/usage,

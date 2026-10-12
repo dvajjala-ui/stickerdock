@@ -81,6 +81,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .empty-preview { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; color: #33372f; pointer-events: none; }
 .empty-preview small { margin-top: 5px; color: #676b61; }
+.empty-preview[hidden] { display: none; }
 .drag-tip { margin: 14px 0 0; text-align: center; color: var(--muted); font-size: 11px; }
 .actions { display: grid; grid-template-columns: 1fr 1.3fr; gap: 10px; max-width: 620px; width: 100%; margin: 20px auto 0; }
 .editor { display: grid; align-content: start; gap: 16px; }

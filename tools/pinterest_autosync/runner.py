@@ -86,7 +86,8 @@ def run_scan(config: dict, root: Path, official=None, public=None, db=None) -> d
         db = Database(root / "pinterest.sqlite3")
     stats = {"new_downloads": 0, "content_duplicates": 0, "failed": 0,
              "unsupported": 0, "discovered": 0, "already_present": 0,
-             "daily_used": 0, "official_api_used_24h": 0}
+             "daily_used": 0, "official_api_used_24h": 0, "download_attempts": 0}
+    deadline = time.monotonic() + float(limits.get("scan_timeout_seconds", 900))
     try:
         current = db.completed_today(config["timezone"])
         stats["daily_used"] = current
@@ -120,8 +121,10 @@ def run_scan(config: dict, root: Path, official=None, public=None, db=None) -> d
             random.shuffle(candidates)
         cap = min(int(limits["max_downloads_per_scan"]),
                   int(limits["daily_downloads"]) - current)
+        attempt_cap = int(limits.get("max_attempts_per_scan", min(60, cap * 2)))
         for candidate in candidates:
-            if stats["new_downloads"] >= cap:
+            if (stats["new_downloads"] >= cap or stats["download_attempts"] >= attempt_cap or
+                    time.monotonic() >= deadline):
                 break
             row = db.get(candidate.key)
             if not eligible(row, output, limits):
@@ -129,17 +132,21 @@ def run_scan(config: dict, root: Path, official=None, public=None, db=None) -> d
                 continue
             if candidate.kind not in config["media_types"]:
                 continue
+            stats["download_attempts"] += 1
+            db.begin_attempt(candidate.key)
             if candidate.source == "unofficial" and candidate.native is None:
                 if not candidate.pin_url:
+                    db.mark_failed(candidate.key, "No source URL for rediscovery", "unsupported")
                     continue
                 fresh = public.get_single(candidate.pin_url)
                 if not fresh:
+                    db.mark_failed(candidate.key, "Source rediscovery unavailable")
                     continue
                 candidate.native = fresh.native
                 candidate.kind = fresh.kind
                 if candidate.kind not in config["media_types"]:
+                    db.mark_failed(candidate.key, "Source media type is excluded", "unsupported")
                     continue
-            db.begin_attempt(candidate.key)
             try:
                 state, path = save_candidate(candidate, db, output, limits)
                 if state == "saved":

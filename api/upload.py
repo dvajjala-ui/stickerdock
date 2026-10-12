@@ -13,7 +13,8 @@ class handler(BaseHTTPRequestHandler):
             return
         try:
             request = read_json(self)
-            result = upload_user_image(request.get("image", ""), request.get("title", ""))
+            result = upload_user_image(request.get("image", ""), request.get("title", ""),
+                                       request.get("source_path"))
             send_json(self, 200, result)
         except StudioError as error:
             send_json(self, 400, {"error": str(error)})

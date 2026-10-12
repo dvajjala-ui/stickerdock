@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import uuid
 import zipfile
+from PIL import Image
 
 from daily_stickers import atomic_json, run as run_generator
 from media_library import sync as sync_media
@@ -201,13 +202,31 @@ def sync_inbox(client, runtime, max_files=30):
         digest = hashlib.sha256(data).hexdigest()
         local = references / (digest + suffix)
         if digest not in known_hashes:
-            metadata = inbox_metadata(client, digest, remote_path)
-            local.write_bytes(data)
+            try:
+                metadata = inbox_metadata(client, digest, remote_path)
+                local.write_bytes(data)
+                if suffix in CLIP_EXTENSIONS:
+                    from video_stickers import clip_frames
+                    clip_frames(local)
+                else:
+                    with Image.open(local) as image:
+                        if image.width * image.height > 20_000_000:
+                            raise ValueError("Input image exceeds pixel limit")
+                        image.verify()
+            except (OSError, ValueError, Image.DecompressionBombError):
+                local.unlink(missing_ok=True)
+                processed.add(remote_path)
+                state["processed"] = sorted(processed)[-5000:]
+                atomic_json(state_path, state)
+                continue
             manifest.setdefault("assets", []).append({"file": local.name, "sha256": digest,
                                                        **metadata})
             known_hashes.add(digest)
             added += 1
         processed.add(remote_path)
+        state["processed"] = sorted(processed)[-5000:]
+        atomic_json(manifest_path, manifest)
+        atomic_json(state_path, state)
     state["processed"] = sorted(processed)[-5000:]
     atomic_json(state_path, state)
     atomic_json(manifest_path, manifest)
@@ -279,14 +298,19 @@ def persist_run(client, generated, config, now, result):
             "target": config["daily_target"], "result": result}
 
 
-def persist_failure(client, config, now, error):
+def persist_failure(client, config, now, error, generated=None):
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
     target = int(config.get("daily_target", 40))
+    state = {}
+    if generated is not None:
+        state_path = generated / day / "state.json"
+        if state_path.exists():
+            state = json.loads(state_path.read_text())
     client.upsert("factory_runs", [{
         "day": day, "status": "failed", "target": target,
-        "generated": 0, "attempts": 0,
+        "generated": len(state.get("records", [])), "attempts": int(state.get("requests", 0)),
         "last_result": type(error).__name__ + ": worker failed; inspect Actions logs",
-        "groq_metrics": {}}], "day")
+        "groq_metrics": state.get("last_groq_metrics", {})}], "day")
 
 
 def run_production(config, runtime, client, now=None, generator=run_generator):
@@ -308,7 +332,8 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         return summary
     except Exception as error:
         try:
-            persist_failure(client, locals().get("configured", config), now, error)
+            persist_failure(client, locals().get("configured", config), now, error,
+                            runtime / "generated-stickers")
         except Exception:
             pass
         raise

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import io
 import json
 import os
 from pathlib import PurePosixPath
@@ -10,6 +11,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from PIL import Image
 
 PRIVATE_BUCKET = "sticker-factory-private"
 MAX_REQUEST = 6_000_000
@@ -24,7 +26,7 @@ class StudioError(ValueError):
 def authorized(headers) -> bool:
     expected = os.environ.get("STUDIO_ACCESS_TOKEN", "").strip()
     supplied = str(headers.get("X-StickerDock-Token", ""))
-    return bool(expected and supplied and hmac.compare_digest(expected, supplied))
+    return bool(expected and supplied and hmac.compare_digest(expected.encode(), supplied.encode()))
 
 
 def read_json(handler) -> dict:
@@ -61,12 +63,23 @@ def options(handler):
     handler.end_headers()
 
 
-def request(url: str, method="GET", data=None, headers=None, limit=MAX_PROVIDER_RESPONSE):
+def request(url: str, method="GET", data=None, headers=None, limit=MAX_PROVIDER_RESPONSE,
+            missing_ok=False):
     outbound = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     try:
         with urllib.request.urlopen(outbound, timeout=45) as response:
             body = response.read(limit + 1)
     except urllib.error.HTTPError as error:
+        if missing_ok and error.code == 404:
+            return None
+        if missing_ok and error.code == 400:
+            try:
+                detail = json.loads(error.read(4096))
+            except (ValueError, OSError):
+                detail = {}
+            if isinstance(detail, dict) and (detail.get("code") in ("NoSuchKey", "not_found") or
+                                            detail.get("message") == "Object not found"):
+                return None
         raise StudioError(f"Provider returned HTTP {error.code}") from None
     if len(body) > limit:
         raise StudioError("Provider response is too large")
@@ -74,6 +87,8 @@ def request(url: str, method="GET", data=None, headers=None, limit=MAX_PROVIDER_
 
 
 def decode_image(data_url: str, max_bytes=4_000_000) -> tuple[bytes, str, str]:
+    if not isinstance(data_url, str):
+        raise StudioError("Expected a PNG, JPEG, or WebP image")
     match = re.fullmatch(r"data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\r\n]+)", data_url)
     if not match:
         raise StudioError("Expected a PNG, JPEG, or WebP image")
@@ -89,6 +104,17 @@ def decode_image(data_url: str, max_bytes=4_000_000) -> tuple[bytes, str, str]:
              (mime == "image/webp" and data.startswith(b"RIFF") and data[8:12] == b"WEBP"))
     if not valid:
         raise StudioError("Image bytes do not match their media type")
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            expected_format = {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[mime]
+            if (image.format != expected_format or image.width * image.height > 20_000_000 or
+                    getattr(image, "is_animated", False)):
+                raise StudioError("Use a static image under 20 million pixels")
+            image.verify()
+    except (OSError, ValueError, Image.DecompressionBombError) as error:
+        if isinstance(error, StudioError):
+            raise
+        raise StudioError("The image is invalid or corrupted") from None
     return data, mime, IMAGE_TYPES[mime]
 
 
@@ -100,7 +126,7 @@ def safe_text(value, name: str, maximum: int, required=False) -> str:
 
 
 def supabase_request(path: str, method="GET", data=None, content_type=None,
-                     limit=MAX_PROVIDER_RESPONSE):
+                     limit=MAX_PROVIDER_RESPONSE, missing_ok=False):
     url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not url.startswith("https://") or not key:
@@ -110,7 +136,8 @@ def supabase_request(path: str, method="GET", data=None, content_type=None,
         headers["Content-Type"] = content_type
     if method == "POST" and path.startswith("/storage/v1/object/"):
         headers["x-upsert"] = "true"
-    return request(url + path, method=method, data=data, headers=headers, limit=limit)
+    return request(url + path, method=method, data=data, headers=headers, limit=limit,
+                   missing_ok=missing_ok)
 
 
 def storage_path(path: str) -> str:
@@ -120,21 +147,43 @@ def storage_path(path: str) -> str:
     return urllib.parse.quote(PRIVATE_BUCKET, safe="") + "/" + urllib.parse.quote(str(pure), safe="/")
 
 
-def upload_user_image(data_url: str, title: str = "Creator Studio upload") -> dict:
+def source_metadata(source_path):
+    if not isinstance(source_path, str) or not re.fullmatch(
+            r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)", source_path):
+        raise StudioError("Invalid source image path")
+    digest = source_path.split("/")[-1].split(".")[0]
+    data = supabase_request("/storage/v1/object/authenticated/" + storage_path(
+        "source-metadata/" + digest + ".json"), limit=16_000, missing_ok=True)
+    if data is None:
+        return {"source": "creator-studio", "license": "REFERENCE_ONLY",
+                "source_url": "supabase://" + source_path, "download_url": "supabase://" + source_path}
+    metadata = json.loads(data)
+    if not isinstance(metadata, dict) or metadata.get("license") not in (
+            "CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"):
+        raise StudioError("Invalid source rights metadata")
+    return {key: metadata[key] for key in ("source_url", "download_url", "license", "credit")
+            if key in metadata}
+
+
+def upload_user_image(data_url: str, title: str = "Creator Studio upload", source_path=None) -> dict:
     data, mime, extension = decode_image(data_url)
     digest = hashlib.sha256(data).hexdigest()
     object_path = "inbox/" + digest + extension
-    supabase_request("/storage/v1/object/" + storage_path(object_path), method="POST", data=data,
-                     content_type=mime)
-    metadata = json.dumps({
+    metadata = {
         "source": "creator-studio", "source_url": "creator-studio://manual",
         "download_url": "creator-studio://manual", "license": "USER_OWNED",
         "title": safe_text(title, "title", 240) or "Creator Studio upload",
         "credit": "Factory owner upload",
-    }, separators=(",", ":")).encode()
+    }
+    if source_path is not None:
+        metadata.update(source_metadata(source_path))
+        metadata["derived_from"] = source_path
+    metadata = json.dumps(metadata, separators=(",", ":")).encode()
     supabase_request("/storage/v1/object/" + storage_path(
         "source-metadata/" + digest + ".json"), method="POST", data=metadata,
         content_type="application/json")
+    supabase_request("/storage/v1/object/" + storage_path(object_path), method="POST", data=data,
+                     content_type=mime)
     return {"path": object_path, "sha256": digest}
 
 

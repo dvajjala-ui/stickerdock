@@ -51,6 +51,9 @@ tests/builds. It does not replace live account, device or provider testing.
 - Publication gate that refuses MATURE packs and Pinterest/reference-only pixels.
 - Publisher verifies sticker dimensions, checksums, sizes and media type; repeat
   generation keeps deterministic ZIP checksums and preserves prior approval.
+- Public pack size and animation timing match Android import limits.
+- Invalid inbox media are skipped, and failed runs retain prior progress and
+  usage metrics. Pinterest scans have attempt/time budgets and bounded staging.
 - Signed Android APK/AAB workflow with configurable public catalog URL.
 
 ### Image and video sources
@@ -73,6 +76,8 @@ tests/builds. It does not replace live account, device or provider testing.
 - Upload of edited output to the private factory inbox.
 - Server-side Vercel functions keep Supabase service credentials out of browser
   code. The AI button is disabled and labeled Coming soon.
+- Edited inbox images retain their original rights metadata. Uploaded images
+  are decoded and verified before they enter the factory.
 
 ## Partially complete — needs live verification or configuration
 

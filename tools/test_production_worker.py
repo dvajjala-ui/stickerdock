@@ -74,6 +74,49 @@ def pack_bytes(rating="GENERAL"):
 
 
 class ProductionWorkerTest(unittest.TestCase):
+    def test_public_archive_must_fit_android_download_bound(self):
+        from publish_factory_pack import MAX_PUBLIC_PACK_BYTES, validate_pack
+        with self.assertRaises(ValueError):
+            validate_pack(b"x" * (MAX_PUBLIC_PACK_BYTES + 1))
+
+    def test_animation_duration_matches_phone_import_rules(self):
+        from publish_factory_pack import validate_animation
+        frames = [Image.new("RGB", (512, 512), color) for color in ("red", "blue")]
+        for duration, valid in ((125, True), (5, False), (6000, False)):
+            output = io.BytesIO()
+            frames[0].save(output, "WEBP", save_all=True, append_images=frames[1:],
+                           duration=duration, loop=0)
+            if valid:
+                validate_animation(output.getvalue())
+            else:
+                with self.assertRaises(ValueError):
+                    validate_animation(output.getvalue())
+
+    def test_bad_inbox_file_does_not_block_valid_inputs(self):
+        client = FakeSupabase()
+        client.objects[(PRIVATE_BUCKET, "inbox/broken.png")] = b"not an image"
+        client.objects[(PRIVATE_BUCKET, "inbox/good.png")] = png_bytes()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertEqual(worker.sync_inbox(client, root), 1)
+            self.assertEqual(worker.sync_inbox(client, root), 0)
+            self.assertEqual(len(json.loads((root / "inbox-state.json").read_text())["processed"]), 2)
+
+    def test_failure_preserves_successful_progress_and_usage(self):
+        client = FakeSupabase()
+        def fail(config, generated, font, now):
+            day = generated / DAY
+            day.mkdir(parents=True)
+            (day / "state.json").write_text(json.dumps({"records": [{"caption": "Saved"}],
+                "requests": 2, "last_groq_metrics": {"usage": {"total_tokens": 100}}}))
+            raise ValueError("Provider unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaises(ValueError):
+                worker.run_production({"daily_target": 40}, Path(temporary), client, NOW, fail)
+        row = client.rows[("factory_runs", DAY)]
+        self.assertEqual((row["generated"], row["attempts"]), (1, 2))
+        self.assertEqual(row["groq_metrics"]["usage"]["total_tokens"], 100)
+
     def test_licensed_library_is_mirrored_once_with_reuse_metadata(self):
         client = FakeSupabase()
         with tempfile.TemporaryDirectory() as temporary:

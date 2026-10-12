@@ -68,6 +68,12 @@ def configure(config: dict) -> tuple[dict, dict[str, str]]:
         config["limits"]["daily_downloads"] = int(daily)
     if per_run:
         config["limits"]["max_downloads_per_scan"] = int(per_run)
+    # Keep a recoverable snapshot even if Supabase fails during offload. Media
+    # stays in remote storage; the runner stages at most ~54 MB at a time.
+    config["limits"]["max_total_storage_gb"] = min(
+        float(config["limits"]["max_total_storage_gb"]), 0.05)
+    # Pinterest's MiB file bound must fit the factory's decimal 20 MB bound.
+    config["limits"]["max_file_mb"] = min(int(config["limits"]["max_file_mb"]), 19)
     return validate_config(config), rights_map(os.environ.get("PINTEREST_PIN_RIGHTS_JSON", ""))
 
 
@@ -111,7 +117,8 @@ def upload_downloads(client, runtime: Path, pin_rights: dict[str, str]) -> int:
                 continue
             license_id = pin_rights.get(str(row["pin_id"]), "REFERENCE_ONLY")
             object_path = "inbox/" + digest + suffix
-            content_type = ("video/mp4" if suffix in {".mp4", ".mov"} else
+            content_type = ("video/mp4" if suffix == ".mp4" else
+                            "video/quicktime" if suffix == ".mov" else
                             "video/webm" if suffix == ".webm" else
                             "image/gif" if suffix == ".gif" else
                             "image/png" if suffix == ".png" else

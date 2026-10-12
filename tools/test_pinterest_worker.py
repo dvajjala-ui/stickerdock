@@ -39,6 +39,8 @@ class PinterestWorkerTest(unittest.TestCase):
                          ["12345", "67890"])
         self.assertTrue(result["unofficial"]["enabled"])
         self.assertEqual(result["limits"]["daily_downloads"], 100)
+        self.assertLessEqual(result["limits"]["max_total_storage_gb"] * 1024 ** 3, 54_000_000)
+        self.assertLessEqual(result["limits"]["max_file_mb"] * 1024 ** 2, 20_000_000)
         self.assertEqual(rights, {})
 
     def test_downloads_upload_with_reference_only_default_and_offload(self):

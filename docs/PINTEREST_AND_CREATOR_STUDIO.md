@@ -42,6 +42,11 @@ Actions → **Pinterest source sync**, and run it manually once. The job records
 rolling local API budget before requests, saves its SQLite state under the
 private Supabase bucket, and uploads new media plus source metadata. After a
 successful test, set the enable variable to `true`. It then runs every six hours.
+Each scan permits at most 60 attempts, including failures/duplicates, with a
+15-minute deadline checked between download attempts. Provider calls can finish
+after that deadline; the workflow has a separate 30-minute timeout. Hosted media
+staging is limited to about 54 MB and individual inputs to 19 MiB so failed
+uploads remain recoverable in the bounded state archive.
 
 The local official-API ceiling is 700 calls over a rolling 24 hours. This is a
 budget guard, not a promise that Pinterest will grant that quota or return video
@@ -106,6 +111,11 @@ Creator Studio supports:
 - fill/contain crop, caption drag positioning, font size, width, fill, outline and
   optional uppercase;
 - PNG download and upload of the finished result back to Supabase.
+
+Editing an inbox image preserves its original `REFERENCE_ONLY`, `CC0`,
+`PUBLIC_DOMAIN`, or `USER_OWNED` label; adding a caption does not upgrade reuse
+rights. A source with missing metadata stays reference-only. Local uploads are
+owner-provided inputs and are validated as actual static images before storage.
 
 Later activation should add an asynchronous request queue from Studio to the
 private Factory, add the reviewed Studio URL to Android, and replace the disabled

@@ -19,13 +19,19 @@ def validate_config(config: dict) -> dict:
     ZoneInfo(config["timezone"])
     for key in ("daily_downloads", "max_downloads_per_scan",
                 "official_api_requests_per_rolling_24h", "max_file_mb",
-                "max_total_storage_gb", "max_attempts"):
+                "max_attempts"):
         if not 1 <= int(limits[key]):
             raise ValueError(f"limits.{key} must be positive")
+    if not 0 < float(limits["max_total_storage_gb"]) <= 10:
+        raise ValueError("Storage cap must be positive and at most 10 GB")
     if int(limits["daily_downloads"]) > 100:
         raise ValueError("Daily download target must not exceed 100")
     if int(limits["max_downloads_per_scan"]) > 30:
         raise ValueError("Per-scan download target must not exceed 30")
+    if not 1 <= int(limits.get("max_attempts_per_scan", 60)) <= 60:
+        raise ValueError("Per-scan attempt cap must be 1..60")
+    if not 60 <= float(limits.get("scan_timeout_seconds", 900)) <= 1500:
+        raise ValueError("Scan timeout must be 60..1500 seconds")
     if int(limits["official_api_requests_per_rolling_24h"]) > 1000:
         raise ValueError("Official API cap must not exceed 1000 requests per 24h")
     if not (0 < float(config["schedule"]["interval_hours"]) <= 24):

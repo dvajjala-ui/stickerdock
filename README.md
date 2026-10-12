@@ -62,7 +62,7 @@ JDK 17, Android SDK 35, Gradle 8.9:
 
 ```sh
 gradle :app:testDebugUnitTest :app:assembleDebug
-python3 -m pip install -r tools/requirements-stickers.txt
+python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
 python3 -m unittest discover -s tools -p 'test_*.py' -v
 ```
 

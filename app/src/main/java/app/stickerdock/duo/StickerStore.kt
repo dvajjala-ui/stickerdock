@@ -75,6 +75,13 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         bumpVersion(id)
     }
     fun deletePack(id: String) { writableDatabase.delete("packs", "id=?", arrayOf(id)) }
+    fun stickerCounts(): Map<String, Int> {
+        val counts = mutableMapOf<String, Int>()
+        readableDatabase.rawQuery("SELECT pack_id, COUNT(*) FROM stickers GROUP BY pack_id", null).use { cursor ->
+            while (cursor.moveToNext()) counts[cursor.getString(0)] = cursor.getInt(1)
+        }
+        return counts
+    }
     fun listStickers(packId: String): List<StickerItem> {
         val result = mutableListOf<StickerItem>()
         readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at FROM stickers WHERE pack_id=? ORDER BY created_at,id", arrayOf(packId)).use { c ->
@@ -82,7 +89,14 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         }
         return result
     }
-    fun getSticker(packId: String, filename: String) = listStickers(packId).firstOrNull { it.fileName == filename }
+    fun getSticker(packId: String, filename: String): StickerItem? {
+        readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at FROM stickers WHERE pack_id=? AND file_name=? LIMIT 1",
+            arrayOf(packId, filename)).use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            return StickerItem(cursor.getString(0), cursor.getString(1), cursor.getString(2),
+                cursor.getString(3), cursor.getLong(4))
+        }
+    }
     fun hasStickerHash(hash: String): Boolean {
         readableDatabase.rawQuery("SELECT 1 FROM stickers WHERE sha256=? LIMIT 1", arrayOf(hash)).use { cursor ->
             return cursor.moveToFirst()

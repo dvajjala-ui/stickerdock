@@ -8,6 +8,7 @@
   let captionX = 256;
   let captionY = 408;
   let dragging = false;
+  let sourcePath = null;
 
   const status = (message, error = false) => {
     $("status").textContent = message;
@@ -70,14 +71,15 @@
       ctx.fillText(line, captionX, y);
     });
   }
-  function loadDataUrl(url) {
+  function loadDataUrl(url, originPath = null) {
     image.onload = () => {
+      sourcePath = originPath;
       ready = true;
       $("empty").hidden = true;
       $("download").disabled = false;
       $("upload").disabled = false;
       draw();
-      status("Image ready. Add a caption or ask Groq for ideas.");
+      status("Image ready. Add a caption and style it. AI prompts are coming soon.");
     };
     image.onerror = () => status("That image could not be opened.", true);
     image.src = url;
@@ -135,7 +137,8 @@
     const button = $("upload");
     button.disabled = true; status("Uploading edited sticker to the private inbox…");
     try {
-      const result = await api("/api/upload", {image: canvas.toDataURL("image/png"), title: $("caption").value || "Creator Studio sticker"});
+      const result = await api("/api/upload", {image: canvas.toDataURL("image/png"),
+        title: $("caption").value || "Creator Studio sticker", source_path: sourcePath});
       status(`Queued for the factory: ${result.sha256.slice(0, 10)}…`);
       await refreshLibrary();
     } catch (error) { status(error.message, true); }
@@ -156,7 +159,7 @@
     const path = $("library").value;
     if (!path) { status("Choose an inbox image first.", true); return; }
     status("Loading inbox image…");
-    try { loadDataUrl((await api("/api/library", {action: "fetch", path})).image); }
+    try { loadDataUrl((await api("/api/library", {action: "fetch", path})).image, path); }
     catch (error) { status(error.message, true); }
   });
   draw();

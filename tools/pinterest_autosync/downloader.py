@@ -11,7 +11,7 @@ import requests
 from .models import Candidate
 
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-VIDEO_EXT = {".mp4", ".mov", ".mkv", ".webm", ".ts"}
+VIDEO_EXT = {".mp4", ".mov", ".webm"}
 CONTENT_TYPES = {
     "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
     "image/gif": ".gif", "video/mp4": ".mp4", "video/quicktime": ".mov",

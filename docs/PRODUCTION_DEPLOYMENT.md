@@ -101,6 +101,9 @@ Generated daily ZIPs appear under
 environment job. The publisher revalidates the ZIP, refuses MATURE packs and any
 pack using `REFERENCE_ONLY` media, copies it to public storage, updates
 `catalog/packs.json`, and marks the database row approved.
+Public archives must fit Android's 25 MB download bound; animations require
+frames of at least 8 ms and total duration at most 10 seconds. Private archives
+can be larger, but must be split or reduced before public release.
 
 MATURE generation can use a separately configured manual worker, but this public
 publisher always refuses it. The production scheduled workflow pins its rating to

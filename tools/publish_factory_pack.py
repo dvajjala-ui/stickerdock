@@ -14,10 +14,30 @@ from PIL import Image
 from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base
 
 PUBLIC_MEDIA_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
+MAX_PUBLIC_PACK_BYTES = 25_000_000  # Matches Android CommunityCatalog download limit.
+
+
+def validate_animation(asset):
+    offset, duration, frames = 12, 0, 0
+    while offset + 8 <= len(asset):
+        length = int.from_bytes(asset[offset + 4:offset + 8], "little")
+        if offset + 8 + length > len(asset):
+            raise ValueError("Invalid WebP animation chunk")
+        if asset[offset:offset + 4] == b"ANMF":
+            if length < 16:
+                raise ValueError("Invalid WebP frame")
+            frame_ms = int.from_bytes(asset[offset + 20:offset + 23], "little")
+            if frame_ms < 8:
+                raise ValueError("Animation frames must last at least 8ms")
+            duration += frame_ms
+            frames += 1
+        offset += 8 + length + (length % 2)
+    if offset != len(asset) or frames < 2 or not 0 < duration <= 10_000:
+        raise ValueError("Animation must contain motion and last at most 10 seconds")
 
 
 def validate_pack(data):
-    if not 12 <= len(data) <= 75_000_000:
+    if not 12 <= len(data) <= MAX_PUBLIC_PACK_BYTES:
         raise ValueError("Invalid pack size")
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         names = archive.namelist()
@@ -33,11 +53,19 @@ def validate_pack(data):
             raise ValueError("Only reviewed GENERAL packs can be public")
         if any(not 3 <= len(pack.get("stickers", [])) <= 30 for pack in manifest["packs"]):
             raise ValueError("Public pack has an invalid sticker count")
+        if not 3 <= sum(len(pack["stickers"]) for pack in manifest["packs"]) <= 100:
+            raise ValueError("Daily public output must contain 3–100 stickers")
         expected = {"manifest.json"}
         for pack in manifest["packs"]:
             pack_id = str(pack.get("id", ""))
             if not re.fullmatch(r"[0-9a-f-]{36}", pack_id) or pack.get("kind") not in ("STATIC", "ANIMATED"):
                 raise ValueError("Invalid pack metadata")
+            if not isinstance(pack.get("name"), str) or not 1 <= len(pack["name"].strip()) <= 60:
+                raise ValueError("Invalid pack name")
+            if manifest["schema"] == 4 and pack.get("category") not in (
+                    "GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS",
+                    "LOVE", "WORK", "FESTIVALS", "OTHER"):
+                raise ValueError("Invalid pack category")
             animated = pack["kind"] == "ANIMATED"
             for sticker in pack["stickers"]:
                 name = str(sticker.get("name", ""))
@@ -57,6 +85,9 @@ def validate_pack(data):
                     if (image.format != "WEBP" or image.size != (512, 512) or
                             bool(getattr(image, "is_animated", False)) != animated):
                         raise ValueError("Sticker does not meet its declared media type")
+                    image.load()
+                if animated:
+                    validate_animation(asset)
         if set(names) != expected:
             raise ValueError("Unexpected factory archive entry")
     return manifest

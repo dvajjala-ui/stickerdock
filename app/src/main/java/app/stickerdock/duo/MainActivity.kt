@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
                 val data = withContext(Dispatchers.IO) {
                     val all = store.listPacks()
                     Triple(all, selectedId?.let(store::listStickers) ?: emptyList(),
-                        all.associate { it.id to store.listStickers(it.id).size })
+                        store.stickerCounts())
                 }
                 packs = data.first
                 stickers = data.second
