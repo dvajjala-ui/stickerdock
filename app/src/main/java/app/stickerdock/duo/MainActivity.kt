@@ -100,8 +100,13 @@ class MainActivity : ComponentActivity() {
         }
         val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) operation {
-                val report = PackZipImporter(this@MainActivity, store, files).import(uri)
-                "ZIP import: ${report.packs} packs, ${report.imported} stickers, ${report.skipped + report.duplicates} skipped"
+                try {
+                    val report = backup.restore(uri)
+                    "StickerDock pack: ${report.packs} packs, ${report.stickers} stickers"
+                } catch (_: Exception) {
+                    val report = PackZipImporter(this@MainActivity, store, files).import(uri)
+                    "ZIP import: ${report.packs} packs, ${report.imported} stickers, ${report.skipped + report.duplicates} skipped"
+                }
             }
         }
         val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) {
