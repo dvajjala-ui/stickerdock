@@ -50,7 +50,7 @@ class WhatsAppStickerProvider : ContentProvider() {
     private fun packCursor(uri: Uri, packs: List<StickerPack>): Cursor {
         val cursor = MatrixCursor(PACK_COLUMNS)
         packs.forEach { pack ->
-            cursor.addRow(arrayOf(pack.id, pack.name, "StickerDock", "tray.png", "", "", "", "", "", "", pack.version.toString(), 1, 0))
+            cursor.addRow(arrayOf(pack.id, pack.name, "StickerDock", "tray.png", "", "", "", "", "", "", pack.version.toString(), 1, if (pack.kind == StickerKind.ANIMATED) 1 else 0))
         }
         cursor.setNotificationUri(requireNotNull(context).contentResolver, uri)
         return cursor
