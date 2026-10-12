@@ -55,6 +55,9 @@ class MainActivity : ComponentActivity() {
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
         var showCommunity by remember { mutableStateOf(false) }
+        var showSavedLinks by remember { mutableStateOf(false) }
+        var linkInput by remember { mutableStateOf("") }
+        var savedLinks by remember { mutableStateOf<List<StickerlyLinks.Link>>(emptyList()) }
         var communityLoading by remember { mutableStateOf(false) }
         var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
         var communityError by remember { mutableStateOf<String?>(null) }
@@ -148,8 +151,13 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
+                    if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     OutlinedButton(enabled = !busy, onClick = { folderImporter.launch(null) }) { Text("Import phone sticker folder") }
                     OutlinedButton(enabled = !busy, onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
+                    OutlinedButton(onClick = {
+                        showSavedLinks = true
+                        scope.launch { savedLinks = withContext(Dispatchers.IO) { StickerlyLinks(this@MainActivity).list() } }
+                    }) { Text("Saved Sticker.ly pack links") }
                     OutlinedButton(onClick = {
                         showCommunity = true
                         communityLoading = true
@@ -225,6 +233,44 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        if (showSavedLinks) AlertDialog(onDismissRequest = { showSavedLinks = false },
+            title = { Text("Sticker.ly pack links") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Paste one or more public Sticker.ly pack links or codes. This saves bookmarks only; it does not download creators' stickers.")
+                    OutlinedTextField(value = linkInput, onValueChange = { linkInput = it },
+                        label = { Text("Pack links or codes (one per line)") }, minLines = 2, maxLines = 5)
+                    if (savedLinks.isEmpty()) Text("No links saved.")
+                    else LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                        items(savedLinks, key = { it.code }) { link ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = {
+                                    startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(link.url)))
+                                }, modifier = Modifier.weight(1f)) { Text(link.code) }
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) { StickerlyLinks(this@MainActivity).remove(link.code) }
+                                        savedLinks = withContext(Dispatchers.IO) { StickerlyLinks(this@MainActivity).list() }
+                                    }
+                                }) { Text("Remove") }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                val submitted = linkInput
+                scope.launch {
+                    try {
+                        val count = withContext(Dispatchers.IO) { StickerlyLinks(this@MainActivity).saveFromText(submitted) }
+                        savedLinks = withContext(Dispatchers.IO) { StickerlyLinks(this@MainActivity).list() }
+                        linkInput = ""
+                        snackbar.showSnackbar("Saved $count new pack links")
+                    } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Invalid pack links") }
+                }
+            }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { showSavedLinks = false }) { Text("Close") } })
         if (showCommunity) AlertDialog(onDismissRequest = { showCommunity = false },
             title = { Text("Community packs") },
             text = {
