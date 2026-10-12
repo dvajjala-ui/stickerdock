@@ -102,6 +102,12 @@ class MainActivity : ComponentActivity() {
                 "Imported $added, duplicate $duplicates, failed $failed"
             }
         }
+        val folderImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            if (uri != null) operation {
+                val report = FolderStickerImporter(this@MainActivity, store, files).import(uri)
+                "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
+            }
+        }
         val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) operation {
                 try {
@@ -136,12 +142,14 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
                 if (pack == null) {
                     Text("Your stickers, organized offline.")
+                    Text("To migrate saved WhatsApp/Sticker.ly stickers, choose Android/media → com.whatsapp → WhatsApp → Media → WhatsApp Stickers (or the Business equivalent).")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; dialog = "create" }) { Text("New pack") }
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
-                    OutlinedButton(onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
+                    OutlinedButton(enabled = !busy, onClick = { folderImporter.launch(null) }) { Text("Import phone sticker folder") }
+                    OutlinedButton(enabled = !busy, onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
                     OutlinedButton(onClick = {
                         showCommunity = true
                         communityLoading = true
