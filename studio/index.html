@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#12130f">
+  <title>StickerDock Creator</title>
+  <link rel="stylesheet" href="/studio/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="StickerDock Creator home">
+      <span class="brand-mark">SD</span>
+      <span><strong>StickerDock</strong><small>Creator Studio</small></span>
+    </a>
+    <label class="access">Creator token
+      <input id="token" type="password" autocomplete="current-password" placeholder="Enter studio token">
+    </label>
+  </header>
+
+  <main>
+    <section class="intro">
+      <div>
+        <p class="eyebrow">PRIVATE MEME WORKBENCH</p>
+        <h1>Turn any source into<br><em>your own sticker.</em></h1>
+      </div>
+      <p class="intro-copy">Pick a local image or load one from the private factory inbox. Write and style the caption yourself, then download it or queue it for the daily factory. AI prompts are coming soon.</p>
+    </section>
+
+    <section class="workspace">
+      <aside class="panel sources">
+        <div class="step"><span>01</span><h2>Choose source</h2></div>
+        <label class="drop" id="drop">
+          <input id="file" type="file" accept="image/png,image/jpeg,image/webp">
+          <b>Upload an image</b>
+          <small>PNG, JPEG or WebP</small>
+        </label>
+        <div class="source-label"><span>Factory inbox</span><button id="refresh" class="text-button">Refresh</button></div>
+        <select id="library" aria-label="Factory inbox image">
+          <option value="">Pinterest, Commons and uploads appear here</option>
+        </select>
+        <button id="load-library" class="secondary">Load selected image</button>
+        <div class="source-flow">
+          <span>Pinterest boards</span><span>Commons</span><span>Manual uploads</span>
+        </div>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="canvas-shell" id="canvas-shell">
+          <canvas id="canvas" width="512" height="512" aria-label="Sticker preview"></canvas>
+          <div id="empty" class="empty-preview"><b>Your sticker starts here</b><small>Choose an image from the left</small></div>
+        </div>
+        <p class="drag-tip">Drag the caption directly on the preview to position it.</p>
+        <div class="actions">
+          <button id="download" class="secondary" disabled>Download PNG</button>
+          <button id="upload" class="primary" disabled>Send to factory inbox</button>
+        </div>
+      </section>
+
+      <aside class="panel editor">
+        <div class="step"><span>02</span><h2>Write & style</h2></div>
+        <label>Manual caption
+          <textarea id="caption" maxlength="120" rows="3" placeholder="Scene kya hai bhai?"></textarea>
+        </label>
+        <label>AI idea prompt — Coming soon
+          <textarea id="prompt" maxlength="600" rows="3" disabled placeholder="AI prompts will be processed by the private factory"></textarea>
+        </label>
+        <button id="generate" class="ai" disabled>AI captions coming soon <span>✦</span></button>
+        <div id="suggestions" class="suggestions" aria-live="polite"></div>
+
+        <div class="control-grid">
+          <label>Font size <output id="font-output">54</output>
+            <input id="font-size" type="range" min="28" max="82" value="54">
+          </label>
+          <label>Width <output id="width-output">88%</output>
+            <input id="text-width" type="range" min="45" max="94" value="88">
+          </label>
+        </div>
+        <div class="control-grid compact">
+          <label>Fill<input id="fill" type="color" value="#ffffff"></label>
+          <label>Outline<input id="stroke" type="color" value="#111111"></label>
+          <label class="check"><input id="uppercase" type="checkbox" checked> CAPS</label>
+        </div>
+        <label>Image fit
+          <select id="fit"><option value="cover">Fill square</option><option value="contain">Show whole image</option></select>
+        </label>
+        <div id="status" class="status" role="status"></div>
+      </aside>
+    </section>
+  </main>
+  <script src="/studio/app.js" defer></script>
+</body>
+</html>

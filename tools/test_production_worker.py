@@ -97,6 +97,22 @@ class ProductionWorkerTest(unittest.TestCase):
             library = json.loads((root / "reference-images/library.json").read_text())
             self.assertEqual(len(library["assets"]), 1)
 
+    def test_inbox_preserves_pinterest_reference_only_metadata(self):
+        client = FakeSupabase()
+        data = png_bytes()
+        digest = __import__("hashlib").sha256(data).hexdigest()
+        client.objects[(PRIVATE_BUCKET, "inbox/" + digest + ".png")] = data
+        client.objects[(PRIVATE_BUCKET, "source-metadata/" + digest + ".json")] = json.dumps({
+            "source": "pinterest-official", "source_url": "https://www.pinterest.com/pin/12345/",
+            "download_url": "https://i.pinimg.com/test.png", "license": "REFERENCE_ONLY",
+            "title": "Reference", "credit": "Pinterest source"}).encode()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertEqual(worker.sync_inbox(client, root), 1)
+            asset = json.loads((root / "reference-images/library.json").read_text())["assets"][0]
+        self.assertEqual(asset["license"], "REFERENCE_ONLY")
+        self.assertEqual(asset["source"], "pinterest-official")
+
     def test_worker_restores_generates_uploads_and_records_pending_pack(self):
         client = FakeSupabase()
         client.objects[(PRIVATE_BUCKET, "inbox/photo.png")] = png_bytes()
@@ -127,12 +143,23 @@ class ProductionWorkerTest(unittest.TestCase):
         client = FakeSupabase()
         private = (PRIVATE_BUCKET, "generated/2026-10-12/daily-complete.zip")
         client.objects[private] = pack_bytes()
+        references = (PRIVATE_BUCKET, "generated/2026-10-12/references.json")
+        client.objects[references] = b"[]"
         result = publish_day(client, DAY)
         self.assertEqual(result["published"], "daily-2026-10-12")
         catalog = json.loads(client.objects[(PUBLIC_BUCKET, "catalog/packs.json")])
         self.assertEqual(catalog["packs"][0]["rating"], "GENERAL")
         self.assertEqual(len(client.updates), 1)
         client.objects[private] = pack_bytes("MATURE")
+        with self.assertRaises(ValueError):
+            publish_day(client, DAY)
+
+    def test_publisher_refuses_reference_only_pinterest_media(self):
+        client = FakeSupabase()
+        client.objects[(PRIVATE_BUCKET, "generated/2026-10-12/daily-complete.zip")] = pack_bytes()
+        client.objects[(PRIVATE_BUCKET, "generated/2026-10-12/references.json")] = json.dumps([{
+            "caption": "Private inspiration", "media_credit": {
+                "license": "REFERENCE_ONLY", "source": "pinterest-official"}}]).encode()
         with self.assertRaises(ValueError):
             publish_day(client, DAY)
 

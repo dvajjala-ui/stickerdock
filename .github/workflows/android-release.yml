@@ -51,7 +51,7 @@ jobs:
             :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease
       - uses: actions/upload-artifact@v4
         with:
-          name: stickerdock-0.2.0-release-candidate
+          name: stickerdock-0.3.0-release-candidate
           retention-days: 14
           if-no-files-found: error
           path: |

@@ -12,6 +12,8 @@ import zipfile
 
 from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base
 
+PUBLIC_MEDIA_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
+
 
 def validate_pack(data):
     if not 12 <= len(data) <= 75_000_000:
@@ -30,12 +32,30 @@ def validate_pack(data):
     return manifest
 
 
+def validate_references(data):
+    if data is None or len(data) > 1_000_000:
+        raise ValueError("Reviewed reference metadata is required")
+    references = json.loads(data)
+    if not isinstance(references, list) or len(references) > 100:
+        raise ValueError("Invalid reference metadata")
+    for reference in references:
+        if not isinstance(reference, dict):
+            raise ValueError("Invalid reference metadata")
+        credit = reference.get("media_credit")
+        if credit is not None and (not isinstance(credit, dict) or
+                                   credit.get("license") not in PUBLIC_MEDIA_LICENSES):
+            raise ValueError("A source is private-reference-only and cannot be published")
+    return references
+
+
 def publish_day(client, day):
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
         raise ValueError("Day must be YYYY-MM-DD")
     private_path = "generated/" + day + "/daily-complete.zip"
     data = client.download(PRIVATE_BUCKET, private_path)
     validate_pack(data)
+    validate_references(client.download(
+        PRIVATE_BUCKET, "generated/" + day + "/references.json", missing_ok=True))
     digest = hashlib.sha256(data).hexdigest()
     slug = "daily-" + day
     filename = slug + ".zip"

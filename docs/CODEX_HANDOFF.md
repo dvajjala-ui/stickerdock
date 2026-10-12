@@ -5,11 +5,11 @@ User has two WhatsApp accounts on Samsung S24 Ultra and finds Sticker.ly difficu
 
 ## Key technical details
 - Kotlin + Jetpack Compose; JDK17, SDK35, Gradle8.9.
-- StickerStore: SQLite schema v4, packs.kind, packs.rating and sha index with additive migrations.
+- StickerStore: SQLite schema v5, packs.kind, packs.rating, packs.category and sha index with additive migrations.
 - StickerFiles: normalize static images to 512px WebP <=100KB, accept validated animated WebP <=500KB/10s; optional global hash dedup.
 - FolderStickerImporter: DocumentFile walk bounded by number/bytes/depth, reads public Android/media selected directory, groups by StickerPackMetadata EXIF fields, creates static or animated packs and auto-splits into 30-sticker chunks. Worker thread, not yet resumable.
 - PackZipImporter: bounded .zip/.wastickers files, EXIF grouping; bulk selection of 100 files via ActivityResultContracts.OpenMultipleDocuments.
-- StickerBackup: schema v3, backwards restoration, includes kind/rating; PackSharing via Android FileProvider.
+- StickerBackup: schema v4, backwards restoration, includes kind/rating/category; PackSharing via Android FileProvider.
 - StickerlyLinks: offline SQLite bookmark registry and link sharing, not content scraping.
 - CommunityCatalog: read-only verified public catalog GENERAL-only; `catalog/packs.json` empty.
 - `tools/adb_sticker_export.py`: optional no-root desktop ADB pull of WhatsApp and Business media directories; 250-file/45MB ZIP batches for app ingestion.
@@ -30,6 +30,16 @@ publish gate, configurable Android catalog base and protected signed release
 candidate workflow. See `docs/PRODUCTION_DEPLOYMENT.md`. No Supabase project or
 production schedule is active until its owner adds the documented GitHub secrets,
 applies the SQL migration and enables the repository variable.
+
+The production branch also integrates the user-supplied Pinterest AutoSync v2
+logic as `tools/pinterest_autosync`: authorized-board API pagination, rolling
+request budgets, SQLite retry/dedup, bounded CDN downloads and optional
+`pinterest-dl` topic discovery. `tools/pinterest_worker.py` persists small state in
+Supabase, offloads downloaded files to the private inbox, and preserves per-source
+rights metadata. Pinterest defaults to `REFERENCE_ONLY`; the public publisher
+rejects those derived packs. `studio/` plus `api/` is a Vercel-ready manual meme
+editor and inbox browser; its AI control and Android entry are Coming soon. Groq
+remains only in the private Factory. See `docs/PINTEREST_AND_CREATOR_STUDIO.md`.
 
 Latest main `f7f1dec` passed [Android CI run 38242344260](https://github.com/dvajjala-ui/stickerdock/actions/runs/38242344260).
 The `feat/daily-groq-stickers` branch adds an optional private desktop scheduler,

@@ -29,9 +29,9 @@ cp tools/daily-stickers.example.json daily-stickers.local.json
 Set `GROQ_API_KEY` using your scheduler's private environment/secret store. Never
 put the key in JSON, command-line arguments, Git, Android source, or chat. An
 EnvironmentFile used by systemd should be readable only by its owner (`0600`).
-The cloud environment for this development session has no configured Groq key
-and does not allow `api.groq.com` or RSS hosts, so live API tests are pending.
-The scheduler host must allow those HTTPS destinations.
+The development workspace's outbound proxy rejects `api.groq.com` before calls
+reach the provider, so live API tests are pending. GitHub Actions must complete
+the first smoke request and record the actual rate-limit headers.
 
 Install DejaVu Sans Bold (Debian/Ubuntu: `fonts-dejavu-core`) or pass `--font` with
 another licensed TrueType font. The first version supports printable ASCII

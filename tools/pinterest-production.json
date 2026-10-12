@@ -1,0 +1,33 @@
+{
+  "timezone": "Asia/Kolkata",
+  "source_mode": "mixed",
+  "schedule": {"interval_hours": 6},
+  "limits": {
+    "daily_downloads": 90,
+    "max_downloads_per_scan": 30,
+    "official_api_requests_per_rolling_24h": 700,
+    "max_file_mb": 20,
+    "max_total_storage_gb": 10,
+    "max_attempts": 4,
+    "retry_after_hours": 6,
+    "delay_between_downloads_seconds": 1.5
+  },
+  "media_types": ["image", "video"],
+  "shuffle_candidates": true,
+  "output_dir": "downloads",
+  "official": {
+    "enabled": false,
+    "access_token_env": "PINTEREST_ACCESS_TOKEN",
+    "boards": [],
+    "page_size": 100,
+    "max_pages_per_board": 2,
+    "request_timeout_seconds": 20
+  },
+  "unofficial": {
+    "enabled": false,
+    "topics": [],
+    "results_per_topic": 90,
+    "request_delay_seconds": 1.25,
+    "request_timeout_seconds": 20
+  }
+}

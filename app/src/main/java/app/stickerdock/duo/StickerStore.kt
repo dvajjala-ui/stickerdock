@@ -8,12 +8,19 @@ import java.util.UUID
 
 enum class StickerKind { STATIC, ANIMATED }
 enum class PackRating { GENERAL, MATURE }
-data class StickerPack(val id: String, val name: String, val version: Long, val createdAt: Long, val kind: StickerKind = StickerKind.STATIC, val rating: PackRating = PackRating.GENERAL)
+enum class PackCategory(val label: String) {
+    GENERAL("General"), REACTIONS("Reactions"), HINGLISH("Hinglish"), MOVIES("Movies"),
+    NEWS("News"), ANIMALS("Animals"), LOVE("Love"), WORK("Work"),
+    FESTIVALS("Festivals"), OTHER("Other")
+}
+data class StickerPack(val id: String, val name: String, val version: Long, val createdAt: Long,
+    val kind: StickerKind = StickerKind.STATIC, val rating: PackRating = PackRating.GENERAL,
+    val category: PackCategory = PackCategory.GENERAL)
 data class StickerItem(val id: String, val packId: String, val fileName: String, val sha256: String, val createdAt: Long)
 
-class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 4) {
+class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 5) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL')")
+        db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL', category TEXT NOT NULL DEFAULT 'GENERAL')")
         db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
         db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
         db.execSQL("CREATE INDEX idx_stickers_sha ON stickers(sha256)")
@@ -23,28 +30,35 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         if (oldVersion < 2 && newVersion >= 2) db.execSQL("ALTER TABLE packs ADD COLUMN kind TEXT NOT NULL DEFAULT 'STATIC'")
         if (oldVersion < 3 && newVersion >= 3) db.execSQL("ALTER TABLE packs ADD COLUMN rating TEXT NOT NULL DEFAULT 'GENERAL'")
         if (oldVersion < 4 && newVersion >= 4) db.execSQL("CREATE INDEX IF NOT EXISTS idx_stickers_sha ON stickers(sha256)")
+        if (oldVersion < 5 && newVersion >= 5) db.execSQL("ALTER TABLE packs ADD COLUMN category TEXT NOT NULL DEFAULT 'GENERAL'")
     }
 
     fun listPacks(): List<StickerPack> {
         val result = mutableListOf<StickerPack>()
-        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating FROM packs ORDER BY created_at DESC", null).use { cursor ->
-            while (cursor.moveToNext()) result += StickerPack(cursor.getString(0), cursor.getString(1), cursor.getLong(2), cursor.getLong(3), StickerKind.valueOf(cursor.getString(4)), PackRating.valueOf(cursor.getString(5)))
+        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating,category FROM packs ORDER BY created_at DESC", null).use { cursor ->
+            while (cursor.moveToNext()) result += StickerPack(cursor.getString(0), cursor.getString(1), cursor.getLong(2), cursor.getLong(3), StickerKind.valueOf(cursor.getString(4)), PackRating.valueOf(cursor.getString(5)), PackCategory.valueOf(cursor.getString(6)))
         }
         return result
     }
     fun getPack(id: String): StickerPack? {
-        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating FROM packs WHERE id=? LIMIT 1", arrayOf(id)).use { c ->
+        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating,category FROM packs WHERE id=? LIMIT 1", arrayOf(id)).use { c ->
             if (!c.moveToFirst()) return null
             return StickerPack(c.getString(0), c.getString(1), c.getLong(2), c.getLong(3),
-                StickerKind.valueOf(c.getString(4)), PackRating.valueOf(c.getString(5)))
+                StickerKind.valueOf(c.getString(4)), PackRating.valueOf(c.getString(5)),
+                PackCategory.valueOf(c.getString(6)))
         }
     }
-    fun createPack(name: String, kind: StickerKind = StickerKind.STATIC, rating: PackRating = PackRating.GENERAL): StickerPack {
+    fun createPack(name: String, kind: StickerKind = StickerKind.STATIC,
+        rating: PackRating = PackRating.GENERAL,
+        category: PackCategory = PackCategory.GENERAL): StickerPack {
         val cleaned = name.trim().take(60)
         require(cleaned.isNotBlank()) { "Pack name required" }
-        val pack = StickerPack(UUID.randomUUID().toString(), cleaned, 1, System.currentTimeMillis(), kind, rating)
+        val pack = StickerPack(UUID.randomUUID().toString(), cleaned, 1,
+            System.currentTimeMillis(), kind, rating, category)
         writableDatabase.insertOrThrow("packs", null, ContentValues().apply {
-            put("id", pack.id); put("name", pack.name); put("version", pack.version); put("created_at", pack.createdAt); put("kind", pack.kind.name); put("rating", pack.rating.name)
+            put("id", pack.id); put("name", pack.name); put("version", pack.version)
+            put("created_at", pack.createdAt); put("kind", pack.kind.name)
+            put("rating", pack.rating.name); put("category", pack.category.name)
         })
         return pack
     }
@@ -52,6 +66,12 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         val cleaned = name.trim().take(60)
         require(cleaned.isNotBlank())
         require(writableDatabase.update("packs", ContentValues().apply { put("name", cleaned) }, "id=?", arrayOf(id)) == 1)
+        bumpVersion(id)
+    }
+    fun updateCategory(id: String, category: PackCategory) {
+        require(writableDatabase.update("packs", ContentValues().apply {
+            put("category", category.name)
+        }, "id=?", arrayOf(id)) == 1)
         bumpVersion(id)
     }
     fun deletePack(id: String) { writableDatabase.delete("packs", "id=?", arrayOf(id)) }

@@ -1,0 +1,25 @@
+from http.server import BaseHTTPRequestHandler
+
+from api._shared import StudioError, authorized, fetch_inbox, list_inbox, options, read_json, send_json
+
+
+class handler(BaseHTTPRequestHandler):
+    def do_OPTIONS(self):
+        options(self)
+
+    def do_POST(self):
+        if not authorized(self.headers):
+            send_json(self, 401, {"error": "Creator access token is invalid"})
+            return
+        try:
+            request = read_json(self)
+            if request.get("action") == "list":
+                send_json(self, 200, {"items": list_inbox()})
+            elif request.get("action") == "fetch":
+                send_json(self, 200, {"image": fetch_inbox(str(request.get("path", "")))})
+            else:
+                raise StudioError("Unknown library action")
+        except StudioError as error:
+            send_json(self, 400, {"error": str(error)})
+        except Exception:
+            send_json(self, 500, {"error": "Library request failed"})

@@ -17,8 +17,8 @@ android {
         applicationId = "app.stickerdock.duo"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         val defaultCatalog = "https://raw.githubusercontent.com/dvajjala-ui/stickerdock/main/catalog/"
         val catalogBase = providers.gradleProperty("catalogBaseUrl").orElse(defaultCatalog).get()
         require(catalogBase.startsWith("https://") && catalogBase.endsWith("/"))

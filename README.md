@@ -3,7 +3,7 @@
 A Kotlin/Jetpack Compose Android app that keeps your own sticker library independently from WhatsApp and Sticker.ly. Source is actively developed; install the latest GitHub Actions debug APK for testing only.
 
 ## Current source features
-- **Local sticker organization:** create/rename/delete packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs and filter Static/Animated.
+- **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs and filter by topic or Static/Animated.
 - **Static and animated WebP:** WhatsApp-compliant separate pack types, 512×512 static conversion, animated frame/duration checks, animated previews (real-device QA pending).
 - **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, split into 30-sticker packs, deduplicate across previously imported items. This is not access to other apps' private databases.
 - **Desktop ADB assistant:** `python tools/adb_sticker_export.py --account both` copies accessible WhatsApp sticker media folders from your own authorized phone and creates safe ZIP batches. No root, ADB requires your consent.
@@ -45,6 +45,13 @@ public-domain Commons download queue, optional authorized Pinterest-board inputs
 local reference files and actual GIF/MP4-to-captioned-animated-WebP conversion.
 Uses local FFmpeg; no paid image/video provider is configured.
 
+The [Pinterest and Creator Studio guide](docs/PINTEREST_AND_CREATOR_STUDIO.md)
+adds a persistent six-hour Pinterest source sync (official authorized boards by
+default; optional public-topic adapter), Supabase inbox provenance, and a Vercel
+web-editor preview. Manual meme layout, PNG download and private factory upload
+are implemented; the Android entry and AI prompts say Coming soon. Pinterest media is
+private-reference-only unless a specific reusable rights declaration is present.
+
 For hosted operation, use the [production deployment guide](docs/PRODUCTION_DEPLOYMENT.md):
 GitHub Actions runs the scheduled Groq/Pillow/FFmpeg worker and Supabase stores
 private inputs/state plus reviewed public packs. The Android catalog URL is a
@@ -70,6 +77,6 @@ The repository does not currently include a full Gradle wrapper binary; CI insta
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.
 
 ## Further documentation
-[Codex instructions](AGENTS.md) · [Codex handoff](docs/CODEX_HANDOFF.md) · [Product spec](docs/PRODUCT_SPEC.md) · [QA plan](docs/QA_MATRIX.md) · [Community moderation](docs/PUBLIC_SHARING_AND_SAFETY.md)
+[Implementation status](docs/IMPLEMENTATION_STATUS.md) · [Codex instructions](AGENTS.md) · [Codex handoff](docs/CODEX_HANDOFF.md) · [Product spec](docs/PRODUCT_SPEC.md) · [QA plan](docs/QA_MATRIX.md) · [Community moderation](docs/PUBLIC_SHARING_AND_SAFETY.md)
 
 The project is independent and not endorsed by WhatsApp or Sticker.ly. We referenced but did **not** copy GPL-3.0 StickerVault implementation into this project's MIT code.

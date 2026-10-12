@@ -15,6 +15,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -54,8 +55,10 @@ class MainActivity : ComponentActivity() {
         var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var query by remember { mutableStateOf("") }
         var packFilter by remember { mutableStateOf("All") }
+        var categoryFilter by remember { mutableStateOf<PackCategory?>(null) }
         var newPackKind by remember { mutableStateOf(StickerKind.STATIC) }
         var newPackRating by remember { mutableStateOf(PackRating.GENERAL) }
+        var newPackCategory by remember { mutableStateOf(PackCategory.GENERAL) }
         var busy by remember { mutableStateOf(false) }
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
@@ -165,7 +168,7 @@ class MainActivity : ComponentActivity() {
                     Text("Your stickers, organized offline.")
                     Text("To migrate saved WhatsApp/Sticker.ly stickers, choose Android/media → com.whatsapp → WhatsApp → Media → WhatsApp Stickers (or the Business equivalent).")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; dialog = "create" }) { Text("New pack") }
+                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; newPackCategory = PackCategory.GENERAL; dialog = "create" }) { Text("New pack") }
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
@@ -186,28 +189,49 @@ class MainActivity : ComponentActivity() {
                             finally { communityLoading = false }
                         }
                     }) { Text("Community packs") }
+                    OutlinedButton(enabled = false, onClick = {}) { Text("AI meme creator — Coming soon") }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("All", "Static", "Animated").forEach { type ->
                             FilterChip(selected = packFilter == type, onClick = { packFilter = type }, label = { Text(type) })
                         }
                     }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        item {
+                            FilterChip(selected = categoryFilter == null,
+                                onClick = { categoryFilter = null }, label = { Text("All topics") })
+                        }
+                        items(PackCategory.entries.size) { index ->
+                            val category = PackCategory.entries[index]
+                            FilterChip(selected = categoryFilter == category,
+                                onClick = { categoryFilter = category },
+                                label = { Text(category.label) })
+                        }
+                    }
                     OutlinedTextField(value = query, onValueChange = { query = it },
                         label = { Text("Search packs") }, modifier = Modifier.fillMaxWidth())
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(packs.filter { it.name.contains(query, true) && (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) }, key = { it.id }) { item ->
+                        items(packs.filter { it.name.contains(query, true) &&
+                                (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
+                                (categoryFilter == null || it.category == categoryFilter) }, key = { it.id }) { item ->
                             Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
                                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)", modifier = Modifier.weight(1f))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)")
+                                        Text(item.category.label, style = MaterialTheme.typography.labelSmall)
+                                    }
                                     Text("${counts[item.id] ?: 0} ${if (item.rating == PackRating.MATURE) "Mature" else "stickers"}")
                                 }
                             }
                         }
                     }
                 } else {
-                    Text("${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} pack • ${pack.rating.name.lowercase().replaceFirstChar { it.uppercase() }} • ${stickers.size}/30 stickers")
+                    Text("${pack.category.label} • ${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} • ${pack.rating.name.lowercase().replaceFirstChar { it.uppercase() }} • ${stickers.size}/30 stickers")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(enabled = !busy && stickers.size < 30, onClick = { picker.launch(arrayOf("image/*")) }) { Text("Import") }
                         OutlinedButton(onClick = { name = pack.name; dialog = "rename" }) { Text("Rename") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OutlinedButton(onClick = { newPackCategory = pack.category; dialog = "category" }) { Text("Category") }
                         OutlinedButton(onClick = { dialog = "delete" }) { Text("Delete") }
                     }
                     OutlinedButton(enabled = !busy && stickers.isNotEmpty(), onClick = {
@@ -357,9 +381,22 @@ class MainActivity : ComponentActivity() {
         }
         dialog?.let { mode ->
             AlertDialog(onDismissRequest = { dialog = null },
-                title = { Text(if (mode == "create") "New pack" else if (mode == "rename") "Rename pack" else "Delete pack?") },
+                title = { Text(when (mode) {
+                    "create" -> "New pack"
+                    "rename" -> "Rename pack"
+                    "category" -> "Pack category"
+                    else -> "Delete pack?"
+                }) },
                 text = {
                     if (mode == "delete") Text("Local stickers and data will be deleted.")
+                    else if (mode == "category") LazyColumn {
+                        items(PackCategory.entries.size) { index ->
+                            val category = PackCategory.entries[index]
+                            TextButton(onClick = { newPackCategory = category }) {
+                                Text((if (newPackCategory == category) "● " else "○ ") + category.label)
+                            }
+                        }
+                    }
                     else Column {
                         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Pack name") })
                         if (mode == "create") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -372,16 +409,28 @@ class MainActivity : ComponentActivity() {
                                 FilterChip(selected = newPackRating == rating, onClick = { newPackRating = rating }, label = { Text(rating.name.lowercase().replaceFirstChar { it.uppercase() }) })
                             }
                         }
+                        if (mode == "create") {
+                            Text("Category", style = MaterialTheme.typography.labelMedium)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(PackCategory.entries.size) { index ->
+                                    val category = PackCategory.entries[index]
+                                    FilterChip(selected = newPackCategory == category,
+                                        onClick = { newPackCategory = category },
+                                        label = { Text(category.label) })
+                                }
+                            }
+                        }
                     }
                 },
                 confirmButton = {
-                    TextButton(enabled = !busy && (mode == "delete" || name.isNotBlank()), onClick = {
+                    TextButton(enabled = !busy && (mode in setOf("delete", "category") || name.isNotBlank()), onClick = {
                         val id = selectedId
                         val value = name
                         dialog = null
                         when (mode) {
-                            "create" -> operation { store.createPack(value, newPackKind, newPackRating); "Pack created" }
+                            "create" -> operation { store.createPack(value, newPackKind, newPackRating, newPackCategory); "Pack created" }
                             "rename" -> if (id != null) operation { store.renamePack(id, value); "Renamed" }
+                            "category" -> if (id != null) operation { store.updateCategory(id, newPackCategory); "Category updated" }
                             "delete" -> if (id != null) operation { files.deletePack(id); "Deleted" }
                         }
                     }) { Text("Confirm") }

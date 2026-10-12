@@ -2,15 +2,16 @@
 
 This is the recommended free-first deployment. GitHub Actions runs the Python,
 Pillow and FFmpeg worker; Supabase provides PostgreSQL plus private/public object
-storage; the Android app reads the approved public catalog. Vercel is not needed
-for generation and its short-lived functions are a poor fit for FFmpeg and
-persistent batch state. A Vercel dashboard can be added later without moving the
-worker or database.
+storage; the Android app reads the approved public catalog. Vercel is not used
+for generation because its short-lived functions are a poor fit for FFmpeg and
+persistent batch state. It can host the included Creator Studio without moving
+the worker or database.
 
 ## What runs where
 
 - **GitHub Actions:** every three hours, calls Groq directly, downloads due free
-  media, processes your private inbox, renders one batch and saves state.
+  media, processes your private inbox, renders one batch and saves state. A
+  separate six-hour job can monitor authorized Pinterest boards.
 - **Supabase private bucket:** factory state, your uploaded references, pending
   ZIPs and reference metadata. Nothing here is readable by the Android app.
 - **Supabase public bucket:** only packs explicitly published with the reviewed
@@ -48,7 +49,7 @@ In GitHub → repository **Settings → Secrets and variables → Actions**, add
 | Variable | `STICKER_FACTORY_ENABLED` | `true` after the smoke test |
 | Variable | `FACTORY_DAILY_TARGET` | `40` initially; maximum `100` |
 | Variable | `GROQ_TEXT_MODEL` | optional current Groq text model |
-| Variable | `GROQ_VISION_MODEL` | required for photo/clip caption batches |
+| Variable | `GROQ_VISION_MODEL` | required for photo/clip batches and image-aware Studio ideas |
 
 Create GitHub environments named `sticker-factory-production` and
 `android-production`. Add a required reviewer to both. Copy the two Supabase
@@ -78,10 +79,10 @@ budget. Photo and clip modes activate only when the inbox/library has matching
 media and `GROQ_VISION_MODEL` is set. Otherwise the run continues using original
 illustration and pulse-animation modes.
 
-Pinterest board ingestion remains optional. Add its configuration to
-`tools/factory-production.json` and a `PINTEREST_ACCESS_TOKEN` Actions secret only
-after creating an authorized Pinterest app. The worker does not use restricted
-partner search or anonymous page scraping.
+Pinterest source ingestion is a separate, persistent workflow. Follow
+[`PINTEREST_AND_CREATOR_STUDIO.md`](PINTEREST_AND_CREATOR_STUDIO.md) to add an
+authorized token and numeric board IDs. New Pinterest assets are marked
+`REFERENCE_ONLY` unless a specific per-Pin rights declaration is configured.
 
 ## 4. Review and publish a completed day
 
@@ -89,9 +90,9 @@ Generated daily ZIPs appear under
 `sticker-factory-private/generated/YYYY-MM-DD/`. Download and inspect the ZIP and
 `references.json`. To publish a GENERAL day, open Actions →
 **Publish reviewed factory pack**, enter its UTC date, and approve the protected
-environment job. The publisher revalidates the ZIP, refuses MATURE packs, copies
-it to public storage, updates `catalog/packs.json`, and marks the database row
-approved.
+environment job. The publisher revalidates the ZIP, refuses MATURE packs and any
+pack using `REFERENCE_ONLY` media, copies it to public storage, updates
+`catalog/packs.json`, and marks the database row approved.
 
 MATURE generation can use a separately configured manual worker, but this public
 publisher always refuses it. The production scheduled workflow pins its rating to
@@ -124,9 +125,13 @@ Set its `CATALOG_BASE_URL` environment variable to the URL above. Run
 AAB retained as private workflow artifacts for 14 days. This workflow does not
 publish to an app store or create a GitHub release automatically.
 
+Creator Studio is currently a staged Vercel preview. The Android app shows a
+disabled **AI meme creator — Coming soon** button. Preview configuration and its
+server-side variables are listed in the Pinterest/Studio guide.
+
 GitHub Releases is sufficient for free APK distribution to testers. Use Play
-Console for a public Android release. Vercel becomes useful only if you want a web
-upload/review dashboard; Supabase should remain the database/storage layer.
+Console for a public Android release. Vercel hosts the optional creator/editor;
+Supabase remains the database and storage layer.
 
 ## Production evidence and remaining release gates
 
@@ -139,4 +144,4 @@ Before calling the app generally available, complete one live scheduled day,
 inspect its Groq quota metrics, publish/import the resulting pack, and test the
 signed APK on the Galaxy S24 Ultra against WhatsApp and WhatsApp Business. The
 current development environment cannot perform Groq/Supabase live calls because
-its outbound allowlist is still empty.
+its outbound proxy rejects those hosts before the request reaches the provider.

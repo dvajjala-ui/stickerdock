@@ -20,8 +20,10 @@ from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, require_production
 from video_stickers import CLIP_EXTENSIONS
 
 STATE_OBJECT = "state/runtime.zip"
+SOURCE_METADATA_PREFIX = "source-metadata/"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 INBOX_EXTENSIONS = IMAGE_EXTENSIONS | CLIP_EXTENSIONS
+SOURCE_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"}
 
 
 def safe_restore(data, destination):
@@ -60,6 +62,32 @@ def prune_old_days(generated, now, keep_days=8):
             shutil.rmtree(path)
 
 
+def inbox_metadata(client, digest, remote_path):
+    data = client.download(PRIVATE_BUCKET, SOURCE_METADATA_PREFIX + digest + ".json",
+                           missing_ok=True)
+    if data is None:
+        return {"source_url": "supabase://" + remote_path,
+                "download_url": "supabase://" + remote_path,
+                "license": "USER_OWNED", "title": Path(remote_path).name[:240],
+                "credit": "Factory owner upload", "source": "manual-upload"}
+    if len(data) > 16_000:
+        raise ValueError("Source metadata is too large")
+    metadata = json.loads(data)
+    if not isinstance(metadata, dict) or metadata.get("license") not in SOURCE_LICENSES:
+        raise ValueError("Invalid source metadata")
+    result = {"source_url": str(metadata.get("source_url", ""))[:1000],
+              "download_url": str(metadata.get("download_url", ""))[:1000],
+              "license": metadata["license"],
+              "title": str(metadata.get("title", Path(remote_path).name))[:240],
+              "credit": str(metadata.get("credit", ""))[:400],
+              "source": str(metadata.get("source", "uploaded-reference"))[:80]}
+    if not result["source_url"]:
+        result["source_url"] = "supabase://" + remote_path
+    if not result["download_url"]:
+        result["download_url"] = "supabase://" + remote_path
+    return result
+
+
 def sync_inbox(client, runtime, max_files=30):
     references = runtime / "reference-images"
     references.mkdir(parents=True, exist_ok=True)
@@ -70,12 +98,16 @@ def sync_inbox(client, runtime, max_files=30):
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"assets": []}
     known_hashes = {item.get("sha256") for item in manifest.get("assets", [])}
     added = 0
-    for item in client.list_objects(PRIVATE_BUCKET, "inbox", max_files):
+    considered = 0
+    for item in client.list_objects(PRIVATE_BUCKET, "inbox", 100):
         name = str(item.get("name", ""))
         remote_path = name if name.startswith("inbox/") else "inbox/" + name
         suffix = Path(remote_path).suffix.lower()
         if remote_path in processed or suffix not in INBOX_EXTENSIONS:
             continue
+        if considered >= max_files:
+            break
+        considered += 1
         size = int((item.get("metadata") or {}).get("size") or 0)
         if size > 20_000_000:
             processed.add(remote_path)
@@ -87,11 +119,10 @@ def sync_inbox(client, runtime, max_files=30):
         digest = hashlib.sha256(data).hexdigest()
         local = references / (digest + suffix)
         if digest not in known_hashes:
+            metadata = inbox_metadata(client, digest, remote_path)
             local.write_bytes(data)
-            manifest.setdefault("assets", []).append({
-                "file": local.name, "sha256": digest, "source_url": "supabase://" + remote_path,
-                "download_url": "supabase://" + remote_path, "license": "USER_OWNED",
-                "title": Path(remote_path).name[:240], "credit": "Factory owner upload"})
+            manifest.setdefault("assets", []).append({"file": local.name, "sha256": digest,
+                                                       **metadata})
             known_hashes.add(digest)
             added += 1
         processed.add(remote_path)

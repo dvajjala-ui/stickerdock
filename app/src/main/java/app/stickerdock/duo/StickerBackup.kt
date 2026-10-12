@@ -18,9 +18,11 @@ class StickerBackup(private val context: Context, private val store: StickerStor
     fun export(output: java.io.OutputStream, singlePackId: String? = null) {
         val packs = if (singlePackId == null) store.listPacks() else listOfNotNull(store.getPack(singlePackId))
         require(packs.isNotEmpty()) { "No packs to export" }
-        val manifest = JSONObject().put("schema", 3).put("packs", JSONArray().also { array ->
+        val manifest = JSONObject().put("schema", 4).put("packs", JSONArray().also { array ->
             packs.forEach { pack ->
-                array.put(JSONObject().put("id", pack.id).put("name", pack.name).put("kind", pack.kind.name).put("rating", pack.rating.name)
+                array.put(JSONObject().put("id", pack.id).put("name", pack.name)
+                    .put("kind", pack.kind.name).put("rating", pack.rating.name)
+                    .put("category", pack.category.name)
                     .put("stickers", JSONArray().also { stickers ->
                         store.listStickers(pack.id).forEach { item ->
                             stickers.put(JSONObject().put("name", item.fileName).put("sha256", item.sha256))
@@ -60,11 +62,13 @@ class StickerBackup(private val context: Context, private val store: StickerStor
         }
         val manifest = JSONObject(String(archive["manifest.json"] ?: error("Missing manifest")))
         val schema = manifest.getInt("schema")
-        require(schema in 1..3) { "Unsupported backup schema" }
+        require(schema in 1..4) { "Unsupported backup schema" }
         val packs = manifest.getJSONArray("packs")
         require(packs.length() <= 500)
         val expected = mutableSetOf("manifest.json")
-        val validated = mutableListOf<Triple<String, Pair<StickerKind, PackRating>, List<ByteArray>>>()
+        data class ValidatedPack(val name: String, val kind: StickerKind,
+            val rating: PackRating, val category: PackCategory, val images: List<ByteArray>)
+        val validated = mutableListOf<ValidatedPack>()
         for (i in 0 until packs.length()) {
             val pack = packs.getJSONObject(i)
             val id = pack.getString("id")
@@ -72,6 +76,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
             val name = pack.getString("name")
             val kind = if (schema >= 2) StickerKind.valueOf(pack.getString("kind")) else StickerKind.STATIC
             val rating = if (schema >= 3) PackRating.valueOf(pack.getString("rating")) else PackRating.GENERAL
+            val category = if (schema >= 4) PackCategory.valueOf(pack.getString("category")) else PackCategory.GENERAL
             require(name.isNotBlank() && name.length <= 60)
             val stickers = pack.getJSONArray("stickers")
             require(stickers.length() <= 30)
@@ -88,14 +93,15 @@ class StickerBackup(private val context: Context, private val store: StickerStor
                 require(hash.equals(item.getString("sha256"), ignoreCase = true))
                 images.add(data)
             }
-            validated.add(Triple(name, kind to rating, images))
+            validated.add(ValidatedPack(name, kind, rating, category, images))
         }
         require(archive.keys == expected) { "Unexpected archive entry" }
         var added = 0
         var rejected = 0
-        validated.forEach { (name, category, images) ->
-            val pack = store.createPack(name, category.first, category.second)
-            images.forEach {
+        validated.forEach { restored ->
+            val pack = store.createPack(restored.name, restored.kind, restored.rating,
+                restored.category)
+            restored.images.forEach {
                 when (files.importBytes(pack.id, it)) {
                     ImportResult.Added -> added++
                     else -> rejected++

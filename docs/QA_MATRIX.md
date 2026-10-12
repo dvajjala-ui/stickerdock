@@ -7,7 +7,8 @@
 | Android test/build | GitHub Actions `:app:testDebugUnitTest :app:assembleDebug`; check current run |
 | ADB ZIP smoke tests | Python unittest, duplicate collapse, bounded ZIPs; check current run |
 | Pack create/rename/delete | Persists after restart, files cleaned |
-| SQLite v1/v2/v3 to v4 | Non-destructive migration retains sticker and content labels |
+| SQLite v1/v2/v3/v4 to v5 | Non-destructive migration retains stickers, content labels and assigns General category |
+| Categories | Create/edit/filter categories; backup v4 round-trip; older backups restore as General |
 | Static input | PNG/JPEG/WebP → 512px WebP <=100KB; alpha preserved |
 | Animated input | Existing WebP 512px <=500KB, frame >=8ms, duration <=10s |
 | Animated previews | Grid animates smoothly, releases drawable |
