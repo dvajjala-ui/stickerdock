@@ -1,0 +1,25 @@
+{
+  "daily_target": 40,
+  "batch_size": 5,
+  "interval_seconds": 10800,
+  "max_requests_per_day": 16,
+  "model": "llama-3.3-70b-versatile",
+  "modes": ["illustration", "animated", "photo", "clip"],
+  "topics": [
+    "Latest technology and light news reactions in Hinglish",
+    "Everyday desi reactions in Hinglish",
+    "Original movie-inspired jokes in Hinglish without copying dialogue",
+    "Office, chai, friendships and weekend memes in Hinglish"
+  ],
+  "rating": "GENERAL",
+  "feeds": ["https://feeds.bbci.co.uk/news/technology/rss.xml"],
+  "references": [],
+  "media_library": {
+    "enabled": true,
+    "daily_download_limit": 6,
+    "max_downloads_per_run": 2,
+    "interval_seconds": 3600,
+    "commons_queries": ["funny cat", "dog", "space", "tea"],
+    "queue": []
+  }
+}

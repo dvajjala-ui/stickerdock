@@ -18,3 +18,5 @@ __pycache__/
 generated-stickers/
 daily-stickers.local.json
 reference-images/
+.factory-runtime/
+release.keystore
