@@ -11,16 +11,18 @@ enum class PackRating { GENERAL, MATURE }
 data class StickerPack(val id: String, val name: String, val version: Long, val createdAt: Long, val kind: StickerKind = StickerKind.STATIC, val rating: PackRating = PackRating.GENERAL)
 data class StickerItem(val id: String, val packId: String, val fileName: String, val sha256: String, val createdAt: Long)
 
-class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 3) {
+class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 4) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL')")
         db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
         db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
+        db.execSQL("CREATE INDEX idx_stickers_sha ON stickers(sha256)")
     }
     override fun onConfigure(db: SQLiteDatabase) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true) }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2 && newVersion >= 2) db.execSQL("ALTER TABLE packs ADD COLUMN kind TEXT NOT NULL DEFAULT 'STATIC'")
         if (oldVersion < 3 && newVersion >= 3) db.execSQL("ALTER TABLE packs ADD COLUMN rating TEXT NOT NULL DEFAULT 'GENERAL'")
+        if (oldVersion < 4 && newVersion >= 4) db.execSQL("CREATE INDEX IF NOT EXISTS idx_stickers_sha ON stickers(sha256)")
     }
 
     fun listPacks(): List<StickerPack> {
@@ -30,7 +32,13 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         }
         return result
     }
-    fun getPack(id: String) = listPacks().firstOrNull { it.id == id }
+    fun getPack(id: String): StickerPack? {
+        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating FROM packs WHERE id=? LIMIT 1", arrayOf(id)).use { c ->
+            if (!c.moveToFirst()) return null
+            return StickerPack(c.getString(0), c.getString(1), c.getLong(2), c.getLong(3),
+                StickerKind.valueOf(c.getString(4)), PackRating.valueOf(c.getString(5)))
+        }
+    }
     fun createPack(name: String, kind: StickerKind = StickerKind.STATIC, rating: PackRating = PackRating.GENERAL): StickerPack {
         val cleaned = name.trim().take(60)
         require(cleaned.isNotBlank()) { "Pack name required" }
