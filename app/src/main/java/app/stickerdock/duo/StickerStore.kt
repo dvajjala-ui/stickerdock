@@ -7,35 +7,36 @@ import android.database.sqlite.SQLiteOpenHelper
 import java.util.UUID
 
 enum class StickerKind { STATIC, ANIMATED }
-data class StickerPack(val id: String, val name: String, val version: Long, val createdAt: Long, val kind: StickerKind = StickerKind.STATIC)
+enum class PackRating { GENERAL, MATURE }
+data class StickerPack(val id: String, val name: String, val version: Long, val createdAt: Long, val kind: StickerKind = StickerKind.STATIC, val rating: PackRating = PackRating.GENERAL)
 data class StickerItem(val id: String, val packId: String, val fileName: String, val sha256: String, val createdAt: Long)
 
-class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 2) {
+class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC')")
+        db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL')")
         db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
         db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
     }
     override fun onConfigure(db: SQLiteDatabase) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true) }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion == 1 && newVersion >= 2) db.execSQL("ALTER TABLE packs ADD COLUMN kind TEXT NOT NULL DEFAULT 'STATIC'")
-        else error("Unknown migration: $oldVersion -> $newVersion")
+        if (oldVersion < 2 && newVersion >= 2) db.execSQL("ALTER TABLE packs ADD COLUMN kind TEXT NOT NULL DEFAULT 'STATIC'")
+        if (oldVersion < 3 && newVersion >= 3) db.execSQL("ALTER TABLE packs ADD COLUMN rating TEXT NOT NULL DEFAULT 'GENERAL'")
     }
 
     fun listPacks(): List<StickerPack> {
         val result = mutableListOf<StickerPack>()
-        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind FROM packs ORDER BY created_at DESC", null).use { cursor ->
-            while (cursor.moveToNext()) result += StickerPack(cursor.getString(0), cursor.getString(1), cursor.getLong(2), cursor.getLong(3), StickerKind.valueOf(cursor.getString(4)))
+        readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating FROM packs ORDER BY created_at DESC", null).use { cursor ->
+            while (cursor.moveToNext()) result += StickerPack(cursor.getString(0), cursor.getString(1), cursor.getLong(2), cursor.getLong(3), StickerKind.valueOf(cursor.getString(4)), PackRating.valueOf(cursor.getString(5)))
         }
         return result
     }
     fun getPack(id: String) = listPacks().firstOrNull { it.id == id }
-    fun createPack(name: String, kind: StickerKind = StickerKind.STATIC): StickerPack {
+    fun createPack(name: String, kind: StickerKind = StickerKind.STATIC, rating: PackRating = PackRating.GENERAL): StickerPack {
         val cleaned = name.trim().take(60)
         require(cleaned.isNotBlank()) { "Pack name required" }
-        val pack = StickerPack(UUID.randomUUID().toString(), cleaned, 1, System.currentTimeMillis(), kind)
+        val pack = StickerPack(UUID.randomUUID().toString(), cleaned, 1, System.currentTimeMillis(), kind, rating)
         writableDatabase.insertOrThrow("packs", null, ContentValues().apply {
-            put("id", pack.id); put("name", pack.name); put("version", pack.version); put("created_at", pack.createdAt); put("kind", pack.kind.name)
+            put("id", pack.id); put("name", pack.name); put("version", pack.version); put("created_at", pack.createdAt); put("kind", pack.kind.name); put("rating", pack.rating.name)
         })
         return pack
     }
