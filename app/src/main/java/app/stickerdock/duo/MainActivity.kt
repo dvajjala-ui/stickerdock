@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
         var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
         var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var query by remember { mutableStateOf("") }
+        var packFilter by remember { mutableStateOf("All") }
+        var newPackKind by remember { mutableStateOf(StickerKind.STATIC) }
         var busy by remember { mutableStateOf(false) }
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
@@ -95,6 +97,12 @@ class MainActivity : ComponentActivity() {
                 "Imported $added, duplicate $duplicates, failed $failed"
             }
         }
+        val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) operation {
+                val report = PackZipImporter(this@MainActivity, store, files).import(uri)
+                "ZIP import: ${report.packs} packs, ${report.imported} stickers, ${report.skipped + report.duplicates} skipped"
+            }
+        }
         val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) {
             if (it != null) operation { backup.export(it); "Backup saved" }
         }
@@ -105,6 +113,11 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(selectedId) { refresh() }
+        LaunchedEffect(Unit) {
+            if (intent.action == android.content.Intent.ACTION_SEND || intent.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
+                operation { IncomingStickers(this@MainActivity, store, files).import(intent) }
+            }
+        }
         Scaffold(topBar = {
             TopAppBar(title = { Text(pack?.name ?: "StickerDock") }, navigationIcon = {
                 if (selectedId != null) TextButton(onClick = { selectedId = null }) { Text("Back") }
@@ -114,28 +127,45 @@ class MainActivity : ComponentActivity() {
                 if (pack == null) {
                     Text("Your stickers, organized offline.")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Button(onClick = { name = ""; dialog = "create" }) { Text("New pack") }
+                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; dialog = "create" }) { Text("New pack") }
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
+                    }
+                    OutlinedButton(onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("All", "Static", "Animated").forEach { type ->
+                            FilterChip(selected = packFilter == type, onClick = { packFilter = type }, label = { Text(type) })
+                        }
                     }
                     OutlinedTextField(value = query, onValueChange = { query = it },
                         label = { Text("Search packs") }, modifier = Modifier.fillMaxWidth())
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(packs.filter { it.name.contains(query, true) }, key = { it.id }) { item ->
+                        items(packs.filter { it.name.contains(query, true) && (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) }, key = { it.id }) { item ->
                             Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
                                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(item.name, modifier = Modifier.weight(1f))
+                                    Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)", modifier = Modifier.weight(1f))
                                     Text("${counts[item.id] ?: 0} stickers")
                                 }
                             }
                         }
                     }
                 } else {
-                    Text("${stickers.size}/30 stickers")
+                    Text("${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} pack • ${stickers.size}/30 stickers")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(enabled = !busy && stickers.size < 30, onClick = { picker.launch(arrayOf("image/*")) }) { Text("Import") }
                         OutlinedButton(onClick = { name = pack.name; dialog = "rename" }) { Text("Rename") }
                         OutlinedButton(onClick = { dialog = "delete" }) { Text("Delete") }
+                    }
+                    OutlinedButton(enabled = !busy && stickers.isNotEmpty(), onClick = {
+                        scope.launch {
+                            try {
+                                val send = withContext(Dispatchers.IO) { PackSharing(this@MainActivity, backup).share(pack) }
+                                startActivity(android.content.Intent.createChooser(send, "Share sticker pack"))
+                            } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Cannot share pack") }
+                        }
+                    }) { Text("Share pack ZIP") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (pack.kind == StickerKind.ANIMATED) "Animated WebP only, up to 500 KB" else "PNG/JPEG/static WebP, up to 100 KB")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         for ((title, packageName) in listOf("WhatsApp" to "com.whatsapp", "WA Business" to "com.whatsapp.w4b")) {
@@ -203,7 +233,14 @@ class MainActivity : ComponentActivity() {
                 title = { Text(if (mode == "create") "New pack" else if (mode == "rename") "Rename pack" else "Delete pack?") },
                 text = {
                     if (mode == "delete") Text("Local stickers and data will be deleted.")
-                    else OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Pack name") })
+                    else Column {
+                        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Pack name") })
+                        if (mode == "create") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            StickerKind.entries.forEach { kind ->
+                                FilterChip(selected = newPackKind == kind, onClick = { newPackKind = kind }, label = { Text(kind.name.lowercase().replaceFirstChar { it.uppercase() }) })
+                            }
+                        }
+                    }
                 },
                 confirmButton = {
                     TextButton(enabled = !busy && (mode == "delete" || name.isNotBlank()), onClick = {
@@ -211,7 +248,7 @@ class MainActivity : ComponentActivity() {
                         val value = name
                         dialog = null
                         when (mode) {
-                            "create" -> operation { store.createPack(value); "Pack created" }
+                            "create" -> operation { store.createPack(value, newPackKind); "Pack created" }
                             "rename" -> if (id != null) operation { store.renamePack(id, value); "Renamed" }
                             "delete" -> if (id != null) operation { files.deletePack(id); "Deleted" }
                         }
