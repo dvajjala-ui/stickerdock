@@ -28,8 +28,8 @@ class PackZipImporter(
             while (true) {
                 val entry = zip.nextEntry ?: break
                 require(++entries <= 1200) { "Too many ZIP entries" }
-                val path = entry.name.replace('\\', '/')
-                require(!path.startsWith("/") && !path.contains("..") &&
+                val path = entry.name.replace('\\', '/').trimEnd('/')
+                require(path.isNotEmpty() && !path.startsWith("/") && !path.contains("..") &&
                     !path.split('/').any { it.isEmpty() || it == "." } && path.length <= 250) { "Unsafe archive path" }
                 require(seen.add(path)) { "Duplicate ZIP entry" }
                 if (entry.isDirectory) { zip.closeEntry(); continue }
