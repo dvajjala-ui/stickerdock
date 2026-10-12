@@ -32,7 +32,6 @@ class FolderStickerImporter(
         // Groups may span 30-sticker packs; never create a pack until an item is accepted.
         val groups = mutableMapOf<Group, MutableList<StickerPack>>()
         val visited = mutableSetOf<String>()
-        val existingHashes = store.allStickerHashes().toMutableSet()
         val queue = ArrayDeque<Folder>().apply { add(Folder(root, 0)) }
         var visitedNodes = 0
         var scanned = 0
@@ -77,14 +76,8 @@ class FolderStickerImporter(
                 val candidate = if (current == null || store.listStickers(current.id).size >= 30) {
                     store.createPack(title, kind).also { belongingPacks += it; created++ }
                 } else current
-                when (files.importBytes(candidate.id, image)) {
-                    ImportResult.Added -> {
-                        val imported = store.listStickers(candidate.id).last()
-                        if (!existingHashes.add(imported.sha256)) {
-                            files.deleteSticker(imported)
-                            duplicate++
-                        } else added++
-                    }
+                when (files.importBytes(candidate.id, image, globalDedup = true)) {
+                    ImportResult.Added -> added++
                     ImportResult.Duplicate -> duplicate++
                     is ImportResult.Failed -> rejected++
                 }
