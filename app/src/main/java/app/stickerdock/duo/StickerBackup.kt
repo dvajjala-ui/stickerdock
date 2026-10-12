@@ -12,6 +12,10 @@ import java.util.zip.ZipOutputStream
 class StickerBackup(private val context: Context, private val store: StickerStore, private val files: StickerFiles) {
     data class RestoreSummary(val packs: Int, val stickers: Int, val rejected: Int)
     fun export(uri: Uri, singlePackId: String? = null) {
+        val output = context.contentResolver.openOutputStream(uri) ?: error("Cannot create backup")
+        export(output, singlePackId)
+    }
+    fun export(output: java.io.OutputStream, singlePackId: String? = null) {
         val packs = if (singlePackId == null) store.listPacks() else listOfNotNull(store.getPack(singlePackId))
         require(packs.isNotEmpty()) { "No packs to export" }
         val manifest = JSONObject().put("schema", 2).put("packs", JSONArray().also { array ->
@@ -24,7 +28,6 @@ class StickerBackup(private val context: Context, private val store: StickerStor
                     }))
             }
         })
-        val output = context.contentResolver.openOutputStream(uri) ?: error("Cannot create backup")
         ZipOutputStream(output).use { zip ->
             zip.putNextEntry(ZipEntry("manifest.json"))
             zip.write(manifest.toString().toByteArray())
