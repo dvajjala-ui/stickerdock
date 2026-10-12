@@ -111,15 +111,28 @@ class MainActivity : ComponentActivity() {
                 "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
             }
         }
-        val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) operation {
-                try {
-                    val report = backup.restore(uri)
-                    "StickerDock pack: ${report.packs} packs, ${report.stickers} stickers"
-                } catch (_: Exception) {
-                    val report = PackZipImporter(this@MainActivity, store, files).import(uri)
-                    "ZIP import: ${report.packs} packs, ${report.imported} stickers, ${report.skipped + report.duplicates} skipped"
+        val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) operation {
+                require(uris.size <= 100) { "Select at most 100 ZIP files per batch" }
+                var packsCreated = 0
+                var added = 0
+                var skipped = 0
+                var failed = 0
+                uris.forEach { uri ->
+                    try {
+                        val count = try {
+                            val r = backup.restore(uri)
+                            Triple(r.packs, r.stickers, r.rejected)
+                        } catch (_: Exception) {
+                            val r = PackZipImporter(this@MainActivity, store, files).import(uri)
+                            Triple(r.packs, r.imported, r.skipped + r.duplicates)
+                        }
+                        packsCreated += count.first
+                        added += count.second
+                        skipped += count.third
+                    } catch (_: Exception) { failed++ }
                 }
+                "Imported ${uris.size} ZIPs: ${packsCreated} packs, ${added} stickers, ${skipped} skipped, ${failed} failed"
             }
         }
         val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) {
