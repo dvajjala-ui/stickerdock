@@ -24,6 +24,13 @@ Sticker.ly's Android app is proprietary (the published open-source attribution p
 - Sticker.ly user-content terms: https://sticker.ly/terms-of-use
 
 ## Validation state
+Production hosting code now uses GitHub Actions + Supabase: scheduled persistent
+worker, private inbox/state/pending storage, SQL/RLS migration, manual GENERAL-only
+publish gate, configurable Android catalog base and protected signed release
+candidate workflow. See `docs/PRODUCTION_DEPLOYMENT.md`. No Supabase project or
+production schedule is active until its owner adds the documented GitHub secrets,
+applies the SQL migration and enables the repository variable.
+
 Latest main `f7f1dec` passed [Android CI run 38242344260](https://github.com/dvajjala-ui/stickerdock/actions/runs/38242344260).
 The `feat/daily-groq-stickers` branch adds an optional private desktop scheduler,
 Groq caption/vision client, rotating Hinglish topics, supplied-photo memes, static

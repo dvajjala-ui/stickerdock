@@ -1,0 +1,33 @@
+name: Publish reviewed factory pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: Completed UTC factory day (YYYY-MM-DD)
+        required: true
+        type: string
+
+concurrency:
+  group: sticker-factory-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: sticker-factory-production
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      PUBLISH_DAY: ${{ inputs.day }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Publish after environment approval
+        run: python tools/publish_factory_pack.py --day "$PUBLISH_DAY"

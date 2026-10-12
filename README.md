@@ -45,6 +45,11 @@ public-domain Commons download queue, optional authorized Pinterest-board inputs
 local reference files and actual GIF/MP4-to-captioned-animated-WebP conversion.
 Uses local FFmpeg; no paid image/video provider is configured.
 
+For hosted operation, use the [production deployment guide](docs/PRODUCTION_DEPLOYMENT.md):
+GitHub Actions runs the scheduled Groq/Pillow/FFmpeg worker and Supabase stores
+private inputs/state plus reviewed public packs. The Android catalog URL is a
+release build setting; Groq and Supabase service keys never enter the APK.
+
 ## Build
 JDK 17, Android SDK 35, Gradle 8.9:
 
@@ -60,7 +65,8 @@ The repository does not currently include a full Gradle wrapper binary; CI insta
 - **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
 - A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
 - Folder migration is best-effort and isn't yet process-death/resume-safe for enormous libraries. Android system picker visibility varies with OS/version.
-- GIF/MP4-to-animated-WebP conversion and user-uploaded public packs are not implemented.
+- GIF/MP4/WebM/MOV conversion is implemented in the production worker; live phone
+  import still needs device QA. Public packs require an explicit review workflow.
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.
 
 ## Further documentation

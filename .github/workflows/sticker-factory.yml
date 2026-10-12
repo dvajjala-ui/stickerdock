@@ -1,0 +1,49 @@
+name: Scheduled sticker factory
+
+on:
+  schedule:
+    - cron: '15 */3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sticker-factory-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    if: github.event_name == 'workflow_dispatch' || vars.STICKER_FACTORY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL }}
+      GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL }}
+      FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET }}
+      FACTORY_RATING: GENERAL
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/requirements-stickers.txt
+      - name: Install local rendering dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install -r tools/requirements-stickers.txt
+      - name: Verify production configuration exists
+        run: |
+          python - <<'PY'
+          import os
+          required = ("GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+          if any(not os.environ.get(name, "").strip() for name in required):
+              raise SystemExit("Configure the three required GitHub Actions secrets")
+          PY
+      - name: Generate one due batch and persist it
+        run: python tools/production_worker.py --config tools/factory-production.json

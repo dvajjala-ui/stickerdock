@@ -17,9 +17,9 @@ class CommunityCatalog(
     private val backup: StickerBackup
 ) {
     data class Listing(val id: String, val name: String, val creator: String, val downloadUrl: String, val sha256: String)
-    private val base = "https://raw.githubusercontent.com/dvajjala-ui/stickerdock/main/catalog/"
+    private val base = CatalogUrls.normalizeBase(BuildConfig.COMMUNITY_CATALOG_BASE_URL)
     fun browse(): List<Listing> {
-        val bytes = fetch(base + "packs.json", 512_000)
+        val bytes = fetch(CatalogUrls.index(base), 512_000)
         val doc = JSONObject(bytes.toString(Charsets.UTF_8))
         require(doc.getInt("version") == 1)
         val array = doc.getJSONArray("packs")
@@ -35,13 +35,14 @@ class CommunityCatalog(
             val hash = item.getString("sha256")
             require(name.length in 1..60 && creator.length in 1..60)
             require(Regex("[a-z0-9-]{3,60}").matches(id))
-            require(Regex("[a-zA-Z0-9_-]{1,64}\\.zip").matches(file))
+            require(Regex("""[a-zA-Z0-9_-]{1,64}\.zip""").matches(file))
             require(Regex("[0-9a-f]{64}").matches(hash))
-            Listing(id, name, creator, base + "packs/" + file, hash)
+            Listing(id, name, creator, CatalogUrls.pack(base, file), hash)
         }
     }
     fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary {
-        require(item.downloadUrl.startsWith(base + "packs/"))
+        require(CatalogUrls.isAllowed(base, item.downloadUrl) &&
+            item.downloadUrl.startsWith(base + "packs/"))
         val bytes = fetch(item.downloadUrl, 25_000_000)
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         require(hash == item.sha256) { "Public pack checksum mismatch" }
@@ -52,7 +53,7 @@ class CommunityCatalog(
         } finally { tmp.delete() }
     }
     private fun fetch(url: String, maxBytes: Int): ByteArray {
-        require(url.startsWith(base)) { "Only approved catalog URLs are supported" }
+        require(CatalogUrls.isAllowed(base, url)) { "Only approved catalog URLs are supported" }
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 10_000
         connection.readTimeout = 20_000

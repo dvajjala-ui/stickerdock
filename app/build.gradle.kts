@@ -4,6 +4,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseStoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
 android {
     namespace = "app.stickerdock.duo"
     compileSdk = 35
@@ -12,12 +17,30 @@ android {
         applicationId = "app.stickerdock.duo"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+        val defaultCatalog = "https://raw.githubusercontent.com/dvajjala-ui/stickerdock/main/catalog/"
+        val catalogBase = providers.gradleProperty("catalogBaseUrl").orElse(defaultCatalog).get()
+        require(catalogBase.startsWith("https://") && catalogBase.endsWith("/"))
+        buildConfigField("String", "COMMUNITY_CATALOG_BASE_URL",
+            "\"${catalogBase.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+    }
+    signingConfigs {
+        if (!releaseStoreFile.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (!releaseStoreFile.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
