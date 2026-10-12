@@ -17,7 +17,14 @@ class IncomingStickers(
             Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
             else -> emptyList()
         }
-        if (uris.isEmpty()) return "No sticker files shared. Share the image files, not just a Sticker.ly link."
+        if (uris.isEmpty()) {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (!sharedText.isNullOrBlank()) {
+                val saved = StickerlyLinks(context).saveFromText(sharedText)
+                return if (saved > 0) "Saved $saved Sticker.ly public pack link(s); open them in Sticker.ly, then import any files you may use." else "No supported sticker pack links found"
+            }
+            return "No image files or pack links were shared"
+        }
         if (uris.size > 100) return "Share at most 100 files at a time."
         var imported = 0
         var rejected = 0
