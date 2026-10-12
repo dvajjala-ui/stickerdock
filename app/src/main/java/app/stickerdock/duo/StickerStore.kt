@@ -55,6 +55,11 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         return result
     }
     fun getSticker(packId: String, filename: String) = listStickers(packId).firstOrNull { it.fileName == filename }
+    fun hasStickerHash(hash: String): Boolean {
+        readableDatabase.rawQuery("SELECT 1 FROM stickers WHERE sha256=? LIMIT 1", arrayOf(hash)).use { cursor ->
+            return cursor.moveToFirst()
+        }
+    }
     fun addSticker(item: StickerItem): Boolean {
         val added = writableDatabase.insertWithOnConflict("stickers", null, ContentValues().apply {
             put("id", item.id); put("pack_id", item.packId); put("file_name", item.fileName)
