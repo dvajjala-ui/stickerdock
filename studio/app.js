@@ -9,6 +9,9 @@
   let captionY = 408;
   let dragging = false;
   let sourcePath = null;
+  let aiBusy = false;
+
+  const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
   const status = (message, error = false) => {
     $("status").textContent = message;
@@ -16,7 +19,13 @@
   };
   const token = () => $("token").value.trim();
   $("token").value = sessionStorage.getItem("stickerdock-studio-token") || "";
-  $("token").addEventListener("change", () => sessionStorage.setItem("stickerdock-studio-token", token()));
+  const updateAiButton = () => {
+    $("generate").disabled = aiBusy || !ready || !token() || !$("prompt").value.trim();
+  };
+  $("token").addEventListener("input", () => {
+    sessionStorage.setItem("stickerdock-studio-token", token());
+    updateAiButton();
+  });
 
   function coverGeometry(width, height, fit) {
     const scale = fit === "contain" ? Math.min(512 / width, 512 / height) : Math.max(512 / width, 512 / height);
@@ -71,7 +80,7 @@
       ctx.fillText(line, captionX, y);
     });
   }
-  function loadDataUrl(url, originPath = null) {
+  function loadDataUrl(url, originPath = null, readyMessage = "Image ready. Add a caption and style it, or use the private AI worker.") {
     image.onload = () => {
       sourcePath = originPath;
       ready = true;
@@ -79,7 +88,8 @@
       $("download").disabled = false;
       $("upload").disabled = false;
       draw();
-      status("Image ready. Add a caption and style it. AI prompts are coming soon.");
+      updateAiButton();
+      status(readyMessage);
     };
     image.onerror = () => status("That image could not be opened.", true);
     image.src = url;
@@ -105,6 +115,46 @@
     if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
     return value;
   }
+  async function ensureAiSource() {
+    if (sourcePath) return sourcePath;
+    if (!ready || !image.src.startsWith("data:image/")) throw new Error("Choose an image first.");
+    status("Saving the source to the private factory inbox…");
+    const result = await api("/api/upload", {image: image.src, title: "Creator AI source"});
+    sourcePath = result.path;
+    return sourcePath;
+  }
+
+  async function waitForAiRequest(id) {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      const result = await api("/api/captions", {action: "status", id});
+      if (result.status === "complete") return result;
+      if (result.status === "failed" || result.status === "cancelled") {
+        throw new Error(result.error_message || `AI request ${result.status}.`);
+      }
+      status(result.status === "running" ? "AI worker is creating your sticker…" : "AI request queued. The private worker checks every 10 minutes…");
+      await sleep(5000);
+    }
+    throw new Error("AI request is still queued. You can leave this page and try again later.");
+  }
+
+  $("prompt").addEventListener("input", updateAiButton);
+  $("generate").addEventListener("click", async () => {
+    if (aiBusy) return;
+    const prompt = $("prompt").value.trim();
+    if (!prompt) { status("Describe the AI sticker you want first.", true); return; }
+    aiBusy = true; updateAiButton();
+    try {
+      const path = await ensureAiSource();
+      status("Queueing a private AI sticker request…");
+      const queued = await api("/api/captions", {action: "queue", prompt, source_path: path});
+      const completed = await waitForAiRequest(queued.id);
+      const result = await api("/api/library", {action: "fetch", path: completed.result_path});
+      $("caption").value = "";
+      loadDataUrl(result.image, completed.result_path, "AI sticker ready. Download it or continue editing.");
+    } catch (error) { status(error.message, true); }
+    finally { aiBusy = false; updateAiButton(); }
+  });
+
   $("file").addEventListener("change", (event) => loadFile(event.target.files[0]));
   const drop = $("drop");
   ["dragenter", "dragover"].forEach((name) => drop.addEventListener(name, (event) => { event.preventDefault(); drop.classList.add("dragging"); }));
@@ -163,4 +213,5 @@
     catch (error) { status(error.message, true); }
   });
   draw();
+  updateAiButton();
 })();

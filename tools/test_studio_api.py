@@ -17,6 +17,30 @@ def image_data_url():
 
 
 class StudioApiTest(unittest.TestCase):
+    def _supabase_headers_for(self, key):
+        captured = {}
+
+        def fake_request(url, method="GET", data=None, headers=None, limit=None, missing_ok=False):
+            captured.update(headers or {})
+            return b"[]"
+
+        with patch.dict(os.environ, {
+            "SUPABASE_URL": "https://example.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": key,
+        }, clear=False), patch.object(studio, "request", side_effect=fake_request):
+            studio.supabase_request("/rest/v1/creator_requests")
+        return captured
+
+    def test_new_secret_key_is_apikey_only(self):
+        headers = self._supabase_headers_for("sb_secret_test-only")
+        self.assertEqual(headers["apikey"], "sb_secret_test-only")
+        self.assertNotIn("Authorization", headers)
+
+    def test_legacy_service_role_keeps_bearer(self):
+        headers = self._supabase_headers_for("legacy-service-role")
+        self.assertEqual(headers["apikey"], "legacy-service-role")
+        self.assertEqual(headers["Authorization"], "Bearer legacy-service-role")
+
     def test_truncated_jpeg_is_rejected(self):
         image = io.BytesIO()
         Image.new("RGB", (64, 64), "red").save(image, "JPEG")
@@ -34,11 +58,13 @@ class StudioApiTest(unittest.TestCase):
     def test_edited_reference_retains_source_rights(self):
         source = "inbox/" + "a" * 64 + ".png"
         calls = []
+
         def provider(path, **kwargs):
             calls.append((path, kwargs))
             if kwargs.get("method", "GET") == "GET":
                 return json.dumps({"license": "REFERENCE_ONLY", "source_url": "https://www.pinterest.com/pin/12345/"}).encode()
             return b""
+
         with patch.object(studio, "supabase_request", side_effect=provider):
             studio.upload_user_image(image_data_url(), "Edited caption", source)
         metadata = json.loads(calls[1][1]["data"])
@@ -65,9 +91,11 @@ class StudioApiTest(unittest.TestCase):
 
     def test_upload_writes_media_and_owner_metadata(self):
         calls = []
+
         def capture(path, **kwargs):
             calls.append((path, kwargs))
             return b""
+
         with patch.object(studio, "supabase_request", side_effect=capture):
             result = studio.upload_user_image(image_data_url(), "My original")
         self.assertEqual(len(calls), 2)
@@ -83,9 +111,11 @@ class StudioApiTest(unittest.TestCase):
     def test_creator_request_queue_is_private_and_bounded(self):
         source = "inbox/" + "b" * 64 + ".webp"
         calls = []
+
         def capture(path, **kwargs):
             calls.append((path, kwargs))
             return b""
+
         with patch.object(studio, "supabase_request", side_effect=capture):
             result = studio.queue_creator_request("  make   it funny  ", source)
         self.assertEqual(result["status"], "queued")

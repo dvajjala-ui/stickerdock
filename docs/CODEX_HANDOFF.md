@@ -1,73 +1,237 @@
-# StickerDock development handoff — updated October 2026
+# StickerDock development handoff — updated October 13, 2026
 
 ## Goal and historical decisions
-User has two WhatsApp accounts on Samsung S24 Ultra and finds Sticker.ly difficult to organize. Requirements evolved from local pack manager → animated/static categorization → ZIP sharing and recovery → Sticker.ly migration of existing accessible stickers → source-file backup through ADB/Android SAF → public bookmarks and curated community. User also requested mature stickers: currently local MATURE label and private ZIP sharing, but no open sexual-content catalog.
 
-## Key technical details
-- Kotlin + Jetpack Compose; JDK17, SDK35, Gradle8.9.
-- StickerStore: SQLite schema v5, packs.kind, packs.rating, packs.category and sha index with additive migrations.
-- StickerFiles: normalize static images to 512px WebP <=100KB, accept validated animated WebP <=500KB/10s; optional global hash dedup.
-- FolderStickerImporter: DocumentFile walk bounded by number/bytes/depth, reads public Android/media selected directory, groups by StickerPackMetadata EXIF fields, creates static or animated packs and auto-splits into 30-sticker chunks. It now keeps an app-private processed-URI checkpoint, persists session pack IDs/counters, reports live progress, and supports explicit Resume/Discard after interruption. The last unflushed tail is safe to retry through global SHA-256 dedup. Real-device process-death QA is still pending.
-- PackZipImporter: bounded .zip/.wastickers files, EXIF grouping; bulk selection of 100 files via ActivityResultContracts.OpenMultipleDocuments.
-- StickerBackup: schema v4, backwards restoration, includes kind/rating/category; PackSharing via Android FileProvider.
-- StickerlyLinks: offline SQLite bookmark registry and link sharing, not content scraping.
-- CommunityCatalog: read-only verified public catalog GENERAL-only; `catalog/packs.json` empty.
-- `tools/adb_sticker_export.py`: optional no-root desktop ADB pull of WhatsApp and Business media directories; 250-file/45MB ZIP batches for app ingestion.
-- WhatsAppStickerProvider uses 4 documented provider endpoints and per-pack install intents. Needs real-device acceptance verification.
+StickerDock is a Kotlin/Jetpack Compose Android sticker manager for organizing a
+user-owned library independently from WhatsApp and Sticker.ly. Requirements grew
+from local static/animated pack management into categorized search/import/export,
+WhatsApp/Business migration, resumable very-large-folder import, curated public
+packs, and a separate private AI Sticker Factory/Creator Studio.
 
-## What Sticker.ly does/does not supply
-Sticker.ly's Android app is proprietary (the published open-source attribution page concerns third-party libraries); no official full-account or entire-catalog export API was verified. Public pack links like `https://sticker.ly/s/RZ7GSI` are supported by the bookmark workflow only. Historical unofficial wrappers include `theabbie/sticker.ly` (MIT) and archived `ciwga/Stickerly`; do not rely on them as durable endpoints, bypass protected endpoints, or automatically rehost creators' assets. User says they have a modified APK, but it has not been uploaded/inspected and it is not assumed to contain server-side sticker assets.
+The Android app must never contain Groq or Supabase service-role credentials.
+Private generation/storage lives in GitHub Actions + Supabase. Public content is
+explicitly reviewed and GENERAL-only; MATURE content remains private/local. Do
+not automatically mirror Sticker.ly/Pinterest creator catalogs or treat platform
+access as reuse permission.
 
-## Public source references (licenses)
-- WhatsApp official third-party sticker docs (BSD): https://github.com/WhatsApp/stickers/blob/main/Android/README.md
-- StickerVault's user-selected folder backup and EXIF recovery (GPL-3.0), architecture inspiration ONLY: https://github.com/mintnchocochip/stickervault
-- Sticker.ly user-content terms: https://sticker.ly/terms-of-use
+## Key Android technical details
 
-## Validation state
-Production hosting code now uses GitHub Actions + Supabase: scheduled persistent
-worker, private inbox/state/pending storage, SQL/RLS migration, manual GENERAL-only
-publish gate, configurable Android catalog base and protected signed release
-candidate workflow. See `docs/PRODUCTION_DEPLOYMENT.md`. No Supabase project or
-production schedule is active until its owner adds the documented GitHub secrets,
-applies the SQL migration and enables the repository variable.
+- Kotlin + Jetpack Compose; JDK 17, Android SDK 35, Gradle 8.9.
+- SQLite schema v6 with pack kind/rating/category, sticker labels/tags, SHA-256
+  indexes and additive/non-destructive migrations.
+- Backup schema v5; restoration remains compatible with schemas 1–4.
+- Static normalization: 512px WebP <=100KB. Valid animated WebP <=500KB / 10s.
+- Categorized pack/sticker search, static/animated filtering, global sticker
+  search, copy/move/remove, metadata editing and content-hash deduplication.
+- FolderStickerImporter uses bounded SAF traversal, app-private processed-URI
+  checkpoints and explicit Resume/Discard. It persists selected read URIs where
+  Android permits. Global SHA-256 dedup makes a small unflushed tail safe to
+  retry. Real process-death/provider-permission QA is still pending.
+- PackZipImporter supports bounded ZIP/.wastickers/StickerDock archives and bulk
+  selection via `OpenMultipleDocuments`.
+- `tools/adb_sticker_export.py` is an optional no-root desktop helper for a user's
+  authorized WhatsApp/Business media folders.
+- `WhatsAppStickerProvider` implements the documented provider contract/install
+  intents but still needs current real-device acceptance testing.
+- `CommunityCatalog` is read-only; public catalog remains review-gated.
 
-The production branch also integrates the user-supplied Pinterest AutoSync v2
-logic as `tools/pinterest_autosync`: authorized-board API pagination, rolling
-request budgets, SQLite retry/dedup, bounded CDN downloads and optional
-`pinterest-dl` topic discovery. `tools/pinterest_worker.py` persists small state in
-Supabase, offloads downloaded files to the private inbox, and preserves per-source
-rights metadata. Pinterest defaults to `REFERENCE_ONLY`; the public publisher
-rejects those derived packs. `studio/` plus `api/` is a Vercel-ready manual meme
-editor and inbox browser; its AI control and Android entry are Coming soon. Groq
-remains only in the private Factory. See `docs/PINTEREST_AND_CREATOR_STUDIO.md`.
+## Sticker.ly / third-party boundaries
 
-The production branch at `8d623b8` passed [Android CI run 38254739016](https://github.com/dvajjala-ui/stickerdock/actions/runs/38254739016).
-The optimization review added grouped Android counts/direct sticker lookup,
-shared clip-render decoding, invalid-input skipping, source-rights inheritance
-in Studio, finite Pinterest attempts/staging and matching public archive/animation
-bounds. The folder-resume extension at `0b20cb0` passed Android CI run
-`38379410428`, including Python smoke tests, Kotlin/unit tests, debug APK and
-optimized release. Device/emulator validation has **not** happened. Never
-represent compilation or CI as proof of real-world WhatsApp or process-death behavior.
-The `feat/daily-groq-stickers` branch adds an optional private desktop scheduler,
-Groq caption/vision client, rotating Hinglish topics, supplied-photo memes, static
-illustrations and simple animated WebP pulse rendering, rate-limit headers/usage,
-crash recovery and schema-3 ZIP export. See `docs/DAILY_AI_STICKERS.md`.
-It also fixes over-escaped backup WebP allowlist regexes and adds regression tests.
-Free-input extension: `tools/media_library.py` has bounded CC0/public-domain
-Commons discovery, direct media queue, provenance/dedup and optional authorized
-Pinterest board ingestion with per-pin reuse declarations. `tools/video_stickers.py`
-converts local GIF/MP4/WebM/MOV first 2s to captioned animated WebP with FFmpeg;
-factory `clip` mode uses its first frame for Groq vision. No new paid provider.
-See `docs/FREE_MEDIA_FACTORY.md`; live sources/Groq remain blocked by proxy policy.
-Generation target defaults to 40/day in batches of five; 100/day is configurable.
-No schedule/key is installed or deployed. Live calls remain blocked by environment
-network policy; actual account quotas, vision support and phone QA are unverified.
+Sticker.ly has no verified official full-account or entire-catalog export API for
+this project. Public Sticker.ly links are bookmarks/navigation only. Historical
+unofficial wrappers must not be treated as durable or as permission to bypass
+protected endpoints/rehost creators' content. A user-mentioned modified APK has
+not been inspected and must not be assumed to contain server-side catalog assets.
 
-Prior commit `94ad982` passed Android CI with earlier feature set. Device/emulator validation has **not** happened. Never represent compilation or CI as proof of real-world WhatsApp behavior.
+Useful public references:
 
-## Next tasks
-Validate the new SAF progress/resume path on the Galaxy S24 Ultra with personal and Business roots, 10k+ WebP, duplicates, invalid files, cancel/retry and forced process death. Add targeted SQLite migration and user-selected directory import tests where feasible without pretending JVM tests replace SAF/device behavior. Then test EXIF/thumbnail handling, inspect provider behavior against the official WhatsApp sample, investigate metadata preservation and generic .wastickers variants, and improve tags/filenames/global sticker search. Public community moderation and adult policy must be designed before accepting user uploads.
+- WhatsApp official third-party stickers docs:
+  https://github.com/WhatsApp/stickers/blob/main/Android/README.md
+- StickerVault folder-backup/EXIF ideas (GPL-3.0 architecture inspiration only):
+  https://github.com/mintnchocochip/stickervault
+- Sticker.ly terms: https://sticker.ly/terms-of-use
+
+## Production architecture
+
+### Supabase
+
+Production project:
+
+- project ref: `qqicsllktmcmvmzplsxl`
+- URL: `https://qqicsllktmcmvmzplsxl.supabase.co`
+
+Both production migrations are already applied and verified:
+
+1. `202610120001_sticker_factory.sql`
+2. `202610130001_creator_requests.sql`
+
+Verified state:
+
+- RLS enabled on `factory_runs`, `sticker_packs`, `creator_requests`;
+- `factory_runs` / `creator_requests` table access is service-role only;
+- client reads of `sticker_packs` are limited to approved GENERAL rows;
+- `claim_creator_request(text)` is SECURITY INVOKER with empty search path,
+  service-role-only EXECUTE and atomic `FOR UPDATE SKIP LOCKED` claiming;
+- `sticker-factory-private` is private;
+- `sticker-factory-public` is public;
+- no broad client `storage.objects` SELECT/list policy exists;
+- all expected `updated_at` triggers exist.
+
+The production secret is the current opaque `sb_secret_...` API-key format.
+Server-side clients support this by sending `apikey` without incorrectly treating
+it as a JWT bearer token; legacy service-role JWT support remains for backwards
+compatibility.
+
+### GitHub production secrets / models
+
+Validated GitHub Actions secrets:
+
+- `GROQ_API_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Do not print, copy into source, or expose either value. The Supabase project URL
+is non-secret and is set directly in workflows. Current defaults:
+
+- Groq text: `openai/gpt-oss-20b`
+- Groq vision: `qwen/qwen3.8-27b`
+
+Both models authenticated successfully in a real GitHub Actions smoke test.
+
+### Sticker Factory
+
+`tools/production_worker.py` + `tools/factory-production.json` provide the private
+persistent Factory. State is saved in Supabase so fresh GitHub runners resume the
+same UTC day. Generated packs remain private/pending until explicit review.
+
+Live evidence completed October 13, 2026:
+
+- controlled real Groq batch generated **5/5** GENERAL illustration stickers;
+- `factory_runs` persisted `complete` for that controlled target;
+- private ZIP checksum matched the `sticker_packs` record;
+- the pack stayed `pending` and the public bucket remained empty;
+- follow-up run with the real production config resumed on a fresh runner from
+  5 to **10/40**;
+- persistent runtime state contained all 10 records;
+- two reference-library assets synced;
+- attempts reached 2 and the public bucket remained empty.
+
+Do not force the remaining 30 by bypassing cooldown. The recurring Factory
+schedule remains gated/disabled until a normal-cooldown 40/40 day is reviewed.
+Do not publish the five-sticker smoke pack.
+
+### Creator Studio / private AI queue
+
+`studio/` + `api/` are the private browser editor/serverless API source. Android
+still shows AI meme creator as Coming soon.
+
+A real isolated production Creator smoke passed:
+
+1. verified queue was empty before injecting test work;
+2. created one unique private source PNG + USER_OWNED provenance;
+3. queued one `creator_requests` row;
+4. real worker atomically claimed it exactly once;
+5. Groq vision generated the caption path;
+6. local renderer produced a bounded static private WebP;
+7. result SHA/path and provenance back to source/request were verified;
+8. request reached `complete` with one attempt;
+9. test request/source/result/provenance were deleted afterward.
+
+The source branch `feat/creator-studio-live-ai` / PR #6 now:
+
+- fixes `api/_shared.py` for `sb_secret_...` auth;
+- enables the browser AI prompt/button;
+- uploads a local source to the private inbox before queueing when needed;
+- queues `/api/captions`, polls status, fetches the private result, and loads it
+  back into the editor;
+- schedules **Creator request worker** every 10 minutes;
+- uses one cheap Supabase preflight so empty queues skip Python/package/font
+  setup;
+- can drain up to five queued requests in one serialized active run;
+- preserves all previous Studio API tests and adds new-secret/legacy auth tests.
+
+Validation for that source:
+
+- complete Python helper suite: **75 tests passed**;
+- headless Chromium manual editor smoke passed: upload, canvas/caption/style,
+  drag, 31,012-byte PNG download, token guard, no page/console errors and 0px
+  horizontal mobile overflow;
+- Chromium AI network-boundary smoke passed: source upload → queue → status →
+  private result fetch → result loaded/download enabled;
+- restored/preserved Studio API regression module passed after checking no older
+  coverage had been deleted.
+
+PR #6 is open and has been reported mergeable. Recheck its latest Android CI
+before merging because documentation/source commits can move the head.
+
+Hosted Vercel is **not yet verified**. No public deployment URL was discoverable.
+After PR #6 merges, configure Vercel/server environment:
+
+- `STUDIO_ACCESS_TOKEN`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Then run one authenticated hosted Chromium/API smoke before treating Studio as a
+remotely available feature. Android may remain Coming soon until that exposure is
+intentional.
+
+### Storage monitor
+
+The production read-only storage monitor passed live:
+
+- private bucket: **7 objects / 4,204,527 bytes (~4.01 MB)**;
+- public bucket: **0 objects**;
+- >30-day private generated retention candidates: **none**;
+- no deletion occurred.
+
+The actual Supabase plan storage quota is not configured, so the run was
+report-only and calculated no usage percentage. Next step is to set the real
+`SUPABASE_STORAGE_QUOTA_MB`, review warning/failure thresholds, then decide when
+to set `STORAGE_MONITOR_ENABLED=true`.
+
+### Pinterest / media sources
+
+`tools/media_library.py` supports bounded CC0/public-domain Wikimedia discovery.
+`tools/pinterest_autosync` / `tools/pinterest_worker.py` support official authorized
+Pinterest boards with rolling budgets, retry/dedup and private provenance.
+Pinterest defaults to `REFERENCE_ONLY`; public publishing refuses those derived
+pixels unless explicit compatible rights metadata exists.
+
+Pinterest production remains blocked on external configuration: approved app,
+OAuth token and numeric authorized board IDs. Optional public-topic discovery is
+disabled by default and remains REFERENCE_ONLY.
+
+`tools/video_stickers.py` converts authorized GIF/MP4/WebM/MOV inputs to bounded
+captioned animated WebP using FFmpeg. This does not imply device-side animated
+preview/install has been accepted on a real phone.
+
+## Remaining production gates
+
+These are the meaningful remaining gates; do not redo already-passed migrations,
+credential checks, 5/5 Factory smoke, 10/40 resume smoke, Creator queue smoke, or
+first storage report unless a later change specifically invalidates them.
+
+1. Let the Factory finish one **normal-cooldown 40/40** UTC day; review real Groq
+   metrics and the completed private pack.
+2. Publish one reviewed GENERAL completed-day pack, confirm public catalog/object,
+   then import that exact pack into Android.
+3. Merge/deploy PR #6 to Vercel, configure its three server environment values,
+   and run the hosted authenticated browser/API smoke.
+4. Configure the actual Supabase storage quota/thresholds, then optionally enable
+   daily storage monitoring.
+5. Connect an approved Pinterest app/token/board IDs and run one official-board
+   smoke sync.
+6. Configure Android signing/catalog release settings.
+7. On Galaxy S24 Ultra test WhatsApp + WhatsApp Business install, animated
+   previews, folder URI persistence, cancel/retry and forced process-death
+   recovery with 10k+ files.
+8. Finish privacy policy, app identity, Play listing and release regression.
+9. Before accepting public submissions, build authenticated submission, malware
+   scanning, rights review, reporting/block/moderation and age controls.
 
 ## Operational caution
-User data stays private unless they explicitly share; ADB script stays local. No unnecessary cloud storage, upload or expensive infrastructure. Respect Sticker.ly content ownership and users' privacy.
+
+User data stays private unless explicitly shared. ADB stays local. Avoid
+unnecessary cloud uploads or expensive infrastructure. Do not expose Groq or
+Supabase privileged keys in Android/browser/client code. Respect third-party
+content ownership and treat Pinterest/Sticker.ly access separately from reuse
+rights.

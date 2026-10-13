@@ -2,10 +2,10 @@
 
 StickerDock has one private source inbox. Manual uploads, approved Pinterest
 boards and reusable Wikimedia Commons media enter that inbox, then the scheduled
-factory can turn them into photo or short-video stickers. The optional Creator
-Studio preview can open inbox images, add manual captions and send the finished
-image back to the inbox. A private AI request/result queue is implemented but is
-not exposed by the visible Studio AI control yet.
+factory can turn them into photo or short-video stickers. Creator Studio can open
+inbox images, add manual captions, send finished images back to the inbox and, in
+the live-AI source, queue a private Groq vision request without exposing Groq or
+Supabase service credentials to the browser.
 
 ## Source behavior
 
@@ -37,17 +37,17 @@ and refuses any pack made with `REFERENCE_ONLY` pixels.
 | Variable | `PINTEREST_PER_RUN` | `30` maximum |
 | Variable | `PINTEREST_SYNC_ENABLED` | `true` after the smoke test |
 
-The Pinterest workflow also uses the existing `SUPABASE_URL` and
-`SUPABASE_SERVICE_ROLE_KEY` secrets. Leave `PINTEREST_SYNC_ENABLED` unset, open
-Actions → **Pinterest source sync**, and run it manually once. The job records a
-rolling local API budget before requests, saves its SQLite state under the
-private Supabase bucket, and uploads new media plus source metadata. After a
-successful test, set the enable variable to `true`. It then runs every six hours.
-Each scan permits at most 60 attempts, including failures/duplicates, with a
-15-minute deadline checked between download attempts. Provider calls can finish
-after that deadline; the workflow has a separate 30-minute timeout. Hosted media
-staging is limited to about 54 MB and individual inputs to 19 MiB so failed
-uploads remain recoverable in the bounded state archive.
+The Pinterest workflow also uses the existing Supabase project URL and
+`SUPABASE_SERVICE_ROLE_KEY`. Leave `PINTEREST_SYNC_ENABLED` unset, open Actions →
+**Pinterest source sync**, and run it manually once. The job records a rolling
+local API budget before requests, saves its SQLite state under the private
+Supabase bucket, and uploads new media plus source metadata. After a successful
+test, set the enable variable to `true`. It then runs every six hours. Each scan
+permits at most 60 attempts, including failures/duplicates, with a 15-minute
+deadline checked between download attempts. Provider calls can finish after that
+deadline; the workflow has a separate 30-minute timeout. Hosted media staging is
+limited to about 54 MB and individual inputs to 19 MiB so failed uploads remain
+recoverable in the bounded state archive.
 
 The local official-API ceiling is 700 calls over a rolling 24 hours. This is a
 budget guard, not a promise that Pinterest will grant that quota or return video
@@ -83,11 +83,13 @@ Pinterest site changes can break it, and discovered content remains
 
 ## Creator Studio preview (Coming soon in Android)
 
-The Android app currently shows **AI meme creator — Coming soon** and does not
-open the editor. The implementation is staged in this branch for private testing;
-do not treat it as an active end-user feature yet.
+The Android app still shows **AI meme creator — Coming soon** and does not open
+the editor. The browser Studio is a separate private maintainer/user preview. Its
+manual editor and real AI queue/worker path are implemented and have passed live
+backend testing, but hosted Vercel deployment/environment configuration still
+needs verification before treating it as a remotely available feature.
 
-For a maintainer preview, import the repository into a free Vercel project. No
+For a maintainer preview, import the repository into a Vercel project. No
 framework preset or build command is required; `studio/` contains static
 HTML/CSS/JavaScript and `api/` contains Python serverless functions.
 
@@ -99,10 +101,10 @@ Add these Vercel environment variables:
 | `SUPABASE_URL` | Existing factory project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Private inbox/queue access from serverless functions |
 
-Deploy, open the Vercel URL, enter `STUDIO_ACCESS_TOKEN`, and use the manual
-editor. The browser does not receive the Supabase service-role key. It stores the
-Studio token only in the current browser tab (`sessionStorage`). Groq remains
-configured only in the private Factory service.
+Deploy, open the Vercel URL, enter `STUDIO_ACCESS_TOKEN`, and use the editor. The
+browser never receives the Supabase service-role key. It stores the Studio token
+only in the current browser tab (`sessionStorage`). Groq remains configured only
+in the private GitHub Actions worker.
 
 Creator Studio supports:
 
@@ -111,7 +113,10 @@ Creator Studio supports:
   uploads (images over 3 MB should be opened from a smaller local copy);
 - fill/contain crop, caption drag positioning, font size, width, fill, outline and
   optional uppercase;
-- PNG download and upload of the finished result back to Supabase.
+- PNG download and upload of the finished result back to Supabase;
+- private AI generation: a local source is first uploaded to the private inbox,
+  then the browser queues a request, polls status and loads the returned private
+  sticker back into the editor when complete.
 
 Editing an inbox image preserves its original `REFERENCE_ONLY`, `CC0`,
 `PUBLIC_DOMAIN`, or `USER_OWNED` label; adding a caption does not upgrade reuse
@@ -119,9 +124,6 @@ rights. A source with missing metadata stays reference-only. Local uploads are
 owner-provided inputs and are validated as actual static images before storage.
 
 ## Private AI request queue
-
-The asynchronous Studio → Factory queue is implemented in source but deliberately
-not wired to the visible AI button yet.
 
 `supabase/migrations/202610130001_creator_requests.sql` creates a
 service-role-only `creator_requests` table. RLS is enabled and no public,
@@ -137,10 +139,19 @@ private Studio functions. It supports only:
 - `{"action":"status","id":"<uuid>"}` — read that request's status/result.
 
 The browser never receives `GROQ_API_KEY` or the Supabase service-role key.
-Source paths and request IDs are validated before provider access.
+Source paths and request IDs are validated before provider access. The hosted API
+client supports both current opaque `sb_secret_...` Supabase keys and legacy
+service-role JWTs; new secret keys are sent as `apikey` rather than incorrectly
+being treated as bearer JWTs.
 
-The GitHub workflow **Creator request worker** is `workflow_dispatch` only. Each
-manual run atomically claims at most one request, verifies that the private
+The GitHub workflow **Creator request worker** checks for queued work every 10
+minutes. The first step performs one small authenticated Supabase query. If the
+queue is empty, setup/install/rendering steps are skipped. If work exists, the
+job installs the rendering dependencies and can process up to five queued
+requests in that run. Concurrency is serialized so overlapping workers do not
+race, while the database claim function independently protects each row.
+
+For each request the worker atomically claims the row, verifies that the private
 source object's SHA-256 matches its inbox filename, validates source-rights
 metadata, calls the existing Groq vision caption path, renders a static WebP
 locally, and stores the result plus provenance back in the private inbox. Missing
@@ -148,25 +159,33 @@ rights metadata is treated as `REFERENCE_ONLY`; invalid provenance fails before
 any Groq call. Provider/internal errors are not written verbatim into the status
 row.
 
-The manual worker uses the normal GitHub secrets `GROQ_API_KEY`, `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY` and the `GROQ_VISION_MODEL` variable.
+The worker uses the normal GitHub secrets `GROQ_API_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`, the configured Supabase project URL, and the current
+Groq vision model (`qwen/qwen3.8-27b`).
 
-### Live activation checklist
+### Live verification completed October 13, 2026
 
-Before enabling an AI control in Studio or scheduling the worker:
+The activation gate was exercised against the production Supabase/Groq setup:
 
-1. Apply both Supabase migrations, including
-   `202610130001_creator_requests.sql`.
-2. Configure the Vercel Studio token/Supabase variables and GitHub
-   Groq/Supabase/vision-model settings.
-3. Upload or choose one authorized private inbox image.
-4. Send one authenticated `/api/captions` `queue` request.
-5. Manually run Actions → **Creator request worker** once.
-6. Query `/api/captions` with `action=status`; confirm `complete`, a private
-   result path, correct provenance and a valid rendered sticker.
-7. Inspect the real Groq usage/rate-limit behavior and Supabase storage impact.
-8. Only then decide whether to schedule queue processing and replace the disabled
-   Coming soon control / link it from Android.
+1. Both Supabase migrations were applied and their RLS/grants/functions/buckets
+   verified.
+2. GitHub `SUPABASE_SERVICE_ROLE_KEY` and `GROQ_API_KEY` were confirmed present
+   without printing their values.
+3. A unique private PNG and `USER_OWNED` provenance record were created only after
+   confirming the Creator queue was empty.
+4. One authenticated Creator request was queued.
+5. The real worker claimed it exactly once and used Groq vision to create a
+   private static WebP.
+6. The result path matched its SHA-256, remained within the sticker size bound,
+   and its metadata linked back to the source and request.
+7. The request reached `complete` with one attempt.
+8. The test request plus source/result/provenance objects were deleted afterward.
+
+Headless Chromium also verified the manual Studio interactions and the enabled AI
+UI flow. The remaining activation work is hosted deployment: configure the three
+Vercel environment values above, deploy the current source, and run one
+authenticated browser smoke against that public/private deployment URL. Android
+can remain Coming soon until the hosted Studio is intentionally exposed.
 
 ## Local tests
 
@@ -175,10 +194,11 @@ python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-
 python3 -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
-Automated tests cover queue input validation, status parsing, atomic client/RPC
-behavior, request-worker success/failure, source hash verification and
-fail-closed provenance handling. They do not replace a live Supabase/Groq smoke
-test.
+Automated tests cover queue input validation, status parsing, hosted Supabase auth
+for new/legacy keys, atomic client/RPC behavior, request-worker success/failure,
+source hash verification and fail-closed provenance handling. Chromium coverage
+checks manual editing plus the AI upload/queue/status/result interaction flow.
+Live Supabase/Groq verification complements rather than replaces those tests.
 
 For a local official Pinterest scan, set the same access-token and board-ID
 variables and run `tools/pinterest_worker.py` only with a configured Supabase
