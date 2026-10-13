@@ -53,6 +53,12 @@ real-device acceptance or store-release testing.
 - Android network configuration rejects cleartext HTTP; catalog bases are HTTPS
   only. App backup remains disabled and no broad storage/camera/location/account
   permission is requested.
+- Android now compiles and targets API 36 with AGP 8.9.1 and Gradle 8.11.1. The
+  normal CI path passes the 89-test production Python helper suite, Android unit
+  tests, `lintRelease`, debug/release APK assembly and release AAB construction.
+  Production workflows use the current Node-24 GitHub Action lines validated in
+  CI (`checkout@v7`, `setup-python@v7`, `setup-java@v6`, `setup-gradle@v6` and
+  `upload-artifact@v7` where applicable).
 - Disabled **AI meme creator — Coming soon** Android entry.
 
 ### Private Sticker Factory
@@ -98,7 +104,11 @@ real-device acceptance or store-release testing.
   usage metrics. Pinterest scans have attempt/time budgets and bounded staging.
 - Signed Android APK/AAB workflow with the production Supabase catalog as its
   default and an optional URL override. The workflow fails fast with a named
-  Actions error if any of the four signing secrets is missing.
+  Actions error if any of the four signing secrets is missing, then independently
+  verifies the signed APK with `apksigner` and the AAB signature with `jarsigner`
+  before uploading release artifacts. The complete signing path was proven in CI
+  with a disposable JKS using separate store/key passwords; no disposable key was
+  committed or retained.
 
 ### Live Supabase / Groq verification
 
@@ -208,14 +218,15 @@ real-device acceptance or store-release testing.
   actual Supabase plan quota is still unknown to the workflow, so configure
   `SUPABASE_STORAGE_QUOTA_MB` and review the intended warning/failure thresholds
   before setting `STORAGE_MONITOR_ENABLED=true` for daily checks.
-- **Android release:** the `android-production` environment exists. A live
-  presence-only probe found the four signing secrets unset:
+- **Android release:** API 36 compilation/targeting, release lint, APK/AAB
+  construction and the full signing/verification implementation are CI-proven.
+  A disposable JKS with separate store/key passwords successfully produced a
+  v2-signed release APK and signed AAB; both signatures were independently
+  verified and the key existed only on the disposable runner. The
+  `android-production` environment still lacks the real Play upload key values:
   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
-  `ANDROID_KEY_PASSWORD`. `CATALOG_BASE_URL` no longer blocks release because the
-  workflow defaults to the deployed Supabase public catalog while retaining an
-  optional environment override. The workflow now fails fast with the exact
-  missing secret name before keystore decoding/Gradle. The remaining blocker is
-  signing configuration rather than a known build/signature failure.
+  `ANDROID_KEY_PASSWORD`. The workflow defaults to the production Supabase catalog
+  and fails fast with the exact missing secret name before decoding the keystore.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
 - **Large folder migration:** progress/checkpoint/resume logic compiles and the
@@ -234,8 +245,9 @@ real-device acceptance or store-release testing.
 - Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and, after
   reviewing the first successful report-only scan, set
   `STORAGE_MONITOR_ENABLED=true` for daily checks.
-- Configure the four Android signing secrets, build a signed APK/AAB candidate and
-  install it on the target Galaxy S24 Ultra.
+- Create/secure the production Play upload key, configure the four
+  `android-production` signing secrets, run the real signed release-candidate
+  workflow and install that candidate on the target Galaxy S24 Ultra.
 - Test folder import, animated previews and WhatsApp/Business pack installation
   on the Galaxy S24 Ultra.
 - Validate resumable progress/process-death recovery for very large Android
@@ -246,8 +258,9 @@ real-device acceptance or store-release testing.
 - Add a dedicated image-generation provider if fully synthetic AI imagery is
   required. Groq currently supplies captions/reasoning; Pillow and supplied media
   create the visual output.
-- Complete store/release work: privacy policy, app identity, signing, Play listing
-  and production device regression tests.
+- Complete store/release work: publish the privacy policy at the final stable URL,
+  add the chosen support/privacy contact, finish Play listing/graphics and run
+  production device/store regression tests.
 
 ## Credentials/configuration state
 
@@ -262,11 +275,12 @@ allows the normal production schedule, while `false` pauses scheduled Factory
 runs. `FACTORY_DAILY_TARGET` and Groq model variables remain optional overrides;
 source contains the validated 40/day and current model defaults.
 
-The `android-production` environment currently needs four signing values to be
-configured: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. The signed-release workflow uses
-the production Supabase catalog by default; `CATALOG_BASE_URL` is now an optional
-override rather than a required release value.
+The `android-production` environment currently needs a real Play upload key
+represented by four signing values: `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. The
+signed-release workflow uses the production Supabase catalog by default and
+verifies both APK and AAB signatures before artifact upload; `CATALOG_BASE_URL`
+is an optional override rather than a required release value.
 
 The hosted Creator Studio additionally requires a random 32–256 character
 `STUDIO_ACCESS_TOKEN`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the
