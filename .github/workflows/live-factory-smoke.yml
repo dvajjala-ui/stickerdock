@@ -48,7 +48,7 @@ jobs:
           {
             "daily_target": 5,
             "batch_size": 5,
-            "interval_seconds": 0,
+            "interval_seconds": 60,
             "max_requests_per_day": 2,
             "model": "openai/gpt-oss-20b",
             "vision_model": "qwen/qwen3.8-27b",
