@@ -2,6 +2,7 @@ package app.stickerdock.duo
 
 import android.content.ContentValues
 import android.content.Context
+import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.util.UUID
@@ -16,12 +17,23 @@ enum class PackCategory(val label: String) {
 data class StickerPack(val id: String, val name: String, val version: Long, val createdAt: Long,
     val kind: StickerKind = StickerKind.STATIC, val rating: PackRating = PackRating.GENERAL,
     val category: PackCategory = PackCategory.GENERAL)
-data class StickerItem(val id: String, val packId: String, val fileName: String, val sha256: String, val createdAt: Long)
+data class StickerItem(
+    val id: String,
+    val packId: String,
+    val fileName: String,
+    val sha256: String,
+    val createdAt: Long,
+    val label: String = "",
+    val tags: String = ""
+) {
+    val displayName: String get() = label.ifBlank { fileName }
+}
+data class StickerSearchResult(val item: StickerItem, val pack: StickerPack)
 
-class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 5) {
+class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 6) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL', category TEXT NOT NULL DEFAULT 'GENERAL')")
-        db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
+        db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, label TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '', UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
         db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
         db.execSQL("CREATE INDEX idx_stickers_sha ON stickers(sha256)")
     }
@@ -31,21 +43,23 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         if (oldVersion < 3 && newVersion >= 3) db.execSQL("ALTER TABLE packs ADD COLUMN rating TEXT NOT NULL DEFAULT 'GENERAL'")
         if (oldVersion < 4 && newVersion >= 4) db.execSQL("CREATE INDEX IF NOT EXISTS idx_stickers_sha ON stickers(sha256)")
         if (oldVersion < 5 && newVersion >= 5) db.execSQL("ALTER TABLE packs ADD COLUMN category TEXT NOT NULL DEFAULT 'GENERAL'")
+        if (oldVersion < 6 && newVersion >= 6) {
+            db.execSQL("ALTER TABLE stickers ADD COLUMN label TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE stickers ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     fun listPacks(): List<StickerPack> {
         val result = mutableListOf<StickerPack>()
         readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating,category FROM packs ORDER BY created_at DESC", null).use { cursor ->
-            while (cursor.moveToNext()) result += StickerPack(cursor.getString(0), cursor.getString(1), cursor.getLong(2), cursor.getLong(3), StickerKind.valueOf(cursor.getString(4)), PackRating.valueOf(cursor.getString(5)), PackCategory.valueOf(cursor.getString(6)))
+            while (cursor.moveToNext()) result += readPack(cursor, 0)
         }
         return result
     }
     fun getPack(id: String): StickerPack? {
         readableDatabase.rawQuery("SELECT id,name,version,created_at,kind,rating,category FROM packs WHERE id=? LIMIT 1", arrayOf(id)).use { c ->
             if (!c.moveToFirst()) return null
-            return StickerPack(c.getString(0), c.getString(1), c.getLong(2), c.getLong(3),
-                StickerKind.valueOf(c.getString(4)), PackRating.valueOf(c.getString(5)),
-                PackCategory.valueOf(c.getString(6)))
+            return readPack(c, 0)
         }
     }
     fun createPack(name: String, kind: StickerKind = StickerKind.STATIC,
@@ -84,17 +98,16 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
     }
     fun listStickers(packId: String): List<StickerItem> {
         val result = mutableListOf<StickerItem>()
-        readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at FROM stickers WHERE pack_id=? ORDER BY created_at,id", arrayOf(packId)).use { c ->
-            while (c.moveToNext()) result += StickerItem(c.getString(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4))
+        readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM stickers WHERE pack_id=? ORDER BY created_at,id", arrayOf(packId)).use { c ->
+            while (c.moveToNext()) result += readSticker(c, 0)
         }
         return result
     }
     fun getSticker(packId: String, filename: String): StickerItem? {
-        readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at FROM stickers WHERE pack_id=? AND file_name=? LIMIT 1",
+        readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM stickers WHERE pack_id=? AND file_name=? LIMIT 1",
             arrayOf(packId, filename)).use { cursor ->
             if (!cursor.moveToFirst()) return null
-            return StickerItem(cursor.getString(0), cursor.getString(1), cursor.getString(2),
-                cursor.getString(3), cursor.getLong(4))
+            return readSticker(cursor, 0)
         }
     }
     fun hasStickerHash(hash: String): Boolean {
@@ -106,12 +119,57 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         val added = writableDatabase.insertWithOnConflict("stickers", null, ContentValues().apply {
             put("id", item.id); put("pack_id", item.packId); put("file_name", item.fileName)
             put("sha256", item.sha256); put("created_at", item.createdAt)
+            put("label", StickerMetadata.cleanLabel(item.label))
+            put("tags", StickerMetadata.cleanTags(item.tags))
         }, SQLiteDatabase.CONFLICT_IGNORE) != -1L
         if (added) bumpVersion(item.packId)
         return added
     }
+    fun updateStickerMetadata(packId: String, id: String, label: String, tags: String) {
+        val updated = writableDatabase.update("stickers", ContentValues().apply {
+            put("label", StickerMetadata.cleanLabel(label))
+            put("tags", StickerMetadata.cleanTags(tags))
+        }, "id=? AND pack_id=?", arrayOf(id, packId))
+        require(updated == 1) { "Sticker not found" }
+        bumpVersion(packId)
+    }
+    fun searchStickers(query: String, limit: Int = 100): List<StickerSearchResult> {
+        val needle = StickerMetadata.cleanLabel(query)
+        if (needle.isBlank()) return emptyList()
+        val safeLimit = limit.coerceIn(1, 200)
+        val sql = """
+            SELECT s.id,s.pack_id,s.file_name,s.sha256,s.created_at,s.label,s.tags,
+                   p.id,p.name,p.version,p.created_at,p.kind,p.rating,p.category
+            FROM stickers s
+            JOIN packs p ON p.id=s.pack_id
+            WHERE instr(lower(s.label), lower(?)) > 0
+               OR instr(lower(s.tags), lower(?)) > 0
+               OR instr(lower(s.file_name), lower(?)) > 0
+               OR instr(lower(p.name), lower(?)) > 0
+               OR instr(lower(p.category), lower(?)) > 0
+            ORDER BY s.created_at DESC, s.id
+            LIMIT $safeLimit
+        """.trimIndent()
+        val result = mutableListOf<StickerSearchResult>()
+        readableDatabase.rawQuery(sql, arrayOf(needle, needle, needle, needle, needle)).use { cursor ->
+            while (cursor.moveToNext()) {
+                result += StickerSearchResult(readSticker(cursor, 0), readPack(cursor, 7))
+            }
+        }
+        return result
+    }
     fun deleteSticker(packId: String, id: String) {
         if (writableDatabase.delete("stickers", "id=? AND pack_id=?", arrayOf(id, packId)) > 0) bumpVersion(packId)
     }
+    private fun readSticker(cursor: Cursor, offset: Int) = StickerItem(
+        cursor.getString(offset), cursor.getString(offset + 1), cursor.getString(offset + 2),
+        cursor.getString(offset + 3), cursor.getLong(offset + 4), cursor.getString(offset + 5),
+        cursor.getString(offset + 6)
+    )
+    private fun readPack(cursor: Cursor, offset: Int) = StickerPack(
+        cursor.getString(offset), cursor.getString(offset + 1), cursor.getLong(offset + 2),
+        cursor.getLong(offset + 3), StickerKind.valueOf(cursor.getString(offset + 4)),
+        PackRating.valueOf(cursor.getString(offset + 5)), PackCategory.valueOf(cursor.getString(offset + 6))
+    )
     private fun bumpVersion(id: String) { writableDatabase.execSQL("UPDATE packs SET version=version+1 WHERE id=?", arrayOf(id)) }
 }
