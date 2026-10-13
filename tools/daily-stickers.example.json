@@ -3,7 +3,8 @@
   "batch_size": 5,
   "interval_seconds": 10800,
   "max_requests_per_day": 16,
-  "model": "llama-3.3-70b-versatile",
+  "model": "openai/gpt-oss-20b",
+  "vision_model": "qwen/qwen3.8-27b",
   "modes": ["illustration", "animated"],
   "topics": [
     "Latest technology and light news reactions in Hinglish",
