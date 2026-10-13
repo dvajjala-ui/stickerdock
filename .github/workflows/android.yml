@@ -71,6 +71,39 @@ jobs:
             :app:assembleDebug \
             :app:assembleRelease \
             :app:bundleRelease
+      - name: Verify 16 KB native-library compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -v -c -P 16 4 "$APK"
+          rm -rf /tmp/stickerdock-native
+          mkdir -p /tmp/stickerdock-native
+          unzip -q "$APK" 'lib/*/*.so' -d /tmp/stickerdock-native
+          python3 - <<'PY'
+          import pathlib, subprocess
+          root = pathlib.Path('/tmp/stickerdock-native/lib')
+          checked = []
+          for abi in ('arm64-v8a', 'x86_64'):
+              folder = root / abi
+              if not folder.exists():
+                  continue
+              for so in sorted(folder.glob('*.so')):
+                  out = subprocess.check_output(['readelf', '-lW', str(so)], text=True)
+                  aligns = [int(line.split()[-1], 16) for line in out.splitlines()
+                            if line.lstrip().startswith('LOAD ')]
+                  if not aligns:
+                      raise SystemExit(f'No LOAD segments found in {abi}/{so.name}')
+                  minimum = min(aligns)
+                  print(f'{abi}/{so.name}: minimum LOAD alignment=0x{minimum:x}')
+                  if minimum < 0x4000:
+                      raise SystemExit(f'16 KB ELF alignment failed for {abi}/{so.name}')
+                  checked.append(f'{abi}/{so.name}')
+          if not checked:
+              raise SystemExit('Expected 64-bit native libraries but none were found')
+          print('16 KB ELF alignment verified:', ', '.join(checked))
+          PY
       - uses: actions/upload-artifact@v7
         with:
           name: stickerdock-debug-apk
