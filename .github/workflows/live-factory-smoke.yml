@@ -1,0 +1,112 @@
+name: Live factory smoke
+
+on:
+  push:
+    branches:
+      - test/live-factory-smoke-20261013
+    paths:
+      - '.github/workflows/live-factory-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GROQ_TEXT_MODEL: openai/gpt-oss-20b
+      GROQ_VISION_MODEL: qwen/qwen3.8-27b
+      FACTORY_DAILY_TARGET: '5'
+      FACTORY_RATING: GENERAL
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/live-factory-smoke-20261013
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/requirements-stickers.txt
+
+      - name: Install rendering dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install -r tools/requirements-stickers.txt
+
+      - name: Create controlled smoke config
+        shell: bash
+        run: |
+          cat > /tmp/factory-smoke.json <<'JSON'
+          {
+            "daily_target": 5,
+            "batch_size": 5,
+            "interval_seconds": 0,
+            "max_requests_per_day": 2,
+            "model": "openai/gpt-oss-20b",
+            "vision_model": "qwen/qwen3.8-27b",
+            "modes": ["illustration"],
+            "topics": ["Everyday friendly desi reactions in Hinglish"],
+            "rating": "GENERAL",
+            "feeds": [],
+            "references": [],
+            "media_library": {"enabled": false}
+          }
+          JSON
+
+      - name: Run one controlled live batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/production_worker.py --config /tmp/factory-smoke.json | tee /tmp/factory-summary.json
+
+      - name: Verify persisted Supabase state and private artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=tools python - <<'PY'
+          from datetime import datetime, timezone
+          import hashlib
+          import json
+          from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory
+
+          client = SupabaseFactory()
+          day = datetime.now(timezone.utc).date().isoformat()
+          run = client.find("factory_runs", "day", day)
+          if not run:
+              raise SystemExit("factory_runs row was not persisted")
+          if run.get("status") != "complete" or int(run.get("generated") or 0) != 5 or int(run.get("target") or 0) != 5:
+              raise SystemExit("factory run did not finish as the controlled 5-sticker batch: " + json.dumps(run, default=str))
+
+          pack = client.find("sticker_packs", "day", day)
+          if not pack:
+              raise SystemExit("sticker_packs row was not persisted")
+          if pack.get("status") != "pending" or pack.get("rating") != "GENERAL" or int(pack.get("sticker_count") or 0) != 5:
+              raise SystemExit("unexpected pack state: " + json.dumps(pack, default=str))
+          private_path = pack.get("private_path")
+          if not private_path:
+              raise SystemExit("private pack path is missing")
+          archive = client.download(PRIVATE_BUCKET, private_path)
+          if not archive or hashlib.sha256(archive).hexdigest() != pack.get("sha256"):
+              raise SystemExit("private pack archive checksum mismatch")
+
+          public_objects = client.list_objects(PUBLIC_BUCKET, "", limit=10)
+          print(json.dumps({
+              "day": day,
+              "factory_status": run.get("status"),
+              "generated": run.get("generated"),
+              "target": run.get("target"),
+              "pack_status": pack.get("status"),
+              "pack_rating": pack.get("rating"),
+              "sticker_count": pack.get("sticker_count"),
+              "private_archive_bytes": len(archive),
+              "public_bucket_objects": len(public_objects),
+          }, sort_keys=True))
+          PY
