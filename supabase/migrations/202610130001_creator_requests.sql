@@ -26,14 +26,17 @@ where status = 'queued';
 
 alter table public.creator_requests enable row level security;
 
--- No anon/authenticated policies are intentionally created. Creator Studio and
--- the private Factory access this table only with the Supabase service role.
+-- Creator Studio and the private Factory access this queue only with the
+-- Supabase service role. Revoke Data API privileges from public client roles
+-- explicitly instead of relying on RLS/project grant defaults alone.
+revoke all on table public.creator_requests from anon, authenticated;
+grant all on table public.creator_requests to service_role;
 
 create or replace function public.claim_creator_request(p_worker_id text)
 returns setof public.creator_requests
 language plpgsql
-security definer
-set search_path = public
+security invoker
+set search_path = ''
 as $$
 declare
     claimed_id uuid;
