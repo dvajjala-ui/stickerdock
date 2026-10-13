@@ -1,0 +1,161 @@
+name: Live Creator lease transaction smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/live-creator-lease-transaction-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lease-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: qqicsllktmcmvmzplsxl
+      POOLER_HOST: aws-0-ap-south-1.pooler.supabase.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+
+      - name: Prepare masked production database URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_PASSWORD"
+          DB_URL=$(python - <<'PY'
+          import os
+          from urllib.parse import quote
+          password = quote(os.environ['SUPABASE_DB_PASSWORD'], safe='')
+          print(f"postgresql://postgres.{os.environ['PROJECT_REF']}:{password}@{os.environ['POOLER_HOST']}:5432/postgres?sslmode=require")
+          PY
+          )
+          echo "::add-mask::$DB_URL"
+          echo "DB_URL=$DB_URL" >> "$GITHUB_ENV"
+
+      - name: Prove stale lease recovery inside a rollback-only transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/lease-smoke.sql <<'SQL'
+          \set ON_ERROR_STOP on
+          begin;
+
+          do $$
+          begin
+            if exists (
+              select 1
+              from public.creator_requests
+              where status in ('queued', 'running')
+            ) then
+              raise exception 'Refusing lease smoke because real queued/running Creator work exists';
+            end if;
+          end
+          $$;
+
+          create temporary table smoke_ids as
+          select gen_random_uuid() as retry_id, gen_random_uuid() as exhausted_id;
+
+          insert into public.creator_requests
+            (id, source_path, prompt, status, attempts, worker_id, started_at)
+          select retry_id,
+                 'inbox/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png',
+                 'Creator lease retry transaction smoke',
+                 'running', 1, 'expired-worker-retry', now() - interval '21 minutes'
+          from smoke_ids;
+
+          insert into public.creator_requests
+            (id, source_path, prompt, status, attempts, worker_id, started_at)
+          select exhausted_id,
+                 'inbox/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png',
+                 'Creator lease exhausted transaction smoke',
+                 'running', 5, 'expired-worker-exhausted', now() - interval '21 minutes'
+          from smoke_ids;
+
+          create temporary table claim_result (
+            id uuid,
+            status text,
+            attempts integer,
+            worker_id text,
+            started_at timestamptz
+          );
+          create temporary table second_claim (id uuid);
+
+          set local role service_role;
+          insert into claim_result
+          select id, status, attempts, worker_id, started_at
+          from public.claim_creator_request('lease-transaction-smoke');
+
+          insert into second_claim
+          select id
+          from public.claim_creator_request('lease-transaction-smoke-second');
+          reset role;
+
+          do $$
+          declare
+            retry_uuid uuid;
+            exhausted_uuid uuid;
+            retry_row public.creator_requests%rowtype;
+            exhausted_row public.creator_requests%rowtype;
+          begin
+            select retry_id, exhausted_id
+              into retry_uuid, exhausted_uuid
+            from smoke_ids;
+
+            if (select count(*) from claim_result) <> 1 then
+              raise exception 'Expected exactly one reclaimed request';
+            end if;
+
+            if (select id from claim_result limit 1) <> retry_uuid then
+              raise exception 'Recovered claim did not select the retryable stale request';
+            end if;
+
+            select * into retry_row
+            from public.creator_requests
+            where id = retry_uuid;
+
+            if retry_row.status <> 'running'
+               or retry_row.attempts <> 2
+               or retry_row.worker_id <> 'lease-transaction-smoke'
+               or retry_row.started_at is null
+               or retry_row.started_at < now() - interval '2 minutes'
+               or retry_row.completed_at is not null
+               or retry_row.error_message is not null then
+              raise exception 'Retryable stale lease was not requeued/reclaimed correctly';
+            end if;
+
+            select * into exhausted_row
+            from public.creator_requests
+            where id = exhausted_uuid;
+
+            if exhausted_row.status <> 'failed'
+               or exhausted_row.attempts <> 5
+               or exhausted_row.worker_id is not null
+               or exhausted_row.completed_at is null
+               or exhausted_row.error_message <> 'Creator worker lease expired after maximum attempts' then
+              raise exception 'Exhausted stale lease was not failed correctly';
+            end if;
+
+            if exists (select 1 from second_claim) then
+              raise exception 'Fresh running lease was claimed twice';
+            end if;
+
+            raise notice 'Creator stale lease smoke passed: retryable request reclaimed at attempt 2; exhausted request failed; no duplicate claim';
+          end
+          $$;
+
+          rollback;
+          \echo 'Rollback complete: smoke rows were never committed.'
+          SQL
+
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f /tmp/lease-smoke.sql
