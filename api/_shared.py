@@ -11,12 +11,14 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from PIL import Image
 
 PRIVATE_BUCKET = "sticker-factory-private"
 MAX_REQUEST = 6_000_000
 MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
 
 
 class StudioError(ValueError):
@@ -150,8 +152,7 @@ def storage_path(path: str) -> str:
 
 
 def source_metadata(source_path):
-    if not isinstance(source_path, str) or not re.fullmatch(
-            r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)", source_path):
+    if not isinstance(source_path, str) or not CREATOR_SOURCE_RE.fullmatch(source_path):
         raise StudioError("Invalid source image path")
     digest = source_path.split("/")[-1].split(".")[0]
     data = supabase_request("/storage/v1/object/authenticated/" + storage_path(
@@ -165,6 +166,50 @@ def source_metadata(source_path):
         raise StudioError("Invalid source rights metadata")
     return {key: metadata[key] for key in ("source_url", "download_url", "license", "credit")
             if key in metadata}
+
+
+def normalize_request_id(value) -> str:
+    try:
+        parsed = uuid.UUID(str(value or ""))
+    except (ValueError, AttributeError, TypeError) as error:
+        raise StudioError("Invalid request id") from error
+    return str(parsed)
+
+
+def queue_creator_request(prompt, source_path) -> dict:
+    prompt_text = safe_text(prompt, "prompt", 500, required=True)
+    if not isinstance(source_path, str) or not CREATOR_SOURCE_RE.fullmatch(source_path):
+        raise StudioError("Invalid source image path")
+    request_id = str(uuid.uuid4())
+    payload = json.dumps([{
+        "id": request_id,
+        "source_path": source_path,
+        "prompt": prompt_text,
+        "status": "queued",
+    }], separators=(",", ":")).encode()
+    supabase_request("/rest/v1/creator_requests", method="POST", data=payload,
+                     content_type="application/json", limit=16_000)
+    return {"id": request_id, "status": "queued"}
+
+
+def creator_request_status(request_id) -> dict:
+    request_id = normalize_request_id(request_id)
+    fields = "id,status,source_path,prompt,result_path,error_message,attempts,created_at,updated_at"
+    path = ("/rest/v1/creator_requests?id=eq." + urllib.parse.quote(request_id) +
+            "&select=" + urllib.parse.quote(fields, safe=",") + "&limit=1")
+    raw = supabase_request(path, limit=64_000)
+    rows = json.loads(raw or b"[]")
+    if not isinstance(rows, list):
+        raise StudioError("Supabase returned an invalid request status")
+    if not rows:
+        raise StudioError("Creator request was not found")
+    row = rows[0]
+    if not isinstance(row, dict) or row.get("status") not in (
+            "queued", "running", "complete", "failed", "cancelled"):
+        raise StudioError("Supabase returned an invalid request status")
+    return {key: row.get(key) for key in (
+        "id", "status", "source_path", "prompt", "result_path", "error_message",
+        "attempts", "created_at", "updated_at")}
 
 
 def upload_user_image(data_url: str, title: str = "Creator Studio upload", source_path=None) -> dict:
@@ -202,14 +247,14 @@ def list_inbox() -> list[dict]:
     for item in parsed:
         name = str(item.get("name", ""))
         path = name if name.startswith("inbox/") else "inbox/" + name
-        if re.fullmatch(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)", path):
+        if CREATOR_SOURCE_RE.fullmatch(path):
             result.append({"path": path, "name": path.rsplit("/", 1)[-1],
                            "size": int((item.get("metadata") or {}).get("size") or 0)})
     return result
 
 
 def fetch_inbox(path: str) -> str:
-    if not re.fullmatch(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)", path):
+    if not CREATOR_SOURCE_RE.fullmatch(str(path or "")):
         raise StudioError("Invalid inbox image path")
     data = supabase_request("/storage/v1/object/authenticated/" + storage_path(path),
                             limit=3_000_000)
