@@ -1,0 +1,113 @@
+name: Verify public privacy route
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/verify-privacy-route.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Serve exact Vercel rewrites and headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat >/tmp/privacy-server.py <<'PY'
+          import http.server
+          import json
+
+          with open('vercel.json', encoding='utf-8') as handle:
+              config = json.load(handle)
+          headers = {item['key']: item['value'] for item in config['headers'][0]['headers']}
+          rewrites = {item['source']: item['destination'] for item in config['rewrites']}
+
+          class Handler(http.server.SimpleHTTPRequestHandler):
+              def do_GET(self):
+                  self.path = rewrites.get(self.path, self.path)
+                  return super().do_GET()
+
+              def end_headers(self):
+                  for key, value in headers.items():
+                      self.send_header(key, value)
+                  super().end_headers()
+
+              def log_message(self, fmt, *args):
+                  pass
+
+          http.server.ThreadingHTTPServer(('127.0.0.1', 4173), Handler).serve_forever()
+          PY
+          python3 /tmp/privacy-server.py >/tmp/privacy-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/privacy >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/privacy-http.log
+          exit 1
+
+      - name: Exercise privacy page in Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const assert = require('assert');
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+            const pageErrors = [];
+            const consoleErrors = [];
+            page.on('pageerror', error => pageErrors.push(String(error)));
+            page.on('console', message => {
+              if (message.type() === 'error') consoleErrors.push(message.text());
+            });
+
+            const response = await page.goto('http://127.0.0.1:4173/privacy', { waitUntil: 'networkidle' });
+            assert(response && response.ok(), 'Privacy route did not return HTTP 200');
+            const headers = response.headers();
+            assert.strictEqual(await page.title(), 'StickerDock Privacy Policy');
+            assert((await page.locator('h1').innerText()).includes('Private first'), 'Privacy heading missing');
+            assert((await page.locator('body').innerText()).includes('Android app'), 'Android privacy section missing');
+            assert((await page.locator('body').innerText()).includes('Optional private Creator Studio'), 'Creator privacy section missing');
+            assert((await page.locator('link[rel="stylesheet"]').count()) === 1, 'Studio stylesheet link missing');
+            assert((headers['content-security-policy'] || '').includes("default-src 'self'"), 'CSP missing');
+            assert.strictEqual(headers['x-frame-options'], 'DENY');
+            assert.strictEqual(headers['x-content-type-options'], 'nosniff');
+            assert.strictEqual(headers['x-robots-tag'], 'noindex, nofollow, noarchive');
+            assert((headers['strict-transport-security'] || '').includes('max-age=31536000'), 'HSTS missing');
+
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.waitForTimeout(100);
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+            assert(overflow <= 1, `Privacy page has ${overflow}px mobile overflow`);
+            assert.deepStrictEqual(pageErrors, [], `Page errors: ${pageErrors.join(' | ')}`);
+            assert.deepStrictEqual(consoleErrors, [], `Console errors: ${consoleErrors.join(' | ')}`);
+
+            console.log(JSON.stringify({
+              http: response.status(),
+              title: await page.title(),
+              csp: 'pass',
+              security_headers: 'pass',
+              mobile_overflow_px: overflow,
+              page_errors: pageErrors.length,
+              console_errors: consoleErrors.length
+            }));
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          JS
