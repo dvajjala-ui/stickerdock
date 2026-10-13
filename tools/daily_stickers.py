@@ -58,7 +58,8 @@ def locked(directory):
 
 
 def fetch_bytes(url, payload=None, headers=None):
-    request = urllib.request.Request(url, data=payload, headers=headers or {})
+    request_headers = {"User-Agent": "StickerDock/0.1", **(headers or {})}
+    request = urllib.request.Request(url, data=payload, headers=request_headers)
     with urllib.request.urlopen(request, timeout=45) as response:
         data = response.read(MAX_RESPONSE + 1)
         if url == API_URL:
