@@ -1,6 +1,7 @@
 package app.stickerdock.duo
 
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
@@ -60,6 +61,10 @@ class MainActivity : ComponentActivity() {
         var newPackRating by remember { mutableStateOf(PackRating.GENERAL) }
         var newPackCategory by remember { mutableStateOf(PackCategory.GENERAL) }
         var busy by remember { mutableStateOf(false) }
+        var phoneImportProgress by remember { mutableStateOf<FolderStickerImporter.Progress?>(null) }
+        var pendingFolderImportUri by remember {
+            mutableStateOf(FolderStickerImporter.pendingImportUri(this@MainActivity)?.toString())
+        }
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
         var showCommunity by remember { mutableStateOf(false) }
@@ -99,6 +104,24 @@ class MainActivity : ComponentActivity() {
                 } finally { busy = false }
             }
         }
+        fun runFolderImport(uri: android.net.Uri) {
+            if (busy) return
+            pendingFolderImportUri = uri.toString()
+            phoneImportProgress = null
+            operation {
+                try {
+                    val report = FolderStickerImporter(this@MainActivity, store, files).import(uri) { progress ->
+                        runOnUiThread { phoneImportProgress = progress }
+                    }
+                    "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
+                } finally {
+                    runOnUiThread {
+                        phoneImportProgress = null
+                        pendingFolderImportUri = FolderStickerImporter.pendingImportUri(this@MainActivity)?.toString()
+                    }
+                }
+            }
+        }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             val id = selectedId ?: return@rememberLauncherForActivityResult
             if (uris.isNotEmpty()) operation {
@@ -114,9 +137,15 @@ class MainActivity : ComponentActivity() {
             }
         }
         val folderImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            if (uri != null) operation {
-                val report = FolderStickerImporter(this@MainActivity, store, files).import(uri)
-                "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (_: SecurityException) {
+                    // Some document providers grant only temporary access. The
+                    // import can still run now; resume will surface an error if
+                    // the provider cannot be reopened after process death.
+                }
+                runFolderImport(uri)
             }
         }
         val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -174,7 +203,31 @@ class MainActivity : ComponentActivity() {
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
+                    phoneImportProgress?.let { progress ->
+                        Text(
+                            "Phone import${if (progress.resumed) " (resumed)" else ""}: " +
+                                "${progress.filesScanned} scanned • ${progress.added} added • " +
+                                "${progress.duplicates} duplicate • ${progress.rejected} rejected",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        progress.currentFile?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                    }
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    pendingFolderImportUri?.takeIf { !busy }?.let { savedUri ->
+                        OutlinedButton(onClick = { runFolderImport(android.net.Uri.parse(savedUri)) }) {
+                            Text("Resume phone import")
+                        }
+                        TextButton(onClick = {
+                            operation {
+                                val removed = FolderStickerImporter(this@MainActivity, store, files).discardPendingImport()
+                                runOnUiThread {
+                                    pendingFolderImportUri = null
+                                    phoneImportProgress = null
+                                }
+                                "Discarded saved phone import${if (removed > 0) " and removed $removed empty packs" else ""}"
+                            }
+                        }) { Text("Discard saved import") }
+                    }
                     OutlinedButton(enabled = !busy, onClick = { folderImporter.launch(null) }) { Text("Import phone sticker folder") }
                     OutlinedButton(enabled = !busy, onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
                     OutlinedButton(onClick = {
