@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 10
     environment: sticker-factory-production
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       PUBLISH_DAY: ${{ inputs.day }}
     steps:
