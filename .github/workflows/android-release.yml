@@ -40,8 +40,15 @@ jobs:
       - name: Restore release signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
         run: |
-          test -n "$ANDROID_KEYSTORE_BASE64"
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name is not configured in the android-production environment"
+              exit 2
+            fi
+          done
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
           chmod 600 "$ANDROID_KEYSTORE_FILE"
       - name: Test and build signed APK/AAB
