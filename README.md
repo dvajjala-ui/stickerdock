@@ -5,7 +5,7 @@ A Kotlin/Jetpack Compose Android app that keeps your own sticker library indepen
 ## Current source features
 - **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs and filter by topic or Static/Animated.
 - **Static and animated WebP:** WhatsApp-compliant separate pack types, 512×512 static conversion, animated frame/duration checks, animated previews (real-device QA pending).
-- **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, split into 30-sticker packs, deduplicate across previously imported items. This is not access to other apps' private databases.
+- **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, split into 30-sticker packs, deduplicate across previously imported items. Large scans show progress and keep an app-private resume checkpoint. This is not access to other apps' private databases.
 - **Desktop ADB assistant:** `python tools/adb_sticker_export.py --account both` copies accessible WhatsApp sticker media folders from your own authorized phone and creates safe ZIP batches. No root, ADB requires your consent.
 - **Batch ZIP ingestion:** select up to 100 ZIP files; supports images from directories, simple generic ZIPs and StickerDock archives. A separate guide covers limitations of Sticker.ly personal migration.
 - **Sticker.ly public links:** save/paste bulk pack URLs or share links into the app; follow back to Sticker.ly. **Does not mass-download or rehost Sticker.ly's catalog.**
@@ -71,7 +71,7 @@ The repository does not currently include a full Gradle wrapper binary; CI insta
 ## Known limitations and cautions
 - **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
 - A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
-- Folder migration is best-effort and isn't yet process-death/resume-safe for enormous libraries. Android system picker visibility varies with OS/version.
+- Folder migration now saves an app-private progress checkpoint and can resume a persisted SAF folder after process death. Android picker/provider behavior and actual kill/restart recovery still need real-device QA, especially for enormous libraries.
 - GIF/MP4/WebM/MOV conversion is implemented in the production worker; live phone
   import still needs device QA. Public packs require an explicit review workflow.
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.

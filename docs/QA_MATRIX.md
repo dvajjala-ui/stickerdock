@@ -26,6 +26,6 @@
 | Public catalog | Only review-approved GENERAL packs downloaded after integrity verification |
 | Private MATURE label | No automatic public uploading |
 | Offline usage | Local features remain functional without internet |
-| Process death | Large-import recovery remains to implement |
+| Process death | App-private folder-import checkpoint, Resume/Discard UI and persisted SAF URI are implemented; kill/restart recovery still needs Galaxy S24 Ultra validation |
 
 Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing APK as production ready.

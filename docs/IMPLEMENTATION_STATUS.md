@@ -1,6 +1,6 @@
 # StickerDock implementation status
 
-Updated October 12, 2026. “Complete” means implemented and covered by automated
+Updated October 13, 2026. “Complete” means implemented and covered by automated
 tests/builds. It does not replace live account, device or provider testing.
 
 ## Product split
@@ -31,6 +31,10 @@ tests/builds. It does not replace live account, device or provider testing.
 - PNG/JPEG/WebP imports, phone folder import through Android's system picker,
   multi-ZIP import and local backup/restore.
 - User-accessible WhatsApp and WhatsApp Business media-folder migration.
+- Large folder scans expose live counts, save an app-private checkpoint every 25
+  recognized files, persist the selected SAF read URI where Android permits it,
+  and expose Resume/Discard controls after interruption. Re-scans skip recorded
+  source URIs and global SHA-256 deduplication makes a small unflushed tail safe.
 - Sticker.ly public link bookmarks and import of user-supplied exports/ZIPs.
   There is no automatic Sticker.ly account/catalog download.
 - Read-only approved public catalog and GENERAL/MATURE local labels.
@@ -95,8 +99,9 @@ tests/builds. It does not replace live account, device or provider testing.
   secrets and a configured Supabase catalog URL.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
-- **Large folder migration:** bounded and deduplicated, but progress/resume after
-  Android process death is not implemented.
+- **Large folder migration:** progress/checkpoint/resume logic compiles and the
+  automated build is green, but Android process-kill recovery, provider URI
+  persistence and 10k+ file behavior still need real Galaxy S24 Ultra testing.
 
 ## Still pending
 
@@ -106,7 +111,9 @@ tests/builds. It does not replace live account, device or provider testing.
 - Connect the Pinterest account and complete one official-board smoke sync.
 - Test folder import, animated previews and WhatsApp/Business pack installation
   on the Galaxy S24 Ultra.
-- Add resumable progress for very large Android folder imports.
+- Validate resumable progress/process-death recovery for very large Android
+  folder imports on the Galaxy S24 Ultra, including cancel/retry and lost URI
+  permission behavior.
 - Add tags/filenames and global sticker-level search beyond pack names/categories.
 - Add authenticated community submission, malware scanning, rights review,
   report/block/moderation and age controls before accepting public uploads.

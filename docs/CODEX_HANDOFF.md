@@ -7,7 +7,7 @@ User has two WhatsApp accounts on Samsung S24 Ultra and finds Sticker.ly difficu
 - Kotlin + Jetpack Compose; JDK17, SDK35, Gradle8.9.
 - StickerStore: SQLite schema v5, packs.kind, packs.rating, packs.category and sha index with additive migrations.
 - StickerFiles: normalize static images to 512px WebP <=100KB, accept validated animated WebP <=500KB/10s; optional global hash dedup.
-- FolderStickerImporter: DocumentFile walk bounded by number/bytes/depth, reads public Android/media selected directory, groups by StickerPackMetadata EXIF fields, creates static or animated packs and auto-splits into 30-sticker chunks. Worker thread, not yet resumable.
+- FolderStickerImporter: DocumentFile walk bounded by number/bytes/depth, reads public Android/media selected directory, groups by StickerPackMetadata EXIF fields, creates static or animated packs and auto-splits into 30-sticker chunks. It now keeps an app-private processed-URI checkpoint, persists session pack IDs/counters, reports live progress, and supports explicit Resume/Discard after interruption. The last unflushed tail is safe to retry through global SHA-256 dedup. Real-device process-death QA is still pending.
 - PackZipImporter: bounded .zip/.wastickers files, EXIF grouping; bulk selection of 100 files via ActivityResultContracts.OpenMultipleDocuments.
 - StickerBackup: schema v4, backwards restoration, includes kind/rating/category; PackSharing via Android FileProvider.
 - StickerlyLinks: offline SQLite bookmark registry and link sharing, not content scraping.
@@ -42,11 +42,13 @@ editor and inbox browser; its AI control and Android entry are Coming soon. Groq
 remains only in the private Factory. See `docs/PINTEREST_AND_CREATOR_STUDIO.md`.
 
 The production branch at `8d623b8` passed [Android CI run 38254739016](https://github.com/dvajjala-ui/stickerdock/actions/runs/38254739016).
-The current optimization review adds grouped Android counts/direct sticker
-lookup, shared clip-render decoding, invalid-input skipping, source-rights
-inheritance in Studio, finite Pinterest attempts/staging and matching public
-archive/animation bounds. Latest checks must cover these changes; CI now builds
-the unsigned optimized release as well as debug to validate R8/resource shrinking.
+The optimization review added grouped Android counts/direct sticker lookup,
+shared clip-render decoding, invalid-input skipping, source-rights inheritance
+in Studio, finite Pinterest attempts/staging and matching public archive/animation
+bounds. The folder-resume extension at `0b20cb0` passed Android CI run
+`38379410428`, including Python smoke tests, Kotlin/unit tests, debug APK and
+optimized release. Device/emulator validation has **not** happened. Never
+represent compilation or CI as proof of real-world WhatsApp or process-death behavior.
 The `feat/daily-groq-stickers` branch adds an optional private desktop scheduler,
 Groq caption/vision client, rotating Hinglish topics, supplied-photo memes, static
 illustrations and simple animated WebP pulse rendering, rate-limit headers/usage,
@@ -62,10 +64,10 @@ Generation target defaults to 40/day in batches of five; 100/day is configurable
 No schedule/key is installed or deployed. Live calls remain blocked by environment
 network policy; actual account quotas, vision support and phone QA are unverified.
 
-Prior commit `94ad982` passed Android CI with earlier feature set; later commits have pending builds until a newer green run is inspected. Device/emulator validation has **not** happened. Never represent compilation or CI as proof of real-world WhatsApp behavior.
+Prior commit `94ad982` passed Android CI with earlier feature set. Device/emulator validation has **not** happened. Never represent compilation or CI as proof of real-world WhatsApp behavior.
 
 ## Next tasks
-Check current `main` Actions build and fix errors. Add UI import progress/resume for 10k files, test EXIF/thumbnail handling, inspect provider contract from official sample, unit/instrumented tests of SQLite migration and user-selected directory import. Then investigate metadata preservation and generic .wastickers variants, and private consenting export workflows. Public community moderation and adult policy must be designed before accepting user uploads.
+Validate the new SAF progress/resume path on the Galaxy S24 Ultra with personal and Business roots, 10k+ WebP, duplicates, invalid files, cancel/retry and forced process death. Add targeted SQLite migration and user-selected directory import tests where feasible without pretending JVM tests replace SAF/device behavior. Then test EXIF/thumbnail handling, inspect provider behavior against the official WhatsApp sample, investigate metadata preservation and generic .wastickers variants, and improve tags/filenames/global sticker search. Public community moderation and adult policy must be designed before accepting user uploads.
 
 ## Operational caution
 User data stays private unless they explicitly share; ADB script stays local. No unnecessary cloud storage, upload or expensive infrastructure. Respect Sticker.ly content ownership and users' privacy.
