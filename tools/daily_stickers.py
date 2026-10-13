@@ -58,7 +58,8 @@ def locked(directory):
 
 
 def fetch_bytes(url, payload=None, headers=None):
-    request = urllib.request.Request(url, data=payload, headers=headers or {})
+    request_headers = {"User-Agent": "StickerDock/0.1", **(headers or {})}
+    request = urllib.request.Request(url, data=payload, headers=request_headers)
     with urllib.request.urlopen(request, timeout=45) as response:
         data = response.read(MAX_RESPONSE + 1)
         if url == API_URL:
@@ -379,7 +380,7 @@ def run(config, root, font_path, now=None):
             mode = modes[batch_index % len(modes)]
             topic = topics[batch_index % len(topics)]
             image_path = None
-            model = config.get("model", "llama-3.3-70b-versatile")
+            model = config.get("model", "openai/gpt-oss-20b")
             if mode in ("photo", "clip"):
                 from video_stickers import CLIP_EXTENSIONS
                 input_dir = Path(config.get("image_directory", "reference-images"))

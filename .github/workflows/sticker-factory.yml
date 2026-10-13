@@ -19,10 +19,10 @@ jobs:
     timeout-minutes: 25
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL }}
-      GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL }}
+      GROQ_VISION_MODEL: qwen/qwen3.8-27b
       FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET }}
       FACTORY_RATING: GENERAL
     steps:
@@ -41,9 +41,9 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          required = ("GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+          required = ("GROQ_API_KEY", "SUPABASE_SERVICE_ROLE_KEY")
           if any(not os.environ.get(name, "").strip() for name in required):
-              raise SystemExit("Configure the three required GitHub Actions secrets")
+              raise SystemExit("Configure GROQ_API_KEY and SUPABASE_SERVICE_ROLE_KEY GitHub Actions secrets")
           PY
       - name: Generate one due batch and persist it
         run: python tools/production_worker.py --config tools/factory-production.json

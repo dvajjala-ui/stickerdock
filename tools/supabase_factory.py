@@ -27,9 +27,15 @@ class SupabaseFactory:
             raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
 
     def _request(self, method, path, data=None, headers=None, missing_ok=False):
-        request = urllib.request.Request(self.url + path, data=data, method=method, headers={
-            "apikey": self.key, "Authorization": "Bearer " + self.key,
-            **(headers or {})})
+        auth_headers = {"apikey": self.key}
+        if not self.key.startswith("sb_"):
+            auth_headers["Authorization"] = "Bearer " + self.key
+        request = urllib.request.Request(
+            self.url + path,
+            data=data,
+            method=method,
+            headers={**auth_headers, **(headers or {})},
+        )
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 result = response.read(75_000_001)

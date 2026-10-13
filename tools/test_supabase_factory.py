@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest import mock
 import uuid
 
 from supabase_factory import SupabaseFactory
@@ -16,7 +17,53 @@ class FakeSupabase(SupabaseFactory):
         return self.responses.pop(0) if self.responses else b""
 
 
+class _Response:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self, _limit):
+        return b"[]"
+
+
 class SupabaseFactoryCreatorQueueTest(unittest.TestCase):
+    def test_new_secret_key_uses_apikey_without_bearer(self):
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["headers"] = {key.lower(): value for key, value in request.header_items()}
+            self.assertEqual(timeout, 60)
+            return _Response()
+
+        client = SupabaseFactory(
+            url="https://example.supabase.co",
+            service_key="sb_secret_test-value",
+        )
+        with mock.patch("supabase_factory.urllib.request.urlopen", side_effect=fake_urlopen):
+            client._request("GET", "/rest/v1/factory_runs?limit=1")
+
+        self.assertEqual(captured["headers"]["apikey"], "sb_secret_test-value")
+        self.assertNotIn("authorization", captured["headers"])
+
+    def test_legacy_service_role_keeps_bearer_header(self):
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["headers"] = {key.lower(): value for key, value in request.header_items()}
+            return _Response()
+
+        client = SupabaseFactory(
+            url="https://example.supabase.co",
+            service_key="legacy-jwt-value",
+        )
+        with mock.patch("supabase_factory.urllib.request.urlopen", side_effect=fake_urlopen):
+            client._request("GET", "/rest/v1/factory_runs?limit=1")
+
+        self.assertEqual(captured["headers"]["apikey"], "legacy-jwt-value")
+        self.assertEqual(captured["headers"]["authorization"], "Bearer legacy-jwt-value")
+
     def test_claim_creator_request_uses_atomic_rpc(self):
         request_id = str(uuid.uuid4())
         client = FakeSupabase([json.dumps([{"id": request_id, "status": "running"}]).encode()])

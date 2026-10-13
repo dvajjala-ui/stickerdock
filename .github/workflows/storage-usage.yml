@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_STORAGE_QUOTA_MB: ${{ vars.SUPABASE_STORAGE_QUOTA_MB }}
       SUPABASE_STORAGE_WARN_PERCENT: ${{ vars.SUPABASE_STORAGE_WARN_PERCENT || '70' }}
@@ -33,10 +33,8 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          required = ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
-          missing = [name for name in required if not os.environ.get(name, "").strip()]
-          if missing:
-              raise SystemExit("Missing storage monitor configuration: " + ", ".join(missing))
+          if not os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip():
+              raise SystemExit("Missing storage monitor secret: SUPABASE_SERVICE_ROLE_KEY")
           PY
       - name: Report storage usage and retention candidates
         run: python tools/storage_usage.py
