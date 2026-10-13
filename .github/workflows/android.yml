@@ -1,7 +1,11 @@
 name: Android debug build
 on:
   push:
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
