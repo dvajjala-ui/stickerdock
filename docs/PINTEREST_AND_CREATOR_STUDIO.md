@@ -4,8 +4,9 @@ StickerDock has one private source inbox. Manual uploads, approved Pinterest
 boards and reusable Wikimedia Commons media enter that inbox, then the scheduled
 factory can turn them into photo or short-video stickers. The optional Creator
 Studio preview can open inbox images, add manual captions and send the finished
-image back to the inbox. A private AI request/result queue is implemented but is
-not exposed by the visible Studio AI control yet.
+image back to the inbox. A private AI request/result queue is implemented and its
+backend provider path is live-verified, but it is not exposed by the visible
+Studio AI control yet.
 
 ## Source behavior
 
@@ -84,8 +85,8 @@ Pinterest site changes can break it, and discovered content remains
 ## Creator Studio preview (Coming soon in Android)
 
 The Android app currently shows **AI meme creator — Coming soon** and does not
-open the editor. The implementation is staged in this branch for private testing;
-do not treat it as an active end-user feature yet.
+open the editor. The implementation is staged for private testing; do not treat
+it as an active end-user feature yet.
 
 For a maintainer preview, import the repository into a free Vercel project. No
 framework preset or build command is required; `studio/` contains static
@@ -118,10 +119,16 @@ Editing an inbox image preserves its original `REFERENCE_ONLY`, `CC0`,
 rights. A source with missing metadata stays reference-only. Local uploads are
 owner-provided inputs and are validated as actual static images before storage.
 
+A headless-Chromium smoke on October 13, 2026 exercised the real Studio HTML/JS
+over HTTP: local image upload, canvas caption rendering, style controls, drag
+positioning, PNG download, missing-token handling and a 390px mobile viewport all
+passed with no page/console errors. The AI controls remained disabled as intended.
+
 ## Private AI request queue
 
-The asynchronous Studio → Factory queue is implemented in source but deliberately
-not wired to the visible AI button yet.
+The asynchronous Studio → Factory queue is implemented and its backend provider
+path has passed a live Supabase/Groq smoke. It remains deliberately unwired from
+the visible AI button until the deployed Vercel token-gated HTTP route is tested.
 
 `supabase/migrations/202610130001_creator_requests.sql` creates a
 service-role-only `creator_requests` table. RLS is enabled and no public,
@@ -151,20 +158,32 @@ row.
 The manual worker uses the normal GitHub secrets `GROQ_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY` and the `GROQ_VISION_MODEL` variable.
 
+On October 13, 2026 an isolated live test first verified there was no pre-existing
+queued request, created a temporary USER_OWNED source/provenance record, queued it
+through the same `api._shared.queue_creator_request` helper used by the route,
+atomically claimed exactly that request and processed it with the configured Groq
+vision model. It completed in one attempt and produced a valid 512×512 static
+WebP with verified `creator_request_id` and `derived_from` provenance. The test
+row and all four temporary storage objects were deleted afterward.
+
 ### Live activation checklist
 
-Before enabling an AI control in Studio or scheduling the worker:
+Backend processing is proven; the remaining activation gate is the hosted,
+authenticated Studio surface. Before enabling an AI control or scheduling the
+worker:
 
-1. Apply both Supabase migrations, including
-   `202610130001_creator_requests.sql`.
-2. Configure the Vercel Studio token/Supabase variables and GitHub
-   Groq/Supabase/vision-model settings.
-3. Upload or choose one authorized private inbox image.
-4. Send one authenticated `/api/captions` `queue` request.
+1. Keep both Supabase production migrations applied and verified. **Done on
+   October 13, 2026.**
+2. Keep the GitHub Groq/Supabase/vision-model worker configuration valid. **Live
+   backend smoke passed on October 13, 2026.**
+3. Deploy the Vercel Studio with `STUDIO_ACCESS_TOKEN`, `SUPABASE_URL` and
+   `SUPABASE_SERVICE_ROLE_KEY` server-side.
+4. Through the deployed Vercel URL, send one authenticated `/api/captions`
+   `queue` request against an authorized private inbox image.
 5. Manually run Actions → **Creator request worker** once.
-6. Query `/api/captions` with `action=status`; confirm `complete`, a private
-   result path, correct provenance and a valid rendered sticker.
-7. Inspect the real Groq usage/rate-limit behavior and Supabase storage impact.
+6. Query the deployed `/api/captions` with `action=status`; confirm `complete`, a
+   private result path, correct provenance and a valid rendered sticker.
+7. Inspect real Groq usage/rate-limit behavior and Supabase storage impact.
 8. Only then decide whether to schedule queue processing and replace the disabled
    Coming soon control / link it from Android.
 
@@ -177,8 +196,9 @@ python3 -m unittest discover -s tools -p 'test_*.py' -v
 
 Automated tests cover queue input validation, status parsing, atomic client/RPC
 behavior, request-worker success/failure, source hash verification and
-fail-closed provenance handling. They do not replace a live Supabase/Groq smoke
-test.
+fail-closed provenance handling. The backend now also has live Supabase/Groq
+evidence; automated and backend smoke tests still do not replace the deployed
+Vercel token/auth HTTP check.
 
 For a local official Pinterest scan, set the same access-token and board-ID
 variables and run `tools/pinterest_worker.py` only with a configured Supabase
