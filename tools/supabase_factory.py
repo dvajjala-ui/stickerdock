@@ -4,9 +4,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 
 PRIVATE_BUCKET = "sticker-factory-private"
@@ -52,6 +54,13 @@ class SupabaseFactory:
         if clean.is_absolute() or ".." in clean.parts or not clean.parts:
             raise ValueError("Unsafe storage object path")
         return urllib.parse.quote(bucket, safe="") + "/" + urllib.parse.quote(str(clean), safe="/")
+
+    @staticmethod
+    def _uuid(value):
+        try:
+            return str(uuid.UUID(str(value)))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise ValueError("Invalid UUID") from error
 
     def download(self, bucket, path, missing_ok=False):
         endpoint = self._object_path(bucket, path)
@@ -100,6 +109,35 @@ class SupabaseFactory:
         if not isinstance(rows, list):
             raise SupabaseError("Invalid database response")
         return rows[0] if rows else None
+
+    def rpc(self, function, payload):
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", str(function or "")):
+            raise ValueError("Invalid RPC name")
+        data = self._request("POST", "/rest/v1/rpc/" + function,
+                             data=json.dumps(payload, separators=(",", ":")).encode(),
+                             headers={"Content-Type": "application/json"})
+        parsed = json.loads(data or b"[]")
+        if not isinstance(parsed, list):
+            raise SupabaseError("Invalid RPC response")
+        return parsed
+
+    def claim_creator_request(self, worker_id):
+        worker = " ".join(str(worker_id or "").split())
+        if not 1 <= len(worker) <= 120:
+            raise ValueError("Invalid worker id")
+        rows = self.rpc("claim_creator_request", {"p_worker_id": worker})
+        if not rows:
+            return None
+        if len(rows) != 1 or not isinstance(rows[0], dict):
+            raise SupabaseError("Invalid creator request claim response")
+        return rows[0]
+
+    def update_creator_request(self, request_id, values):
+        request_id = self._uuid(request_id)
+        allowed = {"status", "result_path", "error_message", "completed_at", "worker_id"}
+        if not isinstance(values, dict) or not values or not set(values).issubset(allowed):
+            raise ValueError("Invalid creator request update")
+        self.update("creator_requests", values, "id", request_id)
 
 
 def public_catalog_base(url):
