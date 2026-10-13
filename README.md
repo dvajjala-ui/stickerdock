@@ -36,9 +36,11 @@ reaction artwork locally, and exports StickerDock ZIPs. Rotates topics, supports
 supplied-photo memes with a configured vision model and animated pulse stickers,
 and separates static/animated packs (40 split into two packs of 20).
 Includes saved progress, duplicate checks, request caps and rate-limit cooldowns.
-Requires a privately configured `GROQ_API_KEY` and a computer/server scheduler;
-live generation is not activated yet. This version uses template illustrations;
-custom AI image rendering needs a separate image provider.
+Requires a privately configured `GROQ_API_KEY` and a computer/server scheduler.
+Real manual Groq/Supabase smoke runs and persistent continuation have passed, but
+the recurring production schedule is still deliberately gated until one complete
+40-sticker day is reviewed. This version uses template illustrations; custom AI
+image rendering needs a separate image provider.
 
 The [free media input guide](docs/FREE_MEDIA_FACTORY.md) adds a scheduled CC0/
 public-domain Commons download queue, optional authorized Pinterest-board inputs,
@@ -51,8 +53,9 @@ default; optional public-topic adapter), Supabase inbox provenance, and a Vercel
 web-editor preview. Manual meme layout, PNG download and private factory upload
 are implemented. A token-gated private Studio → Factory AI request/result queue,
 service-role-only atomic claim path and manual-only Creator worker are also
-implemented in source; the visible AI control remains **Coming soon** until a
-live Supabase/Groq vision smoke test succeeds. Pinterest media is
+implemented. The live queue → claim → Groq vision → private WebP path has passed;
+the visible AI control remains **Coming soon** until the deployed Vercel token-
+gated API is verified and rollout is deliberately enabled. Pinterest media is
 private-reference-only unless a specific reusable rights declaration is present.
 
 For hosted operation, use the [production deployment guide](docs/PRODUCTION_DEPLOYMENT.md):
@@ -75,12 +78,12 @@ The repository does not currently include a full Gradle wrapper binary; CI insta
 - **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
 - A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
 - Folder migration now saves an app-private progress checkpoint and can resume a persisted SAF folder after process death. Android picker/provider behavior and actual kill/restart recovery still need real-device QA, especially for enormous libraries.
-- The Creator Studio AI queue/worker is source-complete but intentionally manual-only and not exposed by the UI. Apply the second Supabase migration and run a real authenticated queue → worker → result/status smoke test before enabling it.
+- The Creator Studio AI queue/worker backend has passed a real Supabase/Groq smoke but remains intentionally manual-only and is not exposed by the UI. Verify the deployed Vercel token-gated `/api/*` surface before enabling it.
 - GIF/MP4/WebM/MOV conversion is implemented in the production worker; live phone
   import still needs device QA. Public packs require an explicit review workflow.
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.
 
 ## Further documentation
-[Implementation status](docs/IMPLEMENTATION_STATUS.md) · [Codex instructions](AGENTS.md) · [Codex handoff](docs/CODEX_HANDOFF.md) · [Product spec](docs/PRODUCT_SPEC.md) · [QA plan](docs/QA_MATRIX.md) · [Community moderation](docs/PUBLIC_SHARING_AND_SAFETY.md)
+[Implementation status](docs/IMPLEMENTATION_STATUS.md) · [Live production evidence](docs/LIVE_PRODUCTION_EVIDENCE_2026-10-13.md) · [Codex instructions](AGENTS.md) · [Codex handoff](docs/CODEX_HANDOFF.md) · [Product spec](docs/PRODUCT_SPEC.md) · [QA plan](docs/QA_MATRIX.md) · [Community moderation](docs/PUBLIC_SHARING_AND_SAFETY.md)
 
 The project is independent and not endorsed by WhatsApp or Sticker.ly. We referenced but did **not** copy GPL-3.0 StickerVault implementation into this project's MIT code.
