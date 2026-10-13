@@ -30,9 +30,19 @@ create table if not exists public.sticker_packs (
 alter table public.factory_runs enable row level security;
 alter table public.sticker_packs enable row level security;
 
+-- Make Data API privileges deterministic instead of depending on project defaults.
+-- Operational factory state is service-role only. Public roles may only read pack
+-- metadata, and RLS below further limits those reads to approved GENERAL packs.
+revoke all on table public.factory_runs from anon, authenticated;
+grant all on table public.factory_runs to service_role;
+revoke all on table public.sticker_packs from anon, authenticated;
+grant select on table public.sticker_packs to anon, authenticated;
+grant all on table public.sticker_packs to service_role;
+
 drop policy if exists "public approved general packs" on public.sticker_packs;
 create policy "public approved general packs" on public.sticker_packs
-for select using (status = 'approved' and rating = 'GENERAL');
+for select to anon, authenticated
+using (status = 'approved' and rating = 'GENERAL');
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
