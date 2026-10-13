@@ -53,9 +53,17 @@ jobs:
           chmod 600 "$ANDROID_KEYSTORE_FILE"
       - name: Test and build signed APK/AAB
         run: |
+          set -euo pipefail
           test -n "$CATALOG_BASE_URL"
           gradle --no-daemon -PcatalogBaseUrl="$CATALOG_BASE_URL" \
             :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease
+      - name: Verify signed APK/AAB
+        run: |
+          set -euo pipefail
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab | tee /tmp/aab-verify.log
+          grep -q 'jar verified' /tmp/aab-verify.log
       - uses: actions/upload-artifact@v7
         with:
           name: stickerdock-0.3.0-release-candidate
