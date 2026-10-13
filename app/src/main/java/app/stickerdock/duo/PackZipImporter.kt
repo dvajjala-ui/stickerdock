@@ -114,7 +114,11 @@ class PackZipImporter(
                     val pack = store.createPack(packName, identity.second)
                     created++
                     chunk.forEach { asset ->
-                        when (files.importBytes(pack.id, asset.bytes)) {
+                        when (files.importBytes(
+                            pack.id,
+                            asset.bytes,
+                            label = asset.path.substringAfterLast('/')
+                        )) {
                             ImportResult.Added -> imported++
                             ImportResult.Duplicate -> duplicates++
                             is ImportResult.Failed -> skipped++
