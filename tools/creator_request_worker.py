@@ -17,10 +17,10 @@ import tempfile
 import uuid
 
 from daily_stickers import groq_ideas, render
-from production_worker import inbox_metadata
 from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, require_production_environment
 
 SOURCE_RE = re.compile(r"inbox/([0-9a-f]{64})\.(png|jpg|jpeg|webp)")
+SOURCE_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"}
 FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
 
@@ -41,6 +41,34 @@ def safe_request(row):
     if match is None or not 1 <= len(prompt) <= 500:
         raise ValueError("Invalid creator request payload")
     return request_id, source_path, match.group(1), "." + match.group(2), prompt
+
+
+def creator_source_metadata(client, digest, source_path):
+    raw = client.download(PRIVATE_BUCKET, "source-metadata/" + digest + ".json", missing_ok=True)
+    if raw is None:
+        return {
+            "source": "creator-request-unknown-source",
+            "license": "REFERENCE_ONLY",
+            "source_url": "supabase://" + source_path,
+            "download_url": "supabase://" + source_path,
+        }
+    if len(raw) > 16_000:
+        raise ValueError("Creator source metadata is too large")
+    try:
+        metadata = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("Invalid creator source metadata") from error
+    if not isinstance(metadata, dict) or metadata.get("license") not in SOURCE_LICENSES:
+        raise ValueError("Invalid creator source metadata")
+    result = {
+        key: metadata[key]
+        for key in ("source", "source_url", "download_url", "license", "credit")
+        if key in metadata
+    }
+    result.setdefault("source", "creator-request-source")
+    result.setdefault("source_url", "supabase://" + source_path)
+    result.setdefault("download_url", "supabase://" + source_path)
+    return result
 
 
 def process_one(client, worker_id="github-actions", key=None, model=None,
@@ -66,6 +94,7 @@ def process_one(client, worker_id="github-actions", key=None, model=None,
         if not Path(font_path).is_file():
             raise ValueError("Sticker font is unavailable")
 
+        source_rights = creator_source_metadata(client, actual_digest, source_path)
         with tempfile.TemporaryDirectory(prefix="stickerdock-creator-") as directory:
             source = Path(directory) / (actual_digest + suffix)
             source.write_bytes(data)
@@ -77,7 +106,6 @@ def process_one(client, worker_id="github-actions", key=None, model=None,
 
         result_digest = hashlib.sha256(sticker).hexdigest()
         result_path = "inbox/" + result_digest + ".webp"
-        source_rights = inbox_metadata(client, actual_digest, source_path)
         metadata = {
             **source_rights,
             "source": "creator-request",
