@@ -164,6 +164,24 @@ returned:
 report-only for quota percentage/threshold decisions. No remote object was
 removed by the monitor.
 
+## Android production signing environment
+
+Workflow run: `38398554181`
+
+A presence-only production-environment check entered the real
+`android-production` environment and stopped before Gradle/signing because the
+required deployment values were not configured. The missing names were:
+
+- `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+- `CATALOG_BASE_URL`
+
+No keystore was decoded and no APK/AAB was built in this run. This turns the
+signed-release gate into a concrete configuration task rather than an unknown
+build problem. The temporary workflow used for this check was removed afterward.
+
 ## Gates still open after these checks
 
 - Complete a normal 40-sticker UTC day and inspect actual Groq quota/rate-limit
@@ -174,7 +192,7 @@ removed by the monitor.
   `STUDIO_ACCESS_TOKEN` before enabling visible AI controls.
 - Configure the actual Supabase storage quota variable before enabling percentage
   warnings/failures on the daily monitor.
-- Verify `android-production` signing secrets and `CATALOG_BASE_URL`, then build
-  and install a signed release candidate on the target device.
+- Configure the five missing `android-production` signing/catalog values above,
+  then build and install a signed release candidate on the target device.
 - Complete Pinterest authorized-board setup and real-device WhatsApp/WhatsApp
   Business / large-library acceptance testing.
