@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    {"source": "/privacy", "destination": "/studio/privacy.html"},
     {"source": "/", "destination": "/studio/index.html"}
   ],
   "headers": [
