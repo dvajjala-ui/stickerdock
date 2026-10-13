@@ -116,6 +116,11 @@ real-device acceptance or store-release testing.
   its source/result objects were deleted afterward.
 - Groq authentication and current production models were verified live:
   `openai/gpt-oss-20b` for text and `qwen/qwen3.8-27b` for vision.
+- The storage monitor completed a live report-only scan: the private bucket had
+  **7 objects / 4,204,527 bytes (~4.01 MB)**, the public bucket had **0 objects**,
+  and there were no private generated artifacts older than the 30-day retention
+  window. No quota percentage was calculated because the actual plan quota has
+  not been configured, and the monitor did not delete anything.
 
 ### Image and video sources
 
@@ -166,9 +171,10 @@ real-device acceptance or store-release testing.
 - **Pinterest account:** the connector is ready; it still needs an approved app,
   OAuth token and numeric authorized board IDs. Official video URLs may require
   separate Pinterest approval.
-- **Storage monitoring:** report/threshold/retention-candidate logic and the daily
-  workflow are implemented and tested. Set the quota/threshold variables to the
-  real Supabase plan, run it manually once, then enable the daily schedule.
+- **Storage monitoring thresholds:** the first live read-only scan passed. The
+  actual Supabase plan quota is still unknown to the workflow, so configure
+  `SUPABASE_STORAGE_QUOTA_MB` and review the intended warning/failure thresholds
+  before setting `STORAGE_MONITOR_ENABLED=true` for daily checks.
 - **Android release:** CI builds debug; signed release needs the owner's keystore
   secrets and a configured Supabase catalog URL.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
@@ -186,9 +192,9 @@ real-device acceptance or store-release testing.
   completed pack, publish one approved GENERAL pack, import it into Android and
   record actual Groq usage/rate limits.
 - Connect the Pinterest account and complete one official-board smoke sync.
-- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan, manually run
-  **Supabase storage usage**, review the first retention-candidate report, then
-  set `STORAGE_MONITOR_ENABLED=true` for daily checks.
+- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and, after
+  reviewing the first successful report-only scan, set
+  `STORAGE_MONITOR_ENABLED=true` for daily checks.
 - Test folder import, animated previews and WhatsApp/Business pack installation
   on the Galaxy S24 Ultra.
 - Validate resumable progress/process-death recovery for very large Android
