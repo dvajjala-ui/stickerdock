@@ -46,9 +46,10 @@ on conflict (id) do update set
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
 
+-- Public Storage objects are served through /storage/v1/object/public/... without
+-- a storage.objects SELECT policy. Keep listing/authenticated object metadata
+-- closed to anon/authenticated clients; trusted Factory workers use service_role.
 drop policy if exists "read public factory artifacts" on storage.objects;
-create policy "read public factory artifacts" on storage.objects
-for select using (bucket_id = 'sticker-factory-public');
 
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
