@@ -2,8 +2,8 @@
 
 This record captures production-facing checks performed after the October 13
 Supabase migrations and the merges that enabled the production Factory and
-Creator Studio queue. Temporary smoke workflows were created only on isolated
-test branches and removed after use. No secret values are recorded here.
+Creator Studio queue. Temporary smoke workflows were created only for controlled
+verification and removed after use. No secret values are recorded here.
 
 ## Supabase migrations and security verification
 
@@ -33,6 +33,28 @@ the expected update triggers.
 Running requests older than 20 minutes are now recovered automatically: requests
 below the five-attempt ceiling return to `queued`; stale requests already at five
 attempts become `failed` instead of remaining permanently leased.
+
+### Creator lease recovery behavior smoke
+
+- Workflow run: `38401538953`
+- Result: **success**
+
+The smoke inserted one isolated synthetic request in `running` state with
+`attempts=1` and a `started_at` value 21 minutes in the past, then invoked the
+real production `claim_creator_request` RPC. The request was recovered and
+reclaimed with a fresh worker lease:
+
+```json
+{
+  "lease_recovery": "pass",
+  "attempts": 2,
+  "status": "running"
+}
+```
+
+The smoke verified the new worker ID, fresh `started_at`, cleared error state and
+then deleted the synthetic row. Cleanup completed successfully, so no smoke data
+was left in the Creator queue.
 
 ## Factory: real Groq + Supabase generation
 
@@ -119,6 +141,10 @@ result, both provenance metadata objects and the test database row:
   "request_deleted": true
 }
 ```
+
+The Studio API also caps outstanding `queued` + `running` requests at 25. The
+bounded check is covered by the permanent Python regression suite and prevents a
+private token from creating an unbounded processing backlog.
 
 ## Creator Studio browser verification
 
