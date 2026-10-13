@@ -27,15 +27,29 @@ class WhatsAppStickerProvider : ContentProvider() {
             putExtra("sticker_pack_name", pack.name)
         }
     }
+
     override fun onCreate() = true
-    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor {
+
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        selectionArgs: Array<out String>?,
+        sortOrder: String?
+    ): Cursor {
         val segments = uri.pathSegments
         val ctx = requireNotNull(context)
         val store = StickerStore(ctx)
         return when {
-            segments.size == 1 && segments[0] == "metadata" -> packCursor(uri, store.listPacks().filter { store.listStickers(it.id).size in 3..30 })
-            segments.size == 2 && segments[0] == "metadata" ->
-                packCursor(uri, listOfNotNull(store.getPack(segments[1])).filter { store.listStickers(it.id).size in 3..30 })
+            segments.size == 1 && segments[0] == "metadata" -> {
+                val counts = store.stickerCounts()
+                packCursor(uri, store.listPacks().filter { (counts[it.id] ?: 0) in 3..30 })
+            }
+            segments.size == 2 && segments[0] == "metadata" -> {
+                val pack = store.getPack(segments[1])
+                val eligible = pack?.takeIf { store.listStickers(it.id).size in 3..30 }
+                packCursor(uri, listOfNotNull(eligible))
+            }
             segments.size == 2 && segments[0] == "stickers" -> {
                 val cursor = MatrixCursor(STICKER_COLUMNS)
                 if (store.getPack(segments[1]) != null) store.listStickers(segments[1]).forEach {
@@ -44,17 +58,35 @@ class WhatsAppStickerProvider : ContentProvider() {
                 cursor.setNotificationUri(ctx.contentResolver, uri)
                 cursor
             }
-            else -> throw IllegalArgumentException("Unknown provider URI")
+            else -> throw IllegalArgumentException("Unknown provider URI: $uri")
         }
     }
+
     private fun packCursor(uri: Uri, packs: List<StickerPack>): Cursor {
         val cursor = MatrixCursor(PACK_COLUMNS)
         packs.forEach { pack ->
-            cursor.addRow(arrayOf(pack.id, pack.name, "StickerDock", "tray.png", "", "", "", "", "", "", pack.version.toString(), 1, if (pack.kind == StickerKind.ANIMATED) 1 else 0))
+            cursor.addRow(
+                arrayOf(
+                    pack.id,
+                    pack.name,
+                    "StickerDock",
+                    "tray.png",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    pack.version.toString(),
+                    0,
+                    if (pack.kind == StickerKind.ANIMATED) 1 else 0
+                )
+            )
         }
         cursor.setNotificationUri(requireNotNull(context).contentResolver, uri)
         return cursor
     }
+
     override fun openAssetFile(uri: Uri, mode: String): AssetFileDescriptor {
         if (mode != "r") throw FileNotFoundException("Read only")
         val parts = uri.pathSegments
@@ -71,15 +103,40 @@ class WhatsAppStickerProvider : ContentProvider() {
             else -> throw FileNotFoundException("Unknown sticker")
         }
         if (!file.isFile) throw FileNotFoundException("Missing sticker")
-        return AssetFileDescriptor(ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY), 0, AssetFileDescriptor.UNKNOWN_LENGTH)
+        return AssetFileDescriptor(
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY),
+            0,
+            AssetFileDescriptor.UNKNOWN_LENGTH
+        )
     }
-    override fun getType(uri: Uri): String = when (uri.pathSegments.firstOrNull()) {
-        "metadata" -> "vnd.android.cursor.item/vnd.$AUTHORITY.metadata"
-        "stickers" -> "vnd.android.cursor.dir/vnd.$AUTHORITY.stickers"
-        "stickers_asset" -> if (uri.lastPathSegment == "tray.png") "image/png" else "image/webp"
-        else -> throw IllegalArgumentException("Unknown URI")
+
+    override fun getType(uri: Uri): String {
+        val parts = uri.pathSegments
+        return when {
+            parts.size == 1 && parts[0] == "metadata" ->
+                "vnd.android.cursor.dir/vnd.$AUTHORITY.metadata"
+            parts.size == 2 && parts[0] == "metadata" ->
+                "vnd.android.cursor.item/vnd.$AUTHORITY.metadata"
+            parts.size == 2 && parts[0] == "stickers" ->
+                "vnd.android.cursor.dir/vnd.$AUTHORITY.stickers"
+            parts.size == 3 && parts[0] == "stickers_asset" && parts[2] == "tray.png" ->
+                "image/png"
+            parts.size == 3 && parts[0] == "stickers_asset" ->
+                "image/webp"
+            else -> throw IllegalArgumentException("Unknown provider URI: $uri")
+        }
     }
-    override fun insert(uri: Uri, values: ContentValues?): Uri = throw UnsupportedOperationException("Read only")
-    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = throw UnsupportedOperationException("Read only")
-    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = throw UnsupportedOperationException("Read only")
+
+    override fun insert(uri: Uri, values: ContentValues?): Uri =
+        throw UnsupportedOperationException("Read only")
+
+    override fun update(
+        uri: Uri,
+        values: ContentValues?,
+        selection: String?,
+        selectionArgs: Array<out String>?
+    ): Int = throw UnsupportedOperationException("Read only")
+
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int =
+        throw UnsupportedOperationException("Read only")
 }

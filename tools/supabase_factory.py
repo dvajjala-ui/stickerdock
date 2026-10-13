@@ -4,9 +4,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 
 PRIVATE_BUCKET = "sticker-factory-private"
@@ -37,6 +39,13 @@ class SupabaseFactory:
         except urllib.error.HTTPError as error:
             if missing_ok and error.code == 404:
                 return None
+            if missing_ok and error.code == 400:
+                try:
+                    detail = json.loads(error.read(4096))
+                except (ValueError, OSError):
+                    detail = {}
+                if isinstance(detail, dict) and (detail.get("code") in ("NoSuchKey", "not_found") or detail.get("message") == "Object not found"):
+                    return None
             raise SupabaseError(f"Supabase HTTP {error.code}; response body omitted") from None
 
     @staticmethod
@@ -45,6 +54,13 @@ class SupabaseFactory:
         if clean.is_absolute() or ".." in clean.parts or not clean.parts:
             raise ValueError("Unsafe storage object path")
         return urllib.parse.quote(bucket, safe="") + "/" + urllib.parse.quote(str(clean), safe="/")
+
+    @staticmethod
+    def _uuid(value):
+        try:
+            return str(uuid.UUID(str(value)))
+        except (ValueError, TypeError, AttributeError) as error:
+            raise ValueError("Invalid UUID") from error
 
     def download(self, bucket, path, missing_ok=False):
         endpoint = self._object_path(bucket, path)
@@ -63,9 +79,9 @@ class SupabaseFactory:
         self._request("POST", "/storage/v1/object/" + endpoint, data=data, headers={
             "Content-Type": content_type, "x-upsert": "true"})
 
-    def list_objects(self, bucket, prefix, limit=100):
+    def list_objects(self, bucket, prefix, limit=100, offset=0):
         payload = json.dumps({"prefix": prefix, "limit": min(limit, 100),
-                              "offset": 0, "sortBy": {"column": "name", "order": "asc"}}).encode()
+                              "offset": offset, "sortBy": {"column": "name", "order": "asc"}}).encode()
         data = self._request("POST", "/storage/v1/object/list/" + urllib.parse.quote(bucket),
                              data=payload, headers={"Content-Type": "application/json"})
         parsed = json.loads(data or b"[]")
@@ -85,6 +101,43 @@ class SupabaseFactory:
                 urllib.parse.quote(column) + "=eq." + urllib.parse.quote(str(value)))
         self._request("PATCH", path, data=json.dumps(values).encode(), headers={
             "Content-Type": "application/json", "Prefer": "return=minimal"})
+
+    def find(self, table, column, value):
+        path = ("/rest/v1/" + urllib.parse.quote(table) + "?" +
+                urllib.parse.quote(column) + "=eq." + urllib.parse.quote(str(value)) + "&limit=1")
+        rows = json.loads(self._request("GET", path) or b"[]")
+        if not isinstance(rows, list):
+            raise SupabaseError("Invalid database response")
+        return rows[0] if rows else None
+
+    def rpc(self, function, payload):
+        if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", str(function or "")):
+            raise ValueError("Invalid RPC name")
+        data = self._request("POST", "/rest/v1/rpc/" + function,
+                             data=json.dumps(payload, separators=(",", ":")).encode(),
+                             headers={"Content-Type": "application/json"})
+        parsed = json.loads(data or b"[]")
+        if not isinstance(parsed, list):
+            raise SupabaseError("Invalid RPC response")
+        return parsed
+
+    def claim_creator_request(self, worker_id):
+        worker = " ".join(str(worker_id or "").split())
+        if not 1 <= len(worker) <= 120:
+            raise ValueError("Invalid worker id")
+        rows = self.rpc("claim_creator_request", {"p_worker_id": worker})
+        if not rows:
+            return None
+        if len(rows) != 1 or not isinstance(rows[0], dict):
+            raise SupabaseError("Invalid creator request claim response")
+        return rows[0]
+
+    def update_creator_request(self, request_id, values):
+        request_id = self._uuid(request_id)
+        allowed = {"status", "result_path", "error_message", "completed_at", "worker_id"}
+        if not isinstance(values, dict) or not values or not set(values).issubset(allowed):
+            raise ValueError("Invalid creator request update")
+        self.update("creator_requests", values, "id", request_id)
 
 
 def public_catalog_base(url):

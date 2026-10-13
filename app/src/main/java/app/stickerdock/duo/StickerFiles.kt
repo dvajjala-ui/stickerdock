@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.net.Uri
+import android.provider.OpenableColumns
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.MessageDigest
@@ -28,11 +29,17 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         return try {
         val bytes = context.contentResolver.openInputStream(uri)?.use { boundedRead(it, 20_000_000) }
             ?: return ImportResult.Failed("Could not open file")
-        importBytes(packId, bytes)
+        importBytes(packId, bytes, label = sourceLabel(uri))
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Import failed") }
     }
 
-    fun importBytes(packId: String, input: ByteArray, globalDedup: Boolean = false): ImportResult {
+    fun importBytes(
+        packId: String,
+        input: ByteArray,
+        globalDedup: Boolean = false,
+        label: String = "",
+        tags: String = ""
+    ): ImportResult {
         return try {
         val pack = store.getPack(packId) ?: return ImportResult.Failed("Pack not found")
         if (store.listStickers(packId).size >= 30) return ImportResult.Failed("Pack full")
@@ -55,8 +62,17 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         val dest = stickerFile(packId, name)
         dest.parentFile?.mkdirs()
         dest.writeBytes(image)
-        val added = try { store.addSticker(StickerItem(id, packId, name, hash, System.currentTimeMillis())) }
-        catch (e: Exception) { dest.delete(); throw e }
+        val added = try {
+            store.addSticker(StickerItem(
+                id = id,
+                packId = packId,
+                fileName = name,
+                sha256 = hash,
+                createdAt = System.currentTimeMillis(),
+                label = label,
+                tags = tags
+            ))
+        } catch (e: Exception) { dest.delete(); throw e }
         if (!added) { dest.delete(); return ImportResult.Duplicate }
         refreshTray(packId)
         ImportResult.Added
@@ -77,7 +93,15 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         dest.parentFile?.mkdirs()
         stickerFile(item.packId, item.fileName).copyTo(dest)
         val added = try {
-            store.addSticker(StickerItem(id, targetPackId, filename, item.sha256, System.currentTimeMillis()))
+            store.addSticker(StickerItem(
+                id = id,
+                packId = targetPackId,
+                fileName = filename,
+                sha256 = item.sha256,
+                createdAt = System.currentTimeMillis(),
+                label = item.label,
+                tags = item.tags
+            ))
         } catch (e: Exception) { dest.delete(); throw e }
         if (!added) { dest.delete(); return ImportResult.Duplicate }
         refreshTray(targetPackId)
@@ -106,6 +130,15 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         tray.outputStream().use { small.compress(Bitmap.CompressFormat.PNG, 100, it) }
         if (small !== bitmap) small.recycle()
         bitmap.recycle()
+    }
+    private fun sourceLabel(uri: Uri): String {
+        val displayName = try {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        } catch (_: Exception) { null }
+        return displayName ?: uri.lastPathSegment?.substringAfterLast('/') ?: ""
     }
     private fun normalize(bytes: ByteArray): ByteArray {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }

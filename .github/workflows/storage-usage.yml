@@ -1,0 +1,42 @@
+name: Supabase storage usage
+
+on:
+  schedule:
+    - cron: '35 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: storage-usage
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    if: github.event_name == 'workflow_dispatch' || vars.STORAGE_MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_STORAGE_QUOTA_MB: ${{ vars.SUPABASE_STORAGE_QUOTA_MB }}
+      SUPABASE_STORAGE_WARN_PERCENT: ${{ vars.SUPABASE_STORAGE_WARN_PERCENT || '70' }}
+      SUPABASE_STORAGE_FAIL_PERCENT: ${{ vars.SUPABASE_STORAGE_FAIL_PERCENT || '90' }}
+      PRIVATE_GENERATED_RETENTION_DAYS: ${{ vars.PRIVATE_GENERATED_RETENTION_DAYS || '30' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify Supabase monitoring configuration
+        run: |
+          python - <<'PY'
+          import os
+          required = ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+          missing = [name for name in required if not os.environ.get(name, "").strip()]
+          if missing:
+              raise SystemExit("Missing storage monitor configuration: " + ", ".join(missing))
+          PY
+      - name: Report storage usage and retention candidates
+        run: python tools/storage_usage.py

@@ -65,9 +65,11 @@ class VideoStickerTest(unittest.TestCase):
             ideas = [{"caption": f"Scene number {i}", "mood": "wow", "color": "#FFD166", "source": None} for i in range(3)]
             config = {"daily_target": 3, "batch_size": 3, "modes": ["clip"],
                       "image_directory": str(inputs), "vision_model": "test-vision"}
-            with patch("daily_stickers.groq_ideas", return_value=ideas) as call:
+            with patch("daily_stickers.groq_ideas", return_value=ideas) as call, \
+                    patch("video_stickers.clip_frames", wraps=clip_frames) as decode:
                 run(config, root / "outputs", FONT, now=1791763200)
                 self.assertEqual(call.call_args.args[-1], str(clip))
+                self.assertEqual(decode.call_count, 2)  # one preview, one shared render input
             records = json.loads((root / "outputs/2026-10-12/state.json").read_text())["records"]
             self.assertTrue(all(record["kind"] == "ANIMATED" for record in records))
             self.assertTrue(all(record["media_credit"]["source"] == "user-supplied" for record in records))

@@ -17,8 +17,8 @@ android {
         applicationId = "app.stickerdock.duo"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         val defaultCatalog = "https://raw.githubusercontent.com/dvajjala-ui/stickerdock/main/catalog/"
         val catalogBase = providers.gradleProperty("catalogBaseUrl").orElse(defaultCatalog).get()
         require(catalogBase.startsWith("https://") && catalogBase.endsWith("/"))
@@ -63,6 +63,7 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.17")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")

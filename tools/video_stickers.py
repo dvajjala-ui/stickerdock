@@ -36,9 +36,15 @@ def clip_frames(path):
 
 
 def render_clip(path, idea, font_path):
+    return render_clip_frames(clip_frames(path), idea, font_path)
+
+
+def render_clip_frames(originals, idea, font_path):
     from daily_stickers import draw_caption
+    if not 2 <= len(originals) <= 16:
+        raise ValueError("Supply 2–16 decoded clip frames")
     frames = []
-    for original in clip_frames(path):
+    for original in originals:
         frame = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
         frame.alpha_composite(original, ((512 - original.width) // 2, 20))
         draw_caption(frame, idea["caption"], font_path)

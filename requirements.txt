@@ -1,0 +1,2 @@
+# Vercel installs this dependency for the private manual Studio preview.
+Pillow==12.3.0

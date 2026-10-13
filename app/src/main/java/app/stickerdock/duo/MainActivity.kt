@@ -1,6 +1,7 @@
 package app.stickerdock.duo
 
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
@@ -15,6 +16,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -53,10 +55,18 @@ class MainActivity : ComponentActivity() {
         var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
         var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var query by remember { mutableStateOf("") }
+        var stickerQuery by remember { mutableStateOf("") }
+        var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
         var packFilter by remember { mutableStateOf("All") }
+        var categoryFilter by remember { mutableStateOf<PackCategory?>(null) }
         var newPackKind by remember { mutableStateOf(StickerKind.STATIC) }
         var newPackRating by remember { mutableStateOf(PackRating.GENERAL) }
+        var newPackCategory by remember { mutableStateOf(PackCategory.GENERAL) }
         var busy by remember { mutableStateOf(false) }
+        var phoneImportProgress by remember { mutableStateOf<FolderStickerImporter.Progress?>(null) }
+        var pendingFolderImportUri by remember {
+            mutableStateOf(FolderStickerImporter.pendingImportUri(this@MainActivity)?.toString())
+        }
         var dialog by remember { mutableStateOf<String?>(null) }
         var name by remember { mutableStateOf("") }
         var showCommunity by remember { mutableStateOf(false) }
@@ -68,6 +78,9 @@ class MainActivity : ComponentActivity() {
         var communityError by remember { mutableStateOf<String?>(null) }
         var moving by remember { mutableStateOf<StickerItem?>(null) }
         var target by remember { mutableStateOf<String?>(null) }
+        var editingSticker by remember { mutableStateOf<StickerItem?>(null) }
+        var stickerLabel by remember { mutableStateOf("") }
+        var stickerTags by remember { mutableStateOf("") }
         val pack = packs.firstOrNull { it.id == selectedId }
 
         fun refresh() {
@@ -75,12 +88,15 @@ class MainActivity : ComponentActivity() {
                 val data = withContext(Dispatchers.IO) {
                     val all = store.listPacks()
                     Triple(all, selectedId?.let(store::listStickers) ?: emptyList(),
-                        all.associate { it.id to store.listStickers(it.id).size })
+                        store.stickerCounts())
                 }
                 packs = data.first
                 stickers = data.second
                 counts = data.third
                 if (selectedId != null && packs.none { it.id == selectedId }) selectedId = null
+                if (stickerQuery.isNotBlank()) {
+                    stickerMatches = withContext(Dispatchers.IO) { store.searchStickers(stickerQuery) }
+                }
             }
         }
         fun operation(action: suspend () -> String) {
@@ -94,6 +110,24 @@ class MainActivity : ComponentActivity() {
                 } catch (e: Exception) {
                     snackbar.showSnackbar(e.message ?: "Operation failed")
                 } finally { busy = false }
+            }
+        }
+        fun runFolderImport(uri: android.net.Uri) {
+            if (busy) return
+            pendingFolderImportUri = uri.toString()
+            phoneImportProgress = null
+            operation {
+                try {
+                    val report = FolderStickerImporter(this@MainActivity, store, files).import(uri) { progress ->
+                        runOnUiThread { phoneImportProgress = progress }
+                    }
+                    "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
+                } finally {
+                    runOnUiThread {
+                        phoneImportProgress = null
+                        pendingFolderImportUri = FolderStickerImporter.pendingImportUri(this@MainActivity)?.toString()
+                    }
+                }
             }
         }
         val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -111,9 +145,15 @@ class MainActivity : ComponentActivity() {
             }
         }
         val folderImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            if (uri != null) operation {
-                val report = FolderStickerImporter(this@MainActivity, store, files).import(uri)
-                "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
+            if (uri != null) {
+                try {
+                    contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                } catch (_: SecurityException) {
+                    // Some document providers grant only temporary access. The
+                    // import can still run now; resume will surface an error if
+                    // the provider cannot be reopened after process death.
+                }
+                runFolderImport(uri)
             }
         }
         val zipImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -150,6 +190,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(selectedId) { refresh() }
+        LaunchedEffect(stickerQuery) {
+            stickerMatches = if (stickerQuery.isBlank()) emptyList()
+            else withContext(Dispatchers.IO) { store.searchStickers(stickerQuery) }
+        }
         LaunchedEffect(Unit) {
             if (intent.action == android.content.Intent.ACTION_SEND || intent.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
                 operation { IncomingStickers(this@MainActivity, store, files).import(intent) }
@@ -162,14 +206,40 @@ class MainActivity : ComponentActivity() {
         }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
             Column(Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
                 if (pack == null) {
+                    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { Column {
                     Text("Your stickers, organized offline.")
                     Text("To migrate saved WhatsApp/Sticker.ly stickers, choose Android/media → com.whatsapp → WhatsApp → Media → WhatsApp Stickers (or the Business equivalent).")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; dialog = "create" }) { Text("New pack") }
+                        Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; newPackCategory = PackCategory.GENERAL; dialog = "create" }) { Text("New pack") }
                         OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
+                    phoneImportProgress?.let { progress ->
+                        Text(
+                            "Phone import${if (progress.resumed) " (resumed)" else ""}: " +
+                                "${progress.filesScanned} scanned • ${progress.added} added • " +
+                                "${progress.duplicates} duplicate • ${progress.rejected} rejected",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        progress.currentFile?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                    }
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    pendingFolderImportUri?.takeIf { !busy }?.let { savedUri ->
+                        OutlinedButton(onClick = { runFolderImport(android.net.Uri.parse(savedUri)) }) {
+                            Text("Resume phone import")
+                        }
+                        TextButton(onClick = {
+                            operation {
+                                val removed = FolderStickerImporter(this@MainActivity, store, files).discardPendingImport()
+                                runOnUiThread {
+                                    pendingFolderImportUri = null
+                                    phoneImportProgress = null
+                                }
+                                "Discarded saved phone import${if (removed > 0) " and removed $removed empty packs" else ""}"
+                            }
+                        }) { Text("Discard saved import") }
+                    }
                     OutlinedButton(enabled = !busy, onClick = { folderImporter.launch(null) }) { Text("Import phone sticker folder") }
                     OutlinedButton(enabled = !busy, onClick = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) }) { Text("Import sticker ZIP") }
                     OutlinedButton(onClick = {
@@ -186,28 +256,70 @@ class MainActivity : ComponentActivity() {
                             finally { communityLoading = false }
                         }
                     }) { Text("Community packs") }
+                    OutlinedButton(enabled = false, onClick = {}) { Text("AI meme creator — Coming soon") }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("All", "Static", "Animated").forEach { type ->
                             FilterChip(selected = packFilter == type, onClick = { packFilter = type }, label = { Text(type) })
                         }
                     }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        item {
+                            FilterChip(selected = categoryFilter == null,
+                                onClick = { categoryFilter = null }, label = { Text("All topics") })
+                        }
+                        items(PackCategory.entries.size) { index ->
+                            val category = PackCategory.entries[index]
+                            FilterChip(selected = categoryFilter == category,
+                                onClick = { categoryFilter = category },
+                                label = { Text(category.label) })
+                        }
+                    }
                     OutlinedTextField(value = query, onValueChange = { query = it },
                         label = { Text("Search packs") }, modifier = Modifier.fillMaxWidth())
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(packs.filter { it.name.contains(query, true) && (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) }, key = { it.id }) { item ->
-                            Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
-                                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)", modifier = Modifier.weight(1f))
-                                    Text("${counts[item.id] ?: 0} ${if (item.rating == PackRating.MATURE) "Mature" else "stickers"}")
+                    OutlinedTextField(value = stickerQuery, onValueChange = { stickerQuery = it },
+                        label = { Text("Search stickers by label, tag, filename or pack") },
+                        modifier = Modifier.fillMaxWidth())
+                    if (stickerQuery.isNotBlank()) {
+                        Text("${stickerMatches.size} sticker matches", style = MaterialTheme.typography.labelMedium)
+                    }
+                    } }
+                        if (stickerQuery.isBlank()) {
+                            items(packs.filter { it.name.contains(query, true) &&
+                                    (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
+                                    (categoryFilter == null || it.category == categoryFilter) }, key = { it.id }) { item ->
+                                Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
+                                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)")
+                                            Text(item.category.label, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Text("${counts[item.id] ?: 0} ${if (item.rating == PackRating.MATURE) "Mature" else "stickers"}")
+                                    }
+                                }
+                            }
+                        } else {
+                            items(stickerMatches, key = { it.item.id }) { result ->
+                                Card(Modifier.fillMaxWidth().clickable { selectedId = result.pack.id }) {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Text(result.item.displayName)
+                                        Text("${result.pack.name} • ${result.pack.category.label}",
+                                            style = MaterialTheme.typography.labelMedium)
+                                        if (result.item.tags.isNotBlank()) {
+                                            Text(result.item.tags, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 } else {
-                    Text("${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} pack • ${pack.rating.name.lowercase().replaceFirstChar { it.uppercase() }} • ${stickers.size}/30 stickers")
+                    Text("${pack.category.label} • ${pack.kind.name.lowercase().replaceFirstChar { it.uppercase() }} • ${pack.rating.name.lowercase().replaceFirstChar { it.uppercase() }} • ${stickers.size}/30 stickers")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(enabled = !busy && stickers.size < 30, onClick = { picker.launch(arrayOf("image/*")) }) { Text("Import") }
                         OutlinedButton(onClick = { name = pack.name; dialog = "rename" }) { Text("Rename") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        OutlinedButton(onClick = { newPackCategory = pack.category; dialog = "category" }) { Text("Category") }
                         OutlinedButton(onClick = { dialog = "delete" }) { Text("Delete") }
                     }
                     OutlinedButton(enabled = !busy && stickers.isNotEmpty(), onClick = {
@@ -253,6 +365,13 @@ class MainActivity : ComponentActivity() {
                                         } else if (image == null) Text("Missing")
                                         else Image(image, contentDescription = "Sticker", modifier = Modifier.fillMaxSize())
                                     }
+                                    Text(item.displayName, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                                    if (item.tags.isNotBlank()) Text(item.tags, maxLines = 2, style = MaterialTheme.typography.labelSmall)
+                                    TextButton(onClick = {
+                                        editingSticker = item
+                                        stickerLabel = item.label
+                                        stickerTags = item.tags
+                                    }, enabled = !busy) { Text("Edit info") }
                                     TextButton(onClick = { moving = item; target = packs.firstOrNull { it.id != item.packId }?.id },
                                         enabled = packs.size > 1 && !busy) { Text("Copy/Move") }
                                     TextButton(onClick = { operation { files.deleteSticker(item); "Removed" } },
@@ -355,11 +474,57 @@ class MainActivity : ComponentActivity() {
                 },
                 dismissButton = { TextButton(onClick = { moving = null }) { Text("Cancel") } })
         }
+        editingSticker?.let { item ->
+            AlertDialog(onDismissRequest = { editingSticker = null },
+                title = { Text("Sticker info") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = stickerLabel,
+                            onValueChange = { stickerLabel = it },
+                            label = { Text("Label") },
+                            supportingText = { Text("A readable name for search and display") }
+                        )
+                        OutlinedTextField(
+                            value = stickerTags,
+                            onValueChange = { stickerTags = it },
+                            label = { Text("Tags") },
+                            supportingText = { Text("Comma-separated, for example: funny, work, reaction") }
+                        )
+                        Text("Stored file: ${item.fileName}", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = !busy, onClick = {
+                        val label = stickerLabel
+                        val tags = stickerTags
+                        editingSticker = null
+                        operation {
+                            store.updateStickerMetadata(item.packId, item.id, label, tags)
+                            "Sticker info updated"
+                        }
+                    }) { Text("Save") }
+                },
+                dismissButton = { TextButton(onClick = { editingSticker = null }) { Text("Cancel") } })
+        }
         dialog?.let { mode ->
             AlertDialog(onDismissRequest = { dialog = null },
-                title = { Text(if (mode == "create") "New pack" else if (mode == "rename") "Rename pack" else "Delete pack?") },
+                title = { Text(when (mode) {
+                    "create" -> "New pack"
+                    "rename" -> "Rename pack"
+                    "category" -> "Pack category"
+                    else -> "Delete pack?"
+                }) },
                 text = {
                     if (mode == "delete") Text("Local stickers and data will be deleted.")
+                    else if (mode == "category") LazyColumn {
+                        items(PackCategory.entries.size) { index ->
+                            val category = PackCategory.entries[index]
+                            TextButton(onClick = { newPackCategory = category }) {
+                                Text((if (newPackCategory == category) "● " else "○ ") + category.label)
+                            }
+                        }
+                    }
                     else Column {
                         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Pack name") })
                         if (mode == "create") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -372,16 +537,28 @@ class MainActivity : ComponentActivity() {
                                 FilterChip(selected = newPackRating == rating, onClick = { newPackRating = rating }, label = { Text(rating.name.lowercase().replaceFirstChar { it.uppercase() }) })
                             }
                         }
+                        if (mode == "create") {
+                            Text("Category", style = MaterialTheme.typography.labelMedium)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(PackCategory.entries.size) { index ->
+                                    val category = PackCategory.entries[index]
+                                    FilterChip(selected = newPackCategory == category,
+                                        onClick = { newPackCategory = category },
+                                        label = { Text(category.label) })
+                                }
+                            }
+                        }
                     }
                 },
                 confirmButton = {
-                    TextButton(enabled = !busy && (mode == "delete" || name.isNotBlank()), onClick = {
+                    TextButton(enabled = !busy && (mode in setOf("delete", "category") || name.isNotBlank()), onClick = {
                         val id = selectedId
                         val value = name
                         dialog = null
                         when (mode) {
-                            "create" -> operation { store.createPack(value, newPackKind, newPackRating); "Pack created" }
+                            "create" -> operation { store.createPack(value, newPackKind, newPackRating, newPackCategory); "Pack created" }
                             "rename" -> if (id != null) operation { store.renamePack(id, value); "Renamed" }
+                            "category" -> if (id != null) operation { store.updateCategory(id, newPackCategory); "Category updated" }
                             "delete" -> if (id != null) operation { files.deletePack(id); "Deleted" }
                         }
                     }) { Text("Confirm") }

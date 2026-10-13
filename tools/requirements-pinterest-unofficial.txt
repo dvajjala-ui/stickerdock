@@ -1,0 +1,1 @@
+pinterest-dl>=1.2,<2
