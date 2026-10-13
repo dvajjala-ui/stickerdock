@@ -1,0 +1,149 @@
+name: Retry Creator Studio live AI validation
+
+on:
+  push:
+    branches:
+      - feat/creator-studio-live-ai
+    paths:
+      - '.github/workflows/retry-creator-studio-live-ai.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/creator-studio-live-ai
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            tools/requirements-stickers.txt
+            tools/requirements-pinterest.txt
+
+      - name: Reapply exact source patch from validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/patch-creator-studio-live-ai.yml').read_text()
+          marker = "          python - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end_marker = "\n          PY\n\n      - name: Install Python test dependencies"
+          end = workflow.index(end_marker, start)
+          script = workflow[start:end]
+          # The heredoc body is indented for YAML; remove exactly ten spaces.
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in script.splitlines()) + '\n'
+          exec(compile(script, '<creator-live-ai-patch>', 'exec'), {'__name__': '__main__'})
+          PY
+
+      - name: Install full helper dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install -r requirements.txt -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
+
+      - name: Run complete Python helper suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q api tools
+          python -m unittest discover -s tools -p 'test_*.py' -v
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Exercise live AI browser flow against mocked APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import binascii, struct, zlib
+          def chunk(kind, data):
+              body = kind + data
+              return struct.pack('>I', len(data)) + body + struct.pack('>I', binascii.crc32(body) & 0xffffffff)
+          row = b'\x00' + b'\x44\x99\xdd\xff' * 64
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 64, 64, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(row * 64, 9)) + chunk(b'IEND', b'')
+          open('/tmp/source.png', 'wb').write(png)
+          PY
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/http.log 2>&1 &
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173/studio/ >/dev/null && break; sleep 1; done
+          node <<'JS'
+          const assert = require('assert');
+          const fs = require('fs');
+          const { chromium } = require('playwright');
+          (async () => {
+            const browser = await chromium.launch({headless:true});
+            const page = await browser.newPage({viewport:{width:390,height:844}});
+            const pngData = 'data:image/png;base64,' + fs.readFileSync('/tmp/source.png').toString('base64');
+            let uploadCalls = 0;
+            let queueCalls = 0;
+            let statusCalls = 0;
+            let fetchCalls = 0;
+            await page.route('**/api/upload', async route => {
+              uploadCalls += 1;
+              assert.strictEqual(route.request().headers()['x-stickerdock-token'], 'test-studio-token');
+              await route.fulfill({status:200, contentType:'application/json', body:JSON.stringify({path:'inbox/'+'a'.repeat(64)+'.png',sha256:'a'.repeat(64)})});
+            });
+            await page.route('**/api/captions', async route => {
+              const body = JSON.parse(route.request().postData() || '{}');
+              assert.strictEqual(route.request().headers()['x-stickerdock-token'], 'test-studio-token');
+              if (body.action === 'queue') {
+                queueCalls += 1;
+                assert.strictEqual(body.source_path, 'inbox/'+'a'.repeat(64)+'.png');
+                assert.strictEqual(body.prompt, 'Make a friendly Hinglish reaction');
+                await route.fulfill({status:202, contentType:'application/json', body:JSON.stringify({id:'11111111-1111-4111-8111-111111111111',status:'queued'})});
+              } else {
+                statusCalls += 1;
+                await route.fulfill({status:200, contentType:'application/json', body:JSON.stringify({id:body.id,status:'complete',result_path:'inbox/'+'b'.repeat(64)+'.webp',attempts:1})});
+              }
+            });
+            await page.route('**/api/library', async route => {
+              fetchCalls += 1;
+              const body = JSON.parse(route.request().postData() || '{}');
+              assert.strictEqual(body.action, 'fetch');
+              assert.strictEqual(body.path, 'inbox/'+'b'.repeat(64)+'.webp');
+              await route.fulfill({status:200, contentType:'application/json', body:JSON.stringify({image:pngData})});
+            });
+            const response = await page.goto('http://127.0.0.1:4173/studio/', {waitUntil:'networkidle'});
+            assert(response && response.ok());
+            assert(!(await page.locator('#prompt').isDisabled()), 'AI prompt should be enabled');
+            assert(await page.locator('#generate').isDisabled(), 'Generate starts disabled');
+            await page.fill('#token', 'test-studio-token');
+            await page.setInputFiles('#file', '/tmp/source.png');
+            await page.fill('#prompt', 'Make a friendly Hinglish reaction');
+            await page.waitForFunction(() => !document.querySelector('#generate').disabled);
+            await page.click('#generate');
+            await page.waitForFunction(() => document.querySelector('#status').textContent.includes('AI sticker ready'), null, {timeout:10000});
+            assert.deepStrictEqual({uploadCalls,queueCalls,statusCalls,fetchCalls}, {uploadCalls:1,queueCalls:1,statusCalls:1,fetchCalls:1});
+            assert(!(await page.locator('#download').isDisabled()), 'AI result should be downloadable');
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+            assert(overflow <= 1, `mobile overflow ${overflow}`);
+            console.log(JSON.stringify({ai_prompt:'enabled',source_upload:'pass',queue:'pass',status:'complete',result_fetch:'pass',download_enabled:true,mobile_overflow_px:overflow}));
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          JS
+
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "dvajjala-ui"
+          git config user.email "dvajjala@gmail.com"
+          git add api/_shared.py studio/index.html studio/app.js .github/workflows/creator-request-worker.yml tools/test_studio_api.py
+          git diff --cached --check
+          git commit -m "Enable live Creator Studio AI queue"
+          git push origin HEAD:feat/creator-studio-live-ai
