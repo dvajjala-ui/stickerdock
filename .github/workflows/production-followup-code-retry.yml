@@ -1,0 +1,66 @@
+name: Production follow-up code retry
+
+on:
+  push:
+    branches:
+      - fix/live-production-followup
+    paths:
+      - '.github/workflows/production-followup-code-retry.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/live-production-followup
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply Studio secret-key auth fix and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          shared = Path('api/_shared.py')
+          text = shared.read_text()
+          old = '    headers = {"apikey": key, "Authorization": "Bearer " + key}\n'
+          new = ('    headers = {"apikey": key}\n'
+                 '    if not key.startswith("sb_"):\n'
+                 '        headers["Authorization"] = "Bearer " + key\n')
+          if text.count(old) != 1:
+              raise SystemExit('Expected exactly one legacy Studio Supabase auth header')
+          shared.write_text(text.replace(old, new, 1))
+
+          tests = Path('tools/test_studio_api.py')
+          text = tests.read_text()
+          marker = '    def test_storage_paths_reject_traversal(self):\n'
+          addition = '''    def test_new_supabase_secret_key_uses_apikey_without_bearer(self):\n        with patch.dict(os.environ, {\n                "SUPABASE_URL": "https://example.supabase.co",\n                "SUPABASE_SERVICE_ROLE_KEY": "sb_secret_test"}, clear=False):\n            with patch.object(studio, "request", return_value=b"[]") as provider:\n                studio.supabase_request("/rest/v1/creator_requests")\n        headers = provider.call_args.kwargs["headers"]\n        self.assertEqual(headers["apikey"], "sb_secret_test")\n        self.assertNotIn("Authorization", headers)\n\n    def test_legacy_supabase_service_role_keeps_bearer_header(self):\n        key = "eyJhbGciOiJIUzI1NiJ9.legacy.signature"\n        with patch.dict(os.environ, {\n                "SUPABASE_URL": "https://example.supabase.co",\n                "SUPABASE_SERVICE_ROLE_KEY": key}, clear=False):\n            with patch.object(studio, "request", return_value=b"[]") as provider:\n                studio.supabase_request("/rest/v1/creator_requests")\n        headers = provider.call_args.kwargs["headers"]\n        self.assertEqual(headers["apikey"], key)\n        self.assertEqual(headers["Authorization"], "Bearer " + key)\n\n'''
+          if text.count(marker) != 1:
+              raise SystemExit('Studio test insertion marker mismatch')
+          tests.write_text(text.replace(marker, addition + marker, 1))
+          PY
+      - name: Run complete Python helper suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
+          python -m py_compile api/_shared.py tools/*.py
+          python -m unittest discover -s tools -p 'test_*.py' -v
+      - name: Commit validated code change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'StickerDock Production Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add api/_shared.py tools/test_studio_api.py
+          git diff --cached --check
+          git commit -m 'Handle Supabase secret keys correctly in Studio API'
+          git push origin HEAD:fix/live-production-followup
