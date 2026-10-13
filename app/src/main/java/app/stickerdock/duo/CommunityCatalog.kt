@@ -19,7 +19,11 @@ class CommunityCatalog(
     data class Listing(val id: String, val name: String, val creator: String, val downloadUrl: String, val sha256: String)
     private val base = CatalogUrls.normalizeBase(BuildConfig.COMMUNITY_CATALOG_BASE_URL)
     fun browse(): List<Listing> {
-        val bytes = fetch(CatalogUrls.index(base), 512_000)
+        // Public storage intentionally stays empty until the first reviewed pack is
+        // published. A missing index therefore means "no community packs yet", not
+        // a broken app. All other HTTP errors and all pack downloads remain strict.
+        val bytes = fetchOrNull(CatalogUrls.index(base), 512_000, allowMissing = true)
+            ?: return emptyList()
         val doc = JSONObject(bytes.toString(Charsets.UTF_8))
         require(doc.getInt("version") == 1)
         val array = doc.getJSONArray("packs")
@@ -52,7 +56,10 @@ class CommunityCatalog(
             backup.restore(Uri.fromFile(tmp))
         } finally { tmp.delete() }
     }
-    private fun fetch(url: String, maxBytes: Int): ByteArray {
+    private fun fetch(url: String, maxBytes: Int): ByteArray =
+        requireNotNull(fetchOrNull(url, maxBytes, allowMissing = false))
+
+    private fun fetchOrNull(url: String, maxBytes: Int, allowMissing: Boolean): ByteArray? {
         require(CatalogUrls.isAllowed(base, url)) { "Only approved catalog URLs are supported" }
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 10_000
@@ -60,7 +67,9 @@ class CommunityCatalog(
         connection.instanceFollowRedirects = false
         connection.setRequestProperty("Accept", "application/octet-stream")
         try {
-            require(connection.responseCode == 200) { "Catalog unavailable: HTTP ${connection.responseCode}" }
+            val responseCode = connection.responseCode
+            if (allowMissing && responseCode == HttpURLConnection.HTTP_NOT_FOUND) return null
+            require(responseCode == HttpURLConnection.HTTP_OK) { "Catalog unavailable: HTTP $responseCode" }
             return connection.inputStream.use { StickerFiles.boundedRead(it, maxBytes) }
         } finally { connection.disconnect() }
     }
