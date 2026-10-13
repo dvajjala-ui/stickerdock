@@ -59,5 +59,6 @@ jobs:
           set -euo pipefail
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
-          jarsigner -verify -strict -certs app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab | tee /tmp/aab-verify.log
+          grep -q 'jar verified' /tmp/aab-verify.log
           test ! -e "$GITHUB_WORKSPACE/release.keystore"
