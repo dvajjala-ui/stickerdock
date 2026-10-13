@@ -28,8 +28,8 @@ class StickerStoreMigrationTest {
     }
 
     @Test
-    fun upgradesEveryLegacySchemaToV5WithoutLosingPackOrSticker() {
-        for (legacyVersion in 1..4) {
+    fun upgradesEveryLegacySchemaToV6WithoutLosingPackOrSticker() {
+        for (legacyVersion in 1..5) {
             context.deleteDatabase(DB_NAME)
             seedLegacyDatabase(legacyVersion)
 
@@ -49,12 +49,17 @@ class StickerStoreMigrationTest {
                     if (legacyVersion >= 3) PackRating.MATURE else PackRating.GENERAL,
                     pack.rating
                 )
-                assertEquals(PackCategory.GENERAL, pack.category)
+                assertEquals(
+                    if (legacyVersion >= 5) PackCategory.LOVE else PackCategory.GENERAL,
+                    pack.category
+                )
 
                 val stickers = store.listStickers(pack.id)
                 assertEquals("v$legacyVersion sticker count", 1, stickers.size)
                 assertEquals("legacy.webp", stickers.single().fileName)
                 assertEquals("deadbeef", stickers.single().sha256)
+                assertEquals("", stickers.single().label)
+                assertEquals("", stickers.single().tags)
                 assertTrue("v$legacyVersion global hash index/query", store.hasStickerHash("deadbeef"))
 
                 store.readableDatabase.rawQuery(
@@ -63,7 +68,7 @@ class StickerStoreMigrationTest {
                 ).use { cursor ->
                     assertTrue("v$legacyVersion sha index", cursor.moveToFirst())
                 }
-                assertEquals(5, store.readableDatabase.version)
+                assertEquals(6, store.readableDatabase.version)
             } finally {
                 store.close()
             }
@@ -77,6 +82,7 @@ class StickerStoreMigrationTest {
                 append("id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL")
                 if (version >= 2) append(", kind TEXT NOT NULL DEFAULT 'STATIC'")
                 if (version >= 3) append(", rating TEXT NOT NULL DEFAULT 'GENERAL'")
+                if (version >= 5) append(", category TEXT NOT NULL DEFAULT 'GENERAL'")
             }
             db.execSQL("CREATE TABLE packs ($packColumns)")
             db.execSQL(
@@ -98,6 +104,10 @@ class StickerStoreMigrationTest {
             if (version >= 3) {
                 packColumnsForInsert += "rating"
                 values += "'MATURE'"
+            }
+            if (version >= 5) {
+                packColumnsForInsert += "category"
+                values += "'LOVE'"
             }
             db.execSQL(
                 "INSERT INTO packs (${packColumnsForInsert.joinToString()}) " +
