@@ -20,6 +20,8 @@ MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
 CREATOR_MAX_OUTSTANDING = 25
+MIN_STUDIO_TOKEN_LENGTH = 32
+MAX_STUDIO_TOKEN_LENGTH = 256
 
 
 class StudioError(ValueError):
@@ -29,7 +31,11 @@ class StudioError(ValueError):
 def authorized(headers) -> bool:
     expected = os.environ.get("STUDIO_ACCESS_TOKEN", "").strip()
     supplied = str(headers.get("X-StickerDock-Token", ""))
-    return bool(expected and supplied and hmac.compare_digest(expected.encode(), supplied.encode()))
+    if not (MIN_STUDIO_TOKEN_LENGTH <= len(expected) <= MAX_STUDIO_TOKEN_LENGTH):
+        return False
+    if not supplied or len(supplied) > MAX_STUDIO_TOKEN_LENGTH:
+        return False
+    return hmac.compare_digest(expected.encode(), supplied.encode())
 
 
 def read_json(handler) -> dict:
