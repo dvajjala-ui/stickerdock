@@ -179,11 +179,13 @@ real-device acceptance or store-release testing.
   actual Supabase plan quota is still unknown to the workflow, so configure
   `SUPABASE_STORAGE_QUOTA_MB` and review the intended warning/failure thresholds
   before setting `STORAGE_MONITOR_ENABLED=true` for daily checks.
-- **Android release:** the `android-production` environment exists, but a live
-  presence-only probe found `ANDROID_KEYSTORE_BASE64`,
-  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` and
-  `CATALOG_BASE_URL` all unset. The job stopped before keystore decoding or
-  Gradle/signing, so this is a deployment-configuration blocker rather than a
+- **Android release:** the `android-production` environment exists. A live
+  presence-only probe found the four signing secrets unset:
+  `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+  `ANDROID_KEY_PASSWORD`. `CATALOG_BASE_URL` no longer blocks release because the
+  workflow defaults to the deployed Supabase public catalog while retaining an
+  optional environment override. The probe stopped before keystore decoding or
+  Gradle/signing, so the remaining blocker is signing configuration rather than a
   known build/signature failure.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
@@ -203,8 +205,8 @@ real-device acceptance or store-release testing.
 - Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and, after
   reviewing the first successful report-only scan, set
   `STORAGE_MONITOR_ENABLED=true` for daily checks.
-- Configure the four Android signing secrets plus `CATALOG_BASE_URL`, build a
-  signed APK/AAB candidate and install it on the target Galaxy S24 Ultra.
+- Configure the four Android signing secrets, build a signed APK/AAB candidate and
+  install it on the target Galaxy S24 Ultra.
 - Test folder import, animated previews and WhatsApp/Business pack installation
   on the Galaxy S24 Ultra.
 - Validate resumable progress/process-death recovery for very large Android
@@ -226,9 +228,11 @@ set directly in the relevant production workflows. Database migration maintenanc
 can use `SUPABASE_DB_PASSWORD`; it is not needed by the Android app. Pinterest
 later requires `PINTEREST_ACCESS_TOKEN` plus board variables.
 
-The `android-production` environment currently needs all five release values to
-be configured: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` and `CATALOG_BASE_URL`.
+The `android-production` environment currently needs four signing values to be
+configured: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. The signed-release workflow uses
+the production Supabase catalog by default; `CATALOG_BASE_URL` is now an optional
+override rather than a required release value.
 
 The hosted Creator Studio additionally requires `STUDIO_ACCESS_TOKEN`,
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the Vercel/server environment.
