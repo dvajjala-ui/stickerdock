@@ -49,7 +49,10 @@ The [Pinterest and Creator Studio guide](docs/PINTEREST_AND_CREATOR_STUDIO.md)
 adds a persistent six-hour Pinterest source sync (official authorized boards by
 default; optional public-topic adapter), Supabase inbox provenance, and a Vercel
 web-editor preview. Manual meme layout, PNG download and private factory upload
-are implemented; the Android entry and AI prompts say Coming soon. Pinterest media is
+are implemented. A token-gated private Studio → Factory AI request/result queue,
+service-role-only atomic claim path and manual-only Creator worker are also
+implemented in source; the visible AI control remains **Coming soon** until a
+live Supabase/Groq vision smoke test succeeds. Pinterest media is
 private-reference-only unless a specific reusable rights declaration is present.
 
 For hosted operation, use the [production deployment guide](docs/PRODUCTION_DEPLOYMENT.md):
@@ -72,6 +75,7 @@ The repository does not currently include a full Gradle wrapper binary; CI insta
 - **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
 - A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
 - Folder migration now saves an app-private progress checkpoint and can resume a persisted SAF folder after process death. Android picker/provider behavior and actual kill/restart recovery still need real-device QA, especially for enormous libraries.
+- The Creator Studio AI queue/worker is source-complete but intentionally manual-only and not exposed by the UI. Apply the second Supabase migration and run a real authenticated queue → worker → result/status smoke test before enabling it.
 - GIF/MP4/WebM/MOV conversion is implemented in the production worker; live phone
   import still needs device QA. Public packs require an explicit review workflow.
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.
