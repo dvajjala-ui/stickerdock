@@ -1,17 +1,18 @@
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
 import uuid
-from unittest.mock import patch
 
 import creator_request_worker as creator
 
 
 class FakeClient:
-    def __init__(self, request=None, source=b"source-bytes"):
+    def __init__(self, request=None, source=b"source-bytes", metadata=None):
         self.request = request
         self.source = source
+        self.metadata = metadata
         self.uploads = []
         self.updates = []
 
@@ -19,8 +20,10 @@ class FakeClient:
         self.worker_id = worker_id
         return self.request
 
-    def download(self, bucket, path):
+    def download(self, bucket, path, missing_ok=False):
         self.downloaded = (bucket, path)
+        if path.startswith("source-metadata/"):
+            return self.metadata
         return self.source
 
     def upload(self, bucket, path, data, content_type="application/octet-stream"):
@@ -39,6 +42,23 @@ class CreatorRequestWorkerTest(unittest.TestCase):
             "prompt": prompt,
         }
 
+    def render_success(self, client, request, source):
+        sticker = b"RIFF\x0c\x00\x00\x00WEBPVP8 test"
+        with tempfile.TemporaryDirectory() as directory:
+            font = Path(directory) / "font.ttf"
+            font.write_bytes(b"font")
+            return creator.process_one(
+                client,
+                worker_id="run-123",
+                key="groq-key",
+                model="vision-model",
+                font_path=font,
+                idea_generator=lambda *args, **kwargs: [{
+                    "caption": "OK", "mood": "happy", "color": "#FFD166", "source": None
+                }],
+                renderer=lambda *args, **kwargs: sticker,
+            )
+
     def test_idle_when_nothing_is_queued(self):
         client = FakeClient()
         self.assertEqual(creator.process_one(client), {"status": "idle"})
@@ -47,34 +67,51 @@ class CreatorRequestWorkerTest(unittest.TestCase):
     def test_success_preserves_private_provenance_and_completes_request(self):
         source = b"owned-source-image"
         request = self.request_for(source, "  funny   caption  ")
-        client = FakeClient(request, source)
-        sticker = b"RIFF\x0c\x00\x00\x00WEBPVP8 test"
-        with tempfile.TemporaryDirectory() as directory:
-            font = Path(directory) / "font.ttf"
-            font.write_bytes(b"font")
-            with patch.object(creator, "inbox_metadata", return_value={
-                "license": "USER_OWNED",
-                "source_url": "creator-studio://manual",
-                "download_url": "creator-studio://manual",
-            }):
-                result = creator.process_one(
-                    client,
-                    worker_id="run-123",
-                    key="groq-key",
-                    model="vision-model",
-                    font_path=font,
-                    idea_generator=lambda *args, **kwargs: [{
-                        "caption": "OK", "mood": "happy", "color": "#FFD166", "source": None
-                    }],
-                    renderer=lambda *args, **kwargs: sticker,
-                )
+        metadata = json.dumps({
+            "license": "USER_OWNED",
+            "source_url": "creator-studio://manual",
+            "download_url": "creator-studio://manual",
+            "credit": "Factory owner upload",
+        }).encode()
+        client = FakeClient(request, source, metadata)
+        result = self.render_success(client, request, source)
         self.assertEqual(result["status"], "complete")
         self.assertEqual(client.worker_id, "run-123")
         self.assertEqual(len(client.uploads), 2)
         self.assertTrue(client.uploads[0][1].startswith("inbox/"))
         self.assertTrue(client.uploads[1][1].startswith("source-metadata/"))
+        result_metadata = json.loads(client.uploads[1][2])
+        self.assertEqual(result_metadata["license"], "USER_OWNED")
+        self.assertEqual(result_metadata["derived_from"], request["source_path"])
         self.assertEqual(client.updates[-1][1]["status"], "complete")
         self.assertEqual(client.updates[-1][1]["result_path"], result["result_path"])
+
+    def test_missing_source_metadata_becomes_reference_only(self):
+        source = b"unknown-origin-image"
+        request = self.request_for(source)
+        client = FakeClient(request, source, metadata=None)
+        self.render_success(client, request, source)
+        result_metadata = json.loads(client.uploads[1][2])
+        self.assertEqual(result_metadata["license"], "REFERENCE_ONLY")
+        self.assertEqual(result_metadata["source_url"], "supabase://" + request["source_path"])
+
+    def test_invalid_source_rights_metadata_fails_before_groq(self):
+        source = b"bad-metadata-image"
+        request = self.request_for(source)
+        client = FakeClient(request, source, metadata=b'{"license":"UNKNOWN"}')
+        called = False
+        def ideas(*args, **kwargs):
+            nonlocal called
+            called = True
+            return []
+        with tempfile.TemporaryDirectory() as directory:
+            font = Path(directory) / "font.ttf"
+            font.write_bytes(b"font")
+            with self.assertRaises(ValueError):
+                creator.process_one(client, key="groq-key", model="vision-model",
+                                    font_path=font, idea_generator=ideas)
+        self.assertFalse(called)
+        self.assertEqual(client.updates[-1][1]["status"], "failed")
 
     def test_hash_mismatch_fails_closed_and_marks_request_failed(self):
         request = self.request_for(b"expected")
