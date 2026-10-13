@@ -62,11 +62,12 @@ real-device acceptance or store-release testing.
   manual inbox, pending pack records and explicit GENERAL-only publish workflow.
 - Private `creator_requests` queue with no public RLS policy, token-gated Studio
   enqueue/status API, atomic service-role claim using `FOR UPDATE SKIP LOCKED`,
-  bounded retries and a GitHub worker. The worker checks the queue every 10
-  minutes, skips dependency setup when idle, and can drain up to five requests in
-  one active run. Running claims older than 20 minutes are recovered: attempts
-  below five are requeued, while stale fifth-attempt claims are failed instead of
-  remaining permanently stuck.
+  bounded retries and a GitHub worker. Outstanding queued/running work is capped
+  at 25 requests so the private Studio cannot build an unbounded backlog. The
+  worker checks the queue every 10 minutes, skips dependency setup when idle, and
+  can drain up to five requests in one active run. Running claims older than 20
+  minutes are recovered: attempts below five are requeued, while stale
+  fifth-attempt claims are failed instead of remaining permanently stuck.
 - Creator request results stay in the private inbox. The worker verifies the
   source object's SHA-256 path, reuses the existing Groq vision + local renderer,
   preserves source rights, treats missing rights metadata as `REFERENCE_ONLY`,
@@ -101,6 +102,9 @@ real-device acceptance or store-release testing.
   grants EXECUTE only to `service_role`, retains `FOR UPDATE SKIP LOCKED`, and
   contains the verified 20-minute stale-lease recovery with the five-attempt
   ceiling. The live deployment reported zero stale running requests after apply.
+  A separate live behavior smoke (`38401538953`) inserted a 21-minute-old
+  synthetic running request at attempt 1; the real RPC reclaimed it with a fresh
+  lease at attempt 2, and the smoke row was deleted immediately afterward.
 - `sticker-factory-private` is private, `sticker-factory-public` is public, and
   no broad `storage.objects` SELECT policy exists for client roles.
 - All three `updated_at` triggers are present.
