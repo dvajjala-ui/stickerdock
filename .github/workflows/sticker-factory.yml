@@ -14,16 +14,19 @@ permissions:
 
 jobs:
   generate:
-    if: github.event_name == 'workflow_dispatch' || vars.STICKER_FACTORY_ENABLED == 'true'
+    # Production smoke/resume validation passed. Scheduled generation is now on by
+    # default; set STICKER_FACTORY_ENABLED=false as an explicit emergency pause.
+    # Public publication remains a separate manual/review-gated workflow.
+    if: github.event_name == 'workflow_dispatch' || vars.STICKER_FACTORY_ENABLED != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL }}
+      GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b' }}
       GROQ_VISION_MODEL: qwen/qwen3.8-27b
-      FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET }}
+      FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET || '40' }}
       FACTORY_RATING: GENERAL
     steps:
       - uses: actions/checkout@v4
