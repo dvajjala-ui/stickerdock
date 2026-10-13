@@ -36,6 +36,8 @@ def iter_objects(client, bucket, root="", max_objects=MAX_OBJECTS):
         if prefix in visited:
             continue
         visited.add(prefix)
+        if len(visited) > max_objects:
+            raise ValueError("Storage scan exceeds folder limit")
         for offset in range(0, max_objects, PAGE_SIZE):
             page = client.list_objects(bucket, prefix, PAGE_SIZE, offset=offset)
             if not isinstance(page, list):
