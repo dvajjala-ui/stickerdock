@@ -1,0 +1,39 @@
+name: Live Supabase storage monitor
+
+on:
+  push:
+    branches:
+      - test/live-factory-smoke-20261013
+    paths:
+      - '.github/workflows/live-storage-usage-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_STORAGE_QUOTA_MB: ${{ vars.SUPABASE_STORAGE_QUOTA_MB }}
+      SUPABASE_STORAGE_WARN_PERCENT: ${{ vars.SUPABASE_STORAGE_WARN_PERCENT || '70' }}
+      SUPABASE_STORAGE_FAIL_PERCENT: ${{ vars.SUPABASE_STORAGE_FAIL_PERCENT || '90' }}
+      PRIVATE_GENERATED_RETENTION_DAYS: ${{ vars.PRIVATE_GENERATED_RETENTION_DAYS || '30' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/live-factory-smoke-20261013
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run real read-only storage report
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo 'Missing storage monitor secret: SUPABASE_SERVICE_ROLE_KEY' >&2
+            exit 2
+          fi
+          python tools/storage_usage.py | tee /tmp/storage-report.txt
