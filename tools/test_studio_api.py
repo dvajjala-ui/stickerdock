@@ -114,17 +114,36 @@ class StudioApiTest(unittest.TestCase):
 
         def capture(path, **kwargs):
             calls.append((path, kwargs))
+            if kwargs.get("method", "GET") == "GET":
+                return b"[]"
             return b""
 
         with patch.object(studio, "supabase_request", side_effect=capture):
             result = studio.queue_creator_request("  make   it funny  ", source)
         self.assertEqual(result["status"], "queued")
         uuid.UUID(result["id"])
-        self.assertEqual(calls[0][0], "/rest/v1/creator_requests")
-        payload = json.loads(calls[0][1]["data"])
+        self.assertEqual(len(calls), 2)
+        self.assertIn("status=in.%28queued%2Crunning%29", calls[0][0])
+        self.assertEqual(calls[1][0], "/rest/v1/creator_requests")
+        payload = json.loads(calls[1][1]["data"])
         self.assertEqual(payload[0]["source_path"], source)
         self.assertEqual(payload[0]["prompt"], "make it funny")
         self.assertEqual(payload[0]["status"], "queued")
+
+    def test_creator_request_queue_rejects_when_backlog_is_full(self):
+        source = "inbox/" + "b" * 64 + ".webp"
+        backlog = [{"id": str(uuid.uuid4())} for _ in range(studio.CREATOR_MAX_OUTSTANDING)]
+        with patch.object(studio, "supabase_request", return_value=json.dumps(backlog).encode()) as request:
+            with self.assertRaisesRegex(studio.StudioError, "queue is busy"):
+                studio.queue_creator_request("make it funny", source)
+        request.assert_called_once()
+        self.assertIn("status=in.%28queued%2Crunning%29", request.call_args.args[0])
+
+    def test_creator_request_queue_rejects_invalid_backlog_response(self):
+        source = "inbox/" + "b" * 64 + ".webp"
+        with patch.object(studio, "supabase_request", return_value=b"{}"):
+            with self.assertRaisesRegex(studio.StudioError, "invalid Creator queue"):
+                studio.queue_creator_request("make it funny", source)
 
     def test_creator_request_rejects_bad_input_before_supabase(self):
         with patch.object(studio, "supabase_request") as request:
