@@ -1,0 +1,32 @@
+name: Live storage monitor smoke
+
+on:
+  push:
+    branches:
+      - test/storage-monitor-live-20261013
+    paths:
+      - '.github/workflows/live-storage-monitor-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_STORAGE_QUOTA_MB: ''
+      SUPABASE_STORAGE_WARN_PERCENT: '70'
+      SUPABASE_STORAGE_FAIL_PERCENT: '90'
+      PRIVATE_GENERATED_RETENTION_DAYS: '30'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/storage-monitor-live-20261013
+      - name: Run read-only production storage scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/storage_usage.py | tee /tmp/storage-report.json
