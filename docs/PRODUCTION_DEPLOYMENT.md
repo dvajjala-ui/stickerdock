@@ -19,7 +19,9 @@ the worker or database.
   minutes. A cheap Supabase preflight runs first; when the queue is empty it skips
   Python/package/font setup. When work exists the job can process up to five
   queued requests in one serialized run. The real queue → claim → Groq vision →
-  private result/status path has passed production smoke testing.
+  private result/status path has passed production smoke testing. Running claims
+  older than 20 minutes are recovered automatically; attempts below five are
+  requeued, while stale fifth-attempt claims are failed.
 - **GitHub Actions — other private jobs:** a six-hour Pinterest job can monitor
   authorized boards after Pinterest credentials are configured. A daily/manual
   storage monitor measures private/public Supabase usage and reports retention
@@ -46,6 +48,7 @@ The production project already has these migrations applied in order:
 
 1. `supabase/migrations/202610120001_sticker_factory.sql`
 2. `supabase/migrations/202610130001_creator_requests.sql`
+3. `supabase/migrations/202610130002_creator_request_leases.sql`
 
 The first migration creates:
 
@@ -66,10 +69,21 @@ The second migration creates:
   `SECURITY INVOKER`, an empty `search_path`, and `FOR UPDATE SKIP LOCKED` to
   prevent duplicate claims without granting elevated function privileges.
 
+The third migration hardens worker recovery:
+
+- adds `idx_creator_requests_running_lease` for running-request lease scans;
+- recovers `running` requests older than 20 minutes;
+- requeues stale requests below the five-attempt ceiling;
+- marks stale fifth-attempt requests failed so they cannot remain stuck forever;
+- preserves `SECURITY INVOKER`, empty `search_path`, service-role-only EXECUTE and
+  the normal `FOR UPDATE SKIP LOCKED` claim path.
+
 `supabase/verify_sticker_factory.sql` was run after deployment. Verification
 confirmed the three tables/RLS flags, Data API grants and policies, Creator claim
-function security/EXECUTE grants, both Storage buckets and the update triggers.
-The old broad `read public factory artifacts` Storage policy is absent.
+function security/EXECUTE grants, both Storage buckets, update triggers, the
+running-lease index and the 20-minute recovery logic. The old broad
+`read public factory artifacts` Storage policy is absent. The live post-apply
+lease check reported zero stale running Creator requests.
 
 The repository uses the current Supabase opaque secret-key format
 (`sb_secret_...`). Server clients send that value as `apikey` rather than treating
@@ -174,9 +188,20 @@ Vercel deployment/environment is still a remaining gate.
 
 Configure Vercel/server-side environment variables:
 
-- `STUDIO_ACCESS_TOKEN`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `STUDIO_ACCESS_TOKEN` — random 32–256 character token;
+- `SUPABASE_URL`;
+- `SUPABASE_SERVICE_ROLE_KEY`.
+
+Generate a strong Studio token locally, for example:
+
+```sh
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+The server rejects configured Studio tokens shorter than 32 characters or longer
+than 256 characters. Do not commit the token or place it in browser/source code;
+store it only in the Vercel/server environment and enter it manually in the
+private Studio when needed.
 
 The token-gated `/api/upload`, `/api/library`, and `/api/captions` routes keep the
 Supabase secret on the server. `/api/captions` can create a bounded request and
@@ -194,7 +219,9 @@ The GitHub **Creator request worker** now checks for queued requests every 10
 minutes. Its first small Supabase query is intentionally cheap. Empty queues skip
 Python/package/font setup. Active runs process up to five requests, while workflow
 concurrency plus the database `FOR UPDATE SKIP LOCKED` claim protect against
-races/duplicate claims.
+races/duplicate claims. A stale running request can no longer remain leased
+forever because the production claim function recovers leases older than 20
+minutes subject to the existing five-attempt ceiling.
 
 The real production backend path has already been verified with an isolated test:
 queue → exactly-one atomic claim → Groq vision → bounded private WebP → provenance
@@ -269,8 +296,9 @@ For signed GitHub release candidates, create `android-production` secrets:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Set its `CATALOG_BASE_URL` environment variable to the URL above. Run
-**Signed Android release candidate**. The protected job produces a signed APK and
+Run **Signed Android release candidate**. The workflow already defaults to the
+production Supabase catalog URL above, while `CATALOG_BASE_URL` remains available
+as an optional environment override. The protected job produces a signed APK and
 AAB retained as private workflow artifacts. This workflow does not publish to an
 app store or create a GitHub release automatically.
 
@@ -278,7 +306,8 @@ app store or create a GitHub release automatically.
 
 Production evidence completed October 13, 2026 includes:
 
-- Supabase migration dry-run/apply plus RLS/grant/function/bucket verification;
+- all three Supabase migration dry-run/apply operations plus
+  RLS/grant/function/bucket/lease verification;
 - live Supabase/Groq credential and current-model validation;
 - controlled 5/5 Factory generation plus real-config resume to 10/40;
 - private pack checksum verification and confirmation that public storage stayed
@@ -298,8 +327,8 @@ Remaining release gates are intentionally narrower:
   only after threshold review;
 - connect an approved Pinterest app/token/board IDs and run one official-board
   sync;
-- configure Android signing/catalog release settings and perform Galaxy S24 Ultra
-  tests for WhatsApp/Business installation, animation and 10k+/process-death
-  migration behavior;
+- configure the four Android signing secrets and perform Galaxy S24 Ultra tests
+  for WhatsApp/Business installation, animation and 10k+/process-death migration
+  behavior;
 - finish privacy policy, app identity, store listing and production regression
   work before general availability.
