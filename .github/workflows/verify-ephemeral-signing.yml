@@ -40,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           keytool -genkeypair \
+            -storetype JKS \
             -keystore "$ANDROID_KEYSTORE_FILE" \
             -storepass "$ANDROID_KEYSTORE_PASSWORD" \
             -alias "$ANDROID_KEY_ALIAS" \
