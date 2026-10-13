@@ -66,6 +66,14 @@ tests/builds. It does not replace live account, device or provider testing.
   source object's SHA-256 path, reuses the existing Groq vision + local renderer,
   preserves source rights, treats missing rights metadata as `REFERENCE_ONLY`,
   and fails before Groq on invalid provenance.
+- Read-only Supabase storage monitor recursively totals private/public bucket
+  objects, writes a GitHub job summary, warns/fails at configurable quota
+  percentages, and identifies old private `generated/YYYY-MM-DD` artifacts as
+  manual retention candidates. Scans are bounded and never delete remote data.
+- Retention policy: source inbox/provenance stays until explicit owner cleanup;
+  approved public packs stay until deliberately delisted; private generated
+  daily artifacts older than the configured retention window (30 days by
+  default) are reported for human review rather than automatically removed.
 - Publication gate that refuses MATURE packs and Pinterest/reference-only pixels.
 - Publisher verifies sticker dimensions, checksums, sizes and media type; repeat
   generation keeps deterministic ZIP checksums and preserves prior approval.
@@ -113,6 +121,9 @@ tests/builds. It does not replace live account, device or provider testing.
   The new migration still needs applying to a real Supabase project and one live
   authenticated queue → worker → result/status smoke test with Groq vision. The
   workflow is intentionally manual-only and the UI remains disabled until then.
+- **Storage monitoring:** report/threshold/retention-candidate logic and the daily
+  workflow are implemented and tested. Set the quota/threshold variables to the
+  real Supabase plan, run it manually once, then enable the daily schedule.
 - **Android release:** CI builds debug; signed release needs the owner's keystore
   secrets and a configured Supabase catalog URL.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
@@ -139,14 +150,14 @@ tests/builds. It does not replace live account, device or provider testing.
   request against real Supabase, manually run **Creator request worker**, confirm
   its private result/status and actual Groq vision behavior, then decide whether
   to schedule the worker and replace the Coming soon UI.
+- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan, manually run
+  **Supabase storage usage**, review the first retention-candidate report, then
+  set `STORAGE_MONITOR_ENABLED=true` for daily checks.
 - Add a dedicated image-generation provider if fully synthetic AI imagery is
   required. Groq currently supplies captions/reasoning; Pillow and supplied media
   create the visual output.
 - Complete store/release work: privacy policy, app identity, signing, Play listing
   and production device regression tests.
-- Add storage usage alerts and a chosen remote retention policy before scaling
-  Pinterest to 90/100 media per day. Free Supabase storage is finite; local cache
-  bounds do not delete remote media or guarantee unlimited free hosting.
 
 ## Credentials needed to activate production
 
