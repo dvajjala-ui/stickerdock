@@ -1,0 +1,136 @@
+name: Production follow-up patch
+
+on:
+  push:
+    branches:
+      - fix/live-production-followup
+    paths:
+      - '.github/workflows/production-followup-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/live-production-followup
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/requirements-stickers.txt
+
+      - name: Patch Studio auth, regression tests and live status docs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'api/_shared.py',
+              '    headers = {"apikey": key, "Authorization": "Bearer " + key}\n',
+              '    headers = {"apikey": key}\n'
+              '    if not key.startswith("sb_"):\n'
+              '        headers["Authorization"] = "Bearer " + key\n'
+          )
+
+          marker = '''    def test_storage_paths_reject_traversal(self):\n'''
+          tests = '''    def test_new_supabase_secret_key_uses_apikey_without_bearer(self):\n        with patch.dict(os.environ, {\n                "SUPABASE_URL": "https://example.supabase.co",\n                "SUPABASE_SERVICE_ROLE_KEY": "sb_secret_test"}, clear=False):\n            with patch.object(studio, "request", return_value=b"[]") as provider:\n                studio.supabase_request("/rest/v1/creator_requests")\n        headers = provider.call_args.kwargs["headers"]\n        self.assertEqual(headers["apikey"], "sb_secret_test")\n        self.assertNotIn("Authorization", headers)\n\n    def test_legacy_supabase_service_role_keeps_bearer_header(self):\n        key = "eyJhbGciOiJIUzI1NiJ9.legacy.signature"\n        with patch.dict(os.environ, {\n                "SUPABASE_URL": "https://example.supabase.co",\n                "SUPABASE_SERVICE_ROLE_KEY": key}, clear=False):\n            with patch.object(studio, "request", return_value=b"[]") as provider:\n                studio.supabase_request("/rest/v1/creator_requests")\n        headers = provider.call_args.kwargs["headers"]\n        self.assertEqual(headers["apikey"], key)\n        self.assertEqual(headers["Authorization"], "Bearer " + key)\n\n'''
+          replace_once('tools/test_studio_api.py', marker, tests + marker)
+
+          replace_once(
+              'docs/IMPLEMENTATION_STATUS.md',
+              '''3. **AI meme editor** — shown as **Coming soon** in Android. A manual-editor\n   Vercel preview and a private asynchronous Studio → Factory request/result\n   queue are implemented. The queue keeps Groq and Supabase service credentials\n   server-side and is intentionally manual-only until live provider testing.\n''',
+              '''3. **AI meme editor** — shown as **Coming soon** in Android. A manual-editor\n   Vercel preview and a private asynchronous Studio → Factory request/result\n   queue are implemented. The queue keeps Groq and Supabase service credentials\n   server-side. A live Supabase → Groq vision → private-result smoke passed on\n   October 13; the worker remains manual-only until the hosted Studio rollout is\n   deliberately enabled.\n'''
+          )
+
+          replace_once(
+              'docs/IMPLEMENTATION_STATUS.md',
+              '''- Authenticated AI queue/status server routes are implemented, but the visible\n  AI control remains disabled and labeled Coming soon until live validation.\n''',
+              '''- Authenticated AI queue/status server routes are implemented and the real\n  queue/worker/result path has passed live validation. The visible AI control\n  remains disabled until the hosted Vercel token/API setup and rollout decision.\n'''
+          )
+
+          old_partial = '''- **Production deployment:** both Supabase migrations are applied and verified;\n  remaining work is repository/Vercel secrets and variables plus the first live\n  Factory/Creator smoke runs.\n- **GitHub production configuration audit:** an October 13 one-shot check confirmed\n  `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, Groq model vars,\n  factory target/enable vars and storage-monitor vars are still unset in Actions.\n  `SUPABASE_DB_PASSWORD` is configured for migration maintenance only.\n- **Groq capacity:** request budgeting and rate-limit headers are implemented;\n  the selected production models and real daily allowance need one full live day.\n'''
+          new_partial = '''- **Production deployment:** both Supabase migrations are applied and verified;\n  `GROQ_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are configured and live-tested.\n  Controlled Factory, Creator queue and storage-monitor smoke runs passed. The\n  recurring Factory/storage schedules remain disabled pending a full-day run,\n  quota configuration and release review.\n- **GitHub production configuration audit:** the two required runtime secrets are\n  present. The Supabase project URL and current Groq models are pinned as safe\n  workflow defaults. Activation/quota variables such as `STICKER_FACTORY_ENABLED`,\n  `SUPABASE_STORAGE_QUOTA_MB` and `STORAGE_MONITOR_ENABLED` still need deliberate\n  release values. `SUPABASE_DB_PASSWORD` remains migration-maintenance only.\n- **Groq capacity:** live text and vision calls passed with `openai/gpt-oss-20b`\n  and `qwen/qwen3.8-27b`; the real daily allowance still needs one full live day.\n'''
+          replace_once('docs/IMPLEMENTATION_STATUS.md', old_partial, new_partial)
+
+          replace_once(
+              'docs/IMPLEMENTATION_STATUS.md',
+              '''- **Creator Studio AI queue:** schema, token-gated enqueue/status API, atomic\n  worker claim, provenance checks and manual worker are implemented and tested,\n  and the real Supabase schema is deployed. One live authenticated queue → worker\n  → result/status smoke test with Groq vision is still required. The workflow is\n  intentionally manual-only and the UI remains disabled until then.\n- **Storage monitoring:** report/threshold/retention-candidate logic and the daily\n  workflow are implemented and tested. Set the quota/threshold variables to the\n  real Supabase plan, run it manually once, then enable the daily schedule.\n''',
+              '''- **Creator Studio AI queue:** the live authenticated queue → atomic claim →\n  Groq vision → 512×512 private WebP result/status path passed on October 13 with\n  one attempt and correct provenance. The smoke row and four temporary storage\n  objects were cleaned afterward. The worker remains manual-only and the visible\n  UI remains disabled until hosted Vercel configuration/rollout is completed.\n- **Storage monitoring:** the first live read-only report passed on October 13:\n  4,204,527 bytes across seven private objects, zero public objects and no 30-day\n  retention candidates. The project quota variable is still unset, so threshold\n  percentage enforcement and the daily schedule remain intentionally disabled.\n'''
+          )
+
+          replace_once(
+              'docs/IMPLEMENTATION_STATUS.md',
+              '''- Configure remaining repository/Vercel secrets and variables, then run the first\n  live Factory smoke run.\n''',
+              '''- Configure the remaining Vercel Studio token/environment values and deliberate\n  GitHub activation/quota variables; the first live Factory smoke is complete.\n'''
+          )
+
+          replace_once(
+              'docs/IMPLEMENTATION_STATUS.md',
+              '''- Enqueue one authenticated Studio request against real Supabase, manually run\n  **Creator request worker**, confirm its private result/status and actual Groq\n  vision behavior, then decide whether to schedule the worker and replace the\n  Coming soon UI.\n- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan, manually run\n  **Supabase storage usage**, review the first retention-candidate report, then\n  set `STORAGE_MONITOR_ENABLED=true` for daily checks.\n''',
+              '''- Deploy/configure the hosted Vercel Studio, test its token-gated API from the\n  real hosted origin, then decide whether to expose the AI control or schedule the\n  Creator worker. The underlying live queue/worker/result path already passed.\n- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan, then set\n  `STORAGE_MONITOR_ENABLED=true` only after choosing warning/failure thresholds.\n  The first live report has already passed in report-only mode.\n'''
+          )
+
+          replace_once(
+              'docs/IMPLEMENTATION_STATUS.md',
+              '''GitHub Actions secrets: `GROQ_API_KEY`, `SUPABASE_URL`,\n`SUPABASE_SERVICE_ROLE_KEY`, and later `PINTEREST_ACCESS_TOKEN`. Database migration\n''',
+              '''GitHub Actions secrets: `GROQ_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and later\n`PINTEREST_ACCESS_TOKEN`. The current GitHub workflows pin the non-secret Supabase\nproject URL in source; Vercel still needs `SUPABASE_URL` as a server environment\nvalue. Database migration\n'''
+          )
+
+          evidence_marker = '''### Image and video sources\n'''
+          evidence = '''### Live production smoke evidence\n\n- Real Groq/Supabase Factory smoke: 5/5 GENERAL illustration stickers generated,\n  `factory_runs` reached `complete`, a pending private ZIP was checksum-verified,\n  and the public bucket remained empty.\n- Real production-config continuation resumed persistent state from 5 to 10/40,\n  retained all 10 records, synced two reference-library assets and still published\n  nothing publicly.\n- Real Creator queue smoke completed in one attempt and produced a valid 512×512\n  static WebP (10,588 bytes) with correct provenance before smoke data cleanup.\n- Headless Chromium exercised Creator Studio upload, caption rendering/styling,\n  drag positioning, PNG download, token guard and a 390px mobile viewport with\n  zero horizontal overflow and no page/console errors.\n- First live storage report found 4,204,527 bytes in seven private objects, zero\n  public objects and no 30-day retention candidates.\n\n'''
+          replace_once('docs/IMPLEMENTATION_STATUS.md', evidence_marker, evidence + evidence_marker)
+
+          replace_once(
+              'docs/PRODUCTION_DEPLOYMENT.md',
+              '''| Secret | `SUPABASE_URL` | `https://PROJECT.supabase.co` |\n| Secret | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key |\n''',
+              '''| Secret | `SUPABASE_SERVICE_ROLE_KEY` | Supabase secret/service-role key |\n'''
+          )
+
+          replace_once(
+              'docs/PRODUCTION_DEPLOYMENT.md',
+              '''Create GitHub environments named `sticker-factory-production` and\n`android-production`. Add a required reviewer to both. Copy the two Supabase\nsecrets into `sticker-factory-production` as well because the manual publisher\nuses that protected environment.\n''',
+              '''The current GitHub workflows pin the non-secret Supabase project URL directly\nin workflow configuration, so `SUPABASE_URL` is not required as a GitHub secret.\nVercel still needs that URL as a server-side environment value.\n\nCreate GitHub environments named `sticker-factory-production` and\n`android-production`. Add a required reviewer to both. Copy the Supabase\nservice-role secret into `sticker-factory-production` as well because the manual\npublisher uses that protected environment.\n'''
+          )
+
+          replace_once(
+              'docs/PRODUCTION_DEPLOYMENT.md',
+              '''Before calling the app generally available, complete one live scheduled day,\ninspect its Groq quota metrics, publish/import the resulting pack, complete one\nlive Creator queue smoke test, run the storage monitor once against the real\nproject/quota, and test the signed APK on the Galaxy S24 Ultra against WhatsApp\nand WhatsApp Business. The current development environment cannot perform\nGroq/Supabase live calls because its outbound proxy rejects those hosts before\nthe request reaches the provider.\n''',
+              '''October 13 live validation has already covered controlled Factory generation,\npersistent 5→10/40 continuation, a real Creator queue → Groq vision → private\nresult cycle, Creator Studio Chromium interaction, and a read-only storage scan.\nBefore calling the app generally available, complete one full scheduled day,\ninspect Groq quota metrics, publish/import a reviewed completed pack, configure\nthe real storage quota thresholds, validate the hosted Vercel Studio origin, and\ntest the signed APK on the Galaxy S24 Ultra against WhatsApp and WhatsApp\nBusiness.\n'''
+          )
+          PY
+
+      - name: Run Python regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r tools/requirements-stickers.txt
+          python -m py_compile api/_shared.py tools/*.py
+          python -m unittest discover -s tools -p 'test_*.py' -v
+
+      - name: Commit validated production follow-up
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'StickerDock Production Bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add api/_shared.py tools/test_studio_api.py docs/IMPLEMENTATION_STATUS.md docs/PRODUCTION_DEPLOYMENT.md
+          git diff --cached --check
+          git commit -m 'Harden Studio Supabase auth and record live validation'
+          git push origin HEAD:fix/live-production-followup
