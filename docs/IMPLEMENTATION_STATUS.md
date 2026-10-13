@@ -14,8 +14,9 @@ tests/builds. It does not replace live account, device or provider testing.
    Commons media, manual uploads and Pinterest inputs, renders batches, and
    stores state/pending packs in Supabase.
 3. **AI meme editor** — shown as **Coming soon** in Android. A manual-editor
-   Vercel preview is implemented. Future AI requests will be queued to the
-   private Factory so the Studio never needs the Groq key.
+   Vercel preview and a private asynchronous Studio → Factory request/result
+   queue are implemented. The queue keeps Groq and Supabase service credentials
+   server-side and is intentionally manual-only until live provider testing.
 
 ## Complete in source
 
@@ -57,6 +58,14 @@ tests/builds. It does not replace live account, device or provider testing.
 - Hinglish topic rotation plus recent RSS title references.
 - Supabase SQL tables, RLS, private/public buckets, persistent factory state,
   manual inbox, pending pack records and explicit GENERAL-only publish workflow.
+- Private `creator_requests` queue with no public RLS policy, token-gated Studio
+  enqueue/status API, atomic service-role claim using `FOR UPDATE SKIP LOCKED`,
+  bounded retries and a manual-only GitHub worker that processes at most one
+  request per dispatch.
+- Creator request results stay in the private inbox. The worker verifies the
+  source object's SHA-256 path, reuses the existing Groq vision + local renderer,
+  preserves source rights, treats missing rights metadata as `REFERENCE_ONLY`,
+  and fails before Groq on invalid provenance.
 - Publication gate that refuses MATURE packs and Pinterest/reference-only pixels.
 - Publisher verifies sticker dimensions, checksums, sizes and media type; repeat
   generation keeps deterministic ZIP checksums and preserves prior approval.
@@ -84,22 +93,26 @@ tests/builds. It does not replace live account, device or provider testing.
   uppercase toggle and PNG download.
 - Upload of edited output to the private factory inbox.
 - Server-side Vercel functions keep Supabase service credentials out of browser
-  code. The AI button is disabled and labeled Coming soon.
+  code. `STUDIO_ACCESS_TOKEN` protects private Studio API requests.
+- Authenticated AI queue/status server routes are implemented, but the visible
+  AI control remains disabled and labeled Coming soon until live validation.
 - Edited inbox images retain their original rights metadata. Uploaded images
   are decoded and verified before they enter the factory.
 
 ## Partially complete — needs live verification or configuration
 
 - **Production deployment:** code and SQL are ready; a Supabase project still
-  needs the migration, GitHub secrets/variables and first smoke run.
+  needs both migrations, GitHub secrets/variables and first smoke run.
 - **Groq capacity:** request budgeting and rate-limit headers are implemented;
   the selected production models and real daily allowance need one full live day.
 - **Pinterest account:** the connector is ready; it still needs an approved app,
   OAuth token and numeric authorized board IDs. Official video URLs may require
   separate Pinterest approval.
-- **Creator Studio:** manual editing and unit tests are ready, but it remains a
-  preview and is intentionally not linked from Android. The AI request queue is
-  pending.
+- **Creator Studio AI queue:** schema, token-gated enqueue/status API, atomic
+  worker claim, provenance checks and manual worker are implemented and tested.
+  The new migration still needs applying to a real Supabase project and one live
+  authenticated queue → worker → result/status smoke test with Groq vision. The
+  workflow is intentionally manual-only and the UI remains disabled until then.
 - **Android release:** CI builds debug; signed release needs the owner's keystore
   secrets and a configured Supabase catalog URL.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
@@ -110,7 +123,8 @@ tests/builds. It does not replace live account, device or provider testing.
 
 ## Still pending
 
-- Apply the Supabase migration and configure repository secrets/variables.
+- Apply both Supabase migrations and configure repository/Vercel
+  secrets/variables.
 - Run the private factory for a full day, review a completed pack, publish it,
   import it into Android and record actual Groq usage/rate limits.
 - Connect the Pinterest account and complete one official-board smoke sync.
@@ -121,8 +135,10 @@ tests/builds. It does not replace live account, device or provider testing.
   permission behavior.
 - Add authenticated community submission, malware scanning, rights review,
   report/block/moderation and age controls before accepting public uploads.
-- Add a Supabase request/result queue from Creator Studio to the private Factory,
-  test live Groq vision and Supabase access, then replace the Coming soon button.
+- Apply `202610130001_creator_requests.sql`, enqueue one authenticated Studio
+  request against real Supabase, manually run **Creator request worker**, confirm
+  its private result/status and actual Groq vision behavior, then decide whether
+  to schedule the worker and replace the Coming soon UI.
 - Add a dedicated image-generation provider if fully synthetic AI imagery is
   required. Groq currently supplies captions/reasoning; Pillow and supplied media
   create the visual output.
@@ -136,8 +152,9 @@ tests/builds. It does not replace live account, device or provider testing.
 
 GitHub Actions secrets: `GROQ_API_KEY`, `SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, and later `PINTEREST_ACCESS_TOKEN`. Android signing
-uses its own four keystore secrets. These values are deployment settings and are
-not source files or APK fields.
+uses its own four keystore secrets. The Vercel Creator Studio additionally uses
+`STUDIO_ACCESS_TOKEN` plus the Supabase URL/service-role key server-side. These
+values are deployment settings and are not source files or APK fields.
 
 See [production deployment](PRODUCTION_DEPLOYMENT.md) and
 [Pinterest/Creator setup](PINTEREST_AND_CREATOR_STUDIO.md) for the exact steps.
