@@ -11,6 +11,7 @@ import java.util.zip.ZipOutputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,6 +69,53 @@ class PackZipImporterTest {
         assertEquals(StickerKind.STATIC, pack.kind)
         assertEquals(3, store.listStickers(pack.id).size)
         assertTrue(files.trayFile(pack.id).isFile)
+    }
+
+    @Test
+    fun rejectsTraversalEntryBeforeCreatingPack() {
+        val archive = File(context.cacheDir, "traversal.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.add("../escape.png", png(32, 32, Color.RED))
+        }
+
+        assertRejected(archive, "Unsafe archive path")
+        assertTrue(store.listPacks().isEmpty())
+    }
+
+    @Test
+    fun rejectsHighlyCompressedOversizedImageBeforeCreatingPack() {
+        val archive = File(context.cacheDir, "oversized.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.add("oversized.png", ByteArray(1_000_001))
+        }
+
+        assertRejected(archive, "File too large")
+        assertTrue(store.listPacks().isEmpty())
+    }
+
+    @Test
+    fun rejectsArchiveWithTooManyEntriesBeforeCreatingPack() {
+        val archive = File(context.cacheDir, "too-many.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            repeat(1_201) { index ->
+                zip.add("metadata/$index.txt", ByteArray(0))
+            }
+        }
+
+        assertRejected(archive, "Too many ZIP entries")
+        assertTrue(store.listPacks().isEmpty())
+    }
+
+    private fun assertRejected(archive: File, expectedMessage: String) {
+        try {
+            PackZipImporter(context, store, files).import(Uri.fromFile(archive), "Fallback")
+            fail("Expected archive import to be rejected")
+        } catch (error: IllegalArgumentException) {
+            assertTrue(
+                "Expected '$expectedMessage' but was '${error.message}'",
+                error.message?.contains(expectedMessage) == true
+            )
+        }
     }
 
     private fun png(width: Int, height: Int, color: Int): ByteArray {
