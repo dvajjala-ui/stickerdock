@@ -97,10 +97,17 @@ Add these Vercel environment variables:
 
 | Name | Purpose |
 | --- | --- |
-| `STUDIO_ACCESS_TOKEN` | Password/token protecting the private Studio API |
+| `STUDIO_ACCESS_TOKEN` | Random 32–256 character token protecting the private Studio API |
 | `SUPABASE_URL` | Existing factory project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Private inbox/queue access from serverless functions |
 
+Generate a strong Studio token locally, for example:
+
+```sh
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+The server rejects Studio tokens shorter than 32 characters or longer than 256.
 Deploy, open the Vercel URL, enter `STUDIO_ACCESS_TOKEN`, and use the editor. The
 browser never receives the Supabase service-role key. It stores the Studio token
 only in the current browser tab (`sessionStorage`). Groq remains configured only
@@ -132,6 +139,13 @@ service-role-only `creator_requests` table. RLS is enabled and no public,
 workers cannot claim the same queued row; execute permission is restricted to
 `service_role`.
 
+`supabase/migrations/202610130002_creator_request_leases.sql` hardens that claim
+path for crashed/timed-out workers. Running requests older than 20 minutes are
+recovered automatically: requests below five attempts are requeued; a stale
+request already at five attempts is marked failed. The migration preserves
+`SECURITY INVOKER`, an empty `search_path`, service-role-only EXECUTE and the
+normal `FOR UPDATE SKIP LOCKED` claim.
+
 `POST /api/captions` is protected by the same `STUDIO_ACCESS_TOKEN` as the other
 private Studio functions. It supports only:
 
@@ -149,7 +163,8 @@ minutes. The first step performs one small authenticated Supabase query. If the
 queue is empty, setup/install/rendering steps are skipped. If work exists, the
 job installs the rendering dependencies and can process up to five queued
 requests in that run. Concurrency is serialized so overlapping workers do not
-race, while the database claim function independently protects each row.
+race, while the database claim function independently protects each row and
+recovers stale worker leases after 20 minutes.
 
 For each request the worker atomically claims the row, verifies that the private
 source object's SHA-256 matches its inbox filename, validates source-rights
@@ -167,8 +182,9 @@ Groq vision model (`qwen/qwen3.8-27b`).
 
 The activation gate was exercised against the production Supabase/Groq setup:
 
-1. Both Supabase migrations were applied and their RLS/grants/functions/buckets
-   verified.
+1. All three Supabase migrations were applied and their
+   RLS/grants/functions/buckets/lease recovery verified. The lease deployment
+   reported zero stale running requests after apply.
 2. GitHub `SUPABASE_SERVICE_ROLE_KEY` and `GROQ_API_KEY` were confirmed present
    without printing their values.
 3. A unique private PNG and `USER_OWNED` provenance record were created only after
@@ -195,10 +211,11 @@ python3 -m unittest discover -s tools -p 'test_*.py' -v
 ```
 
 Automated tests cover queue input validation, status parsing, hosted Supabase auth
-for new/legacy keys, atomic client/RPC behavior, request-worker success/failure,
-source hash verification and fail-closed provenance handling. Chromium coverage
-checks manual editing plus the AI upload/queue/status/result interaction flow.
-Live Supabase/Groq verification complements rather than replaces those tests.
+for new/legacy keys, Studio token strength, atomic client/RPC behavior,
+request-worker success/failure, source hash verification and fail-closed
+provenance handling. Chromium coverage checks manual editing plus the AI
+upload/queue/status/result interaction flow. Live Supabase/Groq verification
+complements rather than replaces those tests.
 
 For a local official Pinterest scan, set the same access-token and board-ID
 variables and run `tools/pinterest_worker.py` only with a configured Supabase
