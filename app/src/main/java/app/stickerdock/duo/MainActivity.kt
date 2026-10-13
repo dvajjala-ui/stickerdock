@@ -55,6 +55,8 @@ class MainActivity : ComponentActivity() {
         var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
         var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var query by remember { mutableStateOf("") }
+        var stickerQuery by remember { mutableStateOf("") }
+        var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
         var packFilter by remember { mutableStateOf("All") }
         var categoryFilter by remember { mutableStateOf<PackCategory?>(null) }
         var newPackKind by remember { mutableStateOf(StickerKind.STATIC) }
@@ -76,6 +78,9 @@ class MainActivity : ComponentActivity() {
         var communityError by remember { mutableStateOf<String?>(null) }
         var moving by remember { mutableStateOf<StickerItem?>(null) }
         var target by remember { mutableStateOf<String?>(null) }
+        var editingSticker by remember { mutableStateOf<StickerItem?>(null) }
+        var stickerLabel by remember { mutableStateOf("") }
+        var stickerTags by remember { mutableStateOf("") }
         val pack = packs.firstOrNull { it.id == selectedId }
 
         fun refresh() {
@@ -89,6 +94,9 @@ class MainActivity : ComponentActivity() {
                 stickers = data.second
                 counts = data.third
                 if (selectedId != null && packs.none { it.id == selectedId }) selectedId = null
+                if (stickerQuery.isNotBlank()) {
+                    stickerMatches = withContext(Dispatchers.IO) { store.searchStickers(stickerQuery) }
+                }
             }
         }
         fun operation(action: suspend () -> String) {
@@ -182,6 +190,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         LaunchedEffect(selectedId) { refresh() }
+        LaunchedEffect(stickerQuery) {
+            stickerMatches = if (stickerQuery.isBlank()) emptyList()
+            else withContext(Dispatchers.IO) { store.searchStickers(stickerQuery) }
+        }
         LaunchedEffect(Unit) {
             if (intent.action == android.content.Intent.ACTION_SEND || intent.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
                 operation { IncomingStickers(this@MainActivity, store, files).import(intent) }
@@ -264,17 +276,38 @@ class MainActivity : ComponentActivity() {
                     }
                     OutlinedTextField(value = query, onValueChange = { query = it },
                         label = { Text("Search packs") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = stickerQuery, onValueChange = { stickerQuery = it },
+                        label = { Text("Search stickers by label, tag, filename or pack") },
+                        modifier = Modifier.fillMaxWidth())
+                    if (stickerQuery.isNotBlank()) {
+                        Text("${stickerMatches.size} sticker matches", style = MaterialTheme.typography.labelMedium)
+                    }
                     } }
-                        items(packs.filter { it.name.contains(query, true) &&
-                                (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
-                                (categoryFilter == null || it.category == categoryFilter) }, key = { it.id }) { item ->
-                            Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
-                                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)")
-                                        Text(item.category.label, style = MaterialTheme.typography.labelSmall)
+                        if (stickerQuery.isBlank()) {
+                            items(packs.filter { it.name.contains(query, true) &&
+                                    (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
+                                    (categoryFilter == null || it.category == categoryFilter) }, key = { it.id }) { item ->
+                                Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
+                                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(item.name + if (item.kind == StickerKind.ANIMATED) " (Animated)" else " (Static)")
+                                            Text(item.category.label, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        Text("${counts[item.id] ?: 0} ${if (item.rating == PackRating.MATURE) "Mature" else "stickers"}")
                                     }
-                                    Text("${counts[item.id] ?: 0} ${if (item.rating == PackRating.MATURE) "Mature" else "stickers"}")
+                                }
+                            }
+                        } else {
+                            items(stickerMatches, key = { it.item.id }) { result ->
+                                Card(Modifier.fillMaxWidth().clickable { selectedId = result.pack.id }) {
+                                    Column(Modifier.padding(16.dp)) {
+                                        Text(result.item.displayName)
+                                        Text("${result.pack.name} • ${result.pack.category.label}",
+                                            style = MaterialTheme.typography.labelMedium)
+                                        if (result.item.tags.isNotBlank()) {
+                                            Text(result.item.tags, style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -332,6 +365,13 @@ class MainActivity : ComponentActivity() {
                                         } else if (image == null) Text("Missing")
                                         else Image(image, contentDescription = "Sticker", modifier = Modifier.fillMaxSize())
                                     }
+                                    Text(item.displayName, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                                    if (item.tags.isNotBlank()) Text(item.tags, maxLines = 2, style = MaterialTheme.typography.labelSmall)
+                                    TextButton(onClick = {
+                                        editingSticker = item
+                                        stickerLabel = item.label
+                                        stickerTags = item.tags
+                                    }, enabled = !busy) { Text("Edit info") }
                                     TextButton(onClick = { moving = item; target = packs.firstOrNull { it.id != item.packId }?.id },
                                         enabled = packs.size > 1 && !busy) { Text("Copy/Move") }
                                     TextButton(onClick = { operation { files.deleteSticker(item); "Removed" } },
@@ -433,6 +473,39 @@ class MainActivity : ComponentActivity() {
                     }
                 },
                 dismissButton = { TextButton(onClick = { moving = null }) { Text("Cancel") } })
+        }
+        editingSticker?.let { item ->
+            AlertDialog(onDismissRequest = { editingSticker = null },
+                title = { Text("Sticker info") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = stickerLabel,
+                            onValueChange = { stickerLabel = it },
+                            label = { Text("Label") },
+                            supportingText = { Text("A readable name for search and display") }
+                        )
+                        OutlinedTextField(
+                            value = stickerTags,
+                            onValueChange = { stickerTags = it },
+                            label = { Text("Tags") },
+                            supportingText = { Text("Comma-separated, for example: funny, work, reaction") }
+                        )
+                        Text("Stored file: ${item.fileName}", style = MaterialTheme.typography.labelSmall)
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = !busy, onClick = {
+                        val label = stickerLabel
+                        val tags = stickerTags
+                        editingSticker = null
+                        operation {
+                            store.updateStickerMetadata(item.packId, item.id, label, tags)
+                            "Sticker info updated"
+                        }
+                    }) { Text("Save") }
+                },
+                dismissButton = { TextButton(onClick = { editingSticker = null }) { Text("Cancel") } })
         }
         dialog?.let { mode ->
             AlertDialog(onDismissRequest = { dialog = null },
