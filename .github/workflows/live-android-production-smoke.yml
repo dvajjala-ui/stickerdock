@@ -1,0 +1,102 @@
+name: Live Android production smoke
+
+on:
+  push:
+    branches:
+      - test/live-factory-smoke-20261013
+    paths:
+      - '.github/workflows/live-android-production-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  signed-release-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: android-production
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/release.keystore
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      CATALOG_BASE_URL: ${{ vars.CATALOG_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify production configuration is present
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] || missing+=(ANDROID_KEYSTORE_BASE64)
+          [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] || missing+=(ANDROID_KEYSTORE_PASSWORD)
+          [ -n "${ANDROID_KEY_ALIAS:-}" ] || missing+=(ANDROID_KEY_ALIAS)
+          [ -n "${ANDROID_KEY_PASSWORD:-}" ] || missing+=(ANDROID_KEY_PASSWORD)
+          [ -n "${CATALOG_BASE_URL:-}" ] || missing+=(CATALOG_BASE_URL)
+          if [ ${#missing[@]} -ne 0 ]; then
+            printf 'Missing android-production configuration: %s\n' "${missing[*]}" >&2
+            exit 2
+          fi
+          case "$CATALOG_BASE_URL" in
+            https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/*) ;;
+            *) echo 'CATALOG_BASE_URL is not the expected production public catalog URL' >&2; exit 3 ;;
+          esac
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+          chmod 600 "$ANDROID_KEYSTORE_FILE"
+          keytool -list -keystore "$ANDROID_KEYSTORE_FILE" -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          echo 'android-production signing inputs and catalog URL are present'
+
+      - name: Install Android SDK 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -n "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build and verify signed release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle --no-daemon -PcatalogBaseUrl="$CATALOG_BASE_URL" \
+            :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease
+          test -s app/build/outputs/apk/release/app-release.apk
+          test -s app/build/outputs/bundle/release/app-release.aab
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk >/tmp/apk-signing.txt
+          grep -q 'Signer #1 certificate' /tmp/apk-signing.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          apk = Path('app/build/outputs/apk/release/app-release.apk')
+          aab = Path('app/build/outputs/bundle/release/app-release.aab')
+          print(json.dumps({'signed_apk_bytes': apk.stat().st_size,
+                            'signed_aab_bytes': aab.stat().st_size,
+                            'apk_signature_verified': True}, sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stickerdock-signed-release-smoke
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/bundle/release/app-release.aab
