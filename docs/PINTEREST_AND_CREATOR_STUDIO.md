@@ -4,7 +4,8 @@ StickerDock has one private source inbox. Manual uploads, approved Pinterest
 boards and reusable Wikimedia Commons media enter that inbox, then the scheduled
 factory can turn them into photo or short-video stickers. The optional Creator
 Studio preview can open inbox images, add manual captions and send the finished
-image back to the inbox. AI prompts are marked Coming soon.
+image back to the inbox. A private AI request/result queue is implemented but is
+not exposed by the visible Studio AI control yet.
 
 ## Source behavior
 
@@ -80,11 +81,11 @@ public search without login cookies, CAPTCHA handling or rate-limit bypasses.
 Pinterest site changes can break it, and discovered content remains
 `REFERENCE_ONLY`. Official authorized boards are the stable default.
 
-## Creator Studio preview (Coming soon)
+## Creator Studio preview (Coming soon in Android)
 
 The Android app currently shows **AI meme creator — Coming soon** and does not
-open the editor. The implementation is staged in this branch for later private
-testing; do not treat it as an active end-user feature yet.
+open the editor. The implementation is staged in this branch for private testing;
+do not treat it as an active end-user feature yet.
 
 For a maintainer preview, import the repository into a free Vercel project. No
 framework preset or build command is required; `studio/` contains static
@@ -94,14 +95,14 @@ Add these Vercel environment variables:
 
 | Name | Purpose |
 | --- | --- |
-| `STUDIO_ACCESS_TOKEN` | A password used by the private Studio UI |
+| `STUDIO_ACCESS_TOKEN` | Password/token protecting the private Studio API |
 | `SUPABASE_URL` | Existing factory project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Private inbox access from serverless functions |
+| `SUPABASE_SERVICE_ROLE_KEY` | Private inbox/queue access from serverless functions |
 
-Deploy, open the Vercel URL, enter `STUDIO_ACCESS_TOKEN`, and use the editor.
-The browser does not receive the Supabase service-role key. It stores the Studio
-token only in the current browser tab (`sessionStorage`). Groq remains configured
-only in the private Factory service.
+Deploy, open the Vercel URL, enter `STUDIO_ACCESS_TOKEN`, and use the manual
+editor. The browser does not receive the Supabase service-role key. It stores the
+Studio token only in the current browser tab (`sessionStorage`). Groq remains
+configured only in the private Factory service.
 
 Creator Studio supports:
 
@@ -117,9 +118,55 @@ Editing an inbox image preserves its original `REFERENCE_ONLY`, `CC0`,
 rights. A source with missing metadata stays reference-only. Local uploads are
 owner-provided inputs and are validated as actual static images before storage.
 
-Later activation should add an asynchronous request queue from Studio to the
-private Factory, add the reviewed Studio URL to Android, and replace the disabled
-Coming soon button. This keeps the Groq key in one deployment.
+## Private AI request queue
+
+The asynchronous Studio → Factory queue is implemented in source but deliberately
+not wired to the visible AI button yet.
+
+`supabase/migrations/202610130001_creator_requests.sql` creates a
+service-role-only `creator_requests` table. RLS is enabled and no public,
+`anon`, or `authenticated` policy is created. The migration also defines
+`claim_creator_request(worker_id)`, which uses `FOR UPDATE SKIP LOCKED` so two
+workers cannot claim the same queued row; execute permission is restricted to
+`service_role`.
+
+`POST /api/captions` is protected by the same `STUDIO_ACCESS_TOKEN` as the other
+private Studio functions. It supports only:
+
+- `{"action":"queue","source_path":"inbox/<sha>.png","prompt":"..."}` — create a bounded queued request;
+- `{"action":"status","id":"<uuid>"}` — read that request's status/result.
+
+The browser never receives `GROQ_API_KEY` or the Supabase service-role key.
+Source paths and request IDs are validated before provider access.
+
+The GitHub workflow **Creator request worker** is `workflow_dispatch` only. Each
+manual run atomically claims at most one request, verifies that the private
+source object's SHA-256 matches its inbox filename, validates source-rights
+metadata, calls the existing Groq vision caption path, renders a static WebP
+locally, and stores the result plus provenance back in the private inbox. Missing
+rights metadata is treated as `REFERENCE_ONLY`; invalid provenance fails before
+any Groq call. Provider/internal errors are not written verbatim into the status
+row.
+
+The manual worker uses the normal GitHub secrets `GROQ_API_KEY`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY` and the `GROQ_VISION_MODEL` variable.
+
+### Live activation checklist
+
+Before enabling an AI control in Studio or scheduling the worker:
+
+1. Apply both Supabase migrations, including
+   `202610130001_creator_requests.sql`.
+2. Configure the Vercel Studio token/Supabase variables and GitHub
+   Groq/Supabase/vision-model settings.
+3. Upload or choose one authorized private inbox image.
+4. Send one authenticated `/api/captions` `queue` request.
+5. Manually run Actions → **Creator request worker** once.
+6. Query `/api/captions` with `action=status`; confirm `complete`, a private
+   result path, correct provenance and a valid rendered sticker.
+7. Inspect the real Groq usage/rate-limit behavior and Supabase storage impact.
+8. Only then decide whether to schedule queue processing and replace the disabled
+   Coming soon control / link it from Android.
 
 ## Local tests
 
@@ -127,6 +174,11 @@ Coming soon button. This keeps the Groq key in one deployment.
 python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
 python3 -m unittest discover -s tools -p 'test_*.py' -v
 ```
+
+Automated tests cover queue input validation, status parsing, atomic client/RPC
+behavior, request-worker success/failure, source hash verification and
+fail-closed provenance handling. They do not replace a live Supabase/Groq smoke
+test.
 
 For a local official Pinterest scan, set the same access-token and board-ID
 variables and run `tools/pinterest_worker.py` only with a configured Supabase
