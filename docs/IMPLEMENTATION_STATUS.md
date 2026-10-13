@@ -82,6 +82,21 @@ tests/builds. It does not replace live account, device or provider testing.
   usage metrics. Pinterest scans have attempt/time budgets and bounded staging.
 - Signed Android APK/AAB workflow with configurable public catalog URL.
 
+### Live Supabase deployment
+
+- Both production migrations were applied successfully on October 13, 2026 after
+  a successful `supabase db push --dry-run`.
+- Post-deployment verification confirmed RLS is enabled on `factory_runs`,
+  `sticker_packs` and `creator_requests`.
+- `factory_runs` and `creator_requests` expose table privileges only to
+  `service_role`; `sticker_packs` exposes client SELECT only and RLS limits those
+  reads to approved `GENERAL` rows.
+- `claim_creator_request(text)` is `SECURITY INVOKER`, uses an empty search path,
+  and grants EXECUTE only to `service_role`.
+- `sticker-factory-private` is private, `sticker-factory-public` is public, and
+  no broad `storage.objects` SELECT policy exists for client roles.
+- All three `updated_at` triggers are present.
+
 ### Image and video sources
 
 - Manual private Supabase/Creator Studio upload with exact-hash deduplication.
@@ -109,18 +124,23 @@ tests/builds. It does not replace live account, device or provider testing.
 
 ## Partially complete — needs live verification or configuration
 
-- **Production deployment:** code and SQL are ready; a Supabase project still
-  needs both migrations, GitHub secrets/variables and first smoke run.
+- **Production deployment:** both Supabase migrations are applied and verified;
+  remaining work is repository/Vercel secrets and variables plus the first live
+  Factory/Creator smoke runs.
+- **GitHub production configuration audit:** an October 13 one-shot check confirmed
+  `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, Groq model vars,
+  factory target/enable vars and storage-monitor vars are still unset in Actions.
+  `SUPABASE_DB_PASSWORD` is configured for migration maintenance only.
 - **Groq capacity:** request budgeting and rate-limit headers are implemented;
   the selected production models and real daily allowance need one full live day.
 - **Pinterest account:** the connector is ready; it still needs an approved app,
   OAuth token and numeric authorized board IDs. Official video URLs may require
   separate Pinterest approval.
 - **Creator Studio AI queue:** schema, token-gated enqueue/status API, atomic
-  worker claim, provenance checks and manual worker are implemented and tested.
-  The new migration still needs applying to a real Supabase project and one live
-  authenticated queue → worker → result/status smoke test with Groq vision. The
-  workflow is intentionally manual-only and the UI remains disabled until then.
+  worker claim, provenance checks and manual worker are implemented and tested,
+  and the real Supabase schema is deployed. One live authenticated queue → worker
+  → result/status smoke test with Groq vision is still required. The workflow is
+  intentionally manual-only and the UI remains disabled until then.
 - **Storage monitoring:** report/threshold/retention-candidate logic and the daily
   workflow are implemented and tested. Set the quota/threshold variables to the
   real Supabase plan, run it manually once, then enable the daily schedule.
@@ -134,8 +154,8 @@ tests/builds. It does not replace live account, device or provider testing.
 
 ## Still pending
 
-- Apply both Supabase migrations and configure repository/Vercel
-  secrets/variables.
+- Configure remaining repository/Vercel secrets and variables, then run the first
+  live Factory smoke run.
 - Run the private factory for a full day, review a completed pack, publish it,
   import it into Android and record actual Groq usage/rate limits.
 - Connect the Pinterest account and complete one official-board smoke sync.
@@ -146,10 +166,10 @@ tests/builds. It does not replace live account, device or provider testing.
   permission behavior.
 - Add authenticated community submission, malware scanning, rights review,
   report/block/moderation and age controls before accepting public uploads.
-- Apply `202610130001_creator_requests.sql`, enqueue one authenticated Studio
-  request against real Supabase, manually run **Creator request worker**, confirm
-  its private result/status and actual Groq vision behavior, then decide whether
-  to schedule the worker and replace the Coming soon UI.
+- Enqueue one authenticated Studio request against real Supabase, manually run
+  **Creator request worker**, confirm its private result/status and actual Groq
+  vision behavior, then decide whether to schedule the worker and replace the
+  Coming soon UI.
 - Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan, manually run
   **Supabase storage usage**, review the first retention-candidate report, then
   set `STORAGE_MONITOR_ENABLED=true` for daily checks.
@@ -162,10 +182,12 @@ tests/builds. It does not replace live account, device or provider testing.
 ## Credentials needed to activate production
 
 GitHub Actions secrets: `GROQ_API_KEY`, `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`, and later `PINTEREST_ACCESS_TOKEN`. Android signing
-uses its own four keystore secrets. The Vercel Creator Studio additionally uses
-`STUDIO_ACCESS_TOKEN` plus the Supabase URL/service-role key server-side. These
-values are deployment settings and are not source files or APK fields.
+`SUPABASE_SERVICE_ROLE_KEY`, and later `PINTEREST_ACCESS_TOKEN`. Database migration
+maintenance can use `SUPABASE_DB_PASSWORD`; it is not needed by the Android app.
+Android signing uses its own four keystore secrets. The Vercel Creator Studio
+additionally uses `STUDIO_ACCESS_TOKEN` plus the Supabase URL/service-role key
+server-side. These values are deployment settings and are not source files or APK
+fields.
 
 See [production deployment](PRODUCTION_DEPLOYMENT.md) and
 [Pinterest/Creator setup](PINTEREST_AND_CREATOR_STUDIO.md) for the exact steps.
