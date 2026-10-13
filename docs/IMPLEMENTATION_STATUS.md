@@ -17,8 +17,8 @@ real-device acceptance or store-release testing.
 3. **Creator Studio AI editor** — still shown as **Coming soon** in Android. The
    private browser Studio supports manual editing plus an asynchronous
    Studio → Factory request/result queue. The real Supabase/Groq vision path has
-   passed live testing. This source branch enables the browser AI control and a
-   queue-aware Creator worker; hosted Vercel deployment is still unverified.
+   passed live testing. The browser AI control and queue-aware Creator worker are
+   merged to `main`; hosted Vercel deployment is still unverified.
 
 ## Complete in source
 
@@ -114,6 +114,9 @@ real-device acceptance or store-release testing.
 - A real Creator request passed queue → atomic claim → Groq vision → private WebP
   → provenance verification → completed status. The isolated smoke request and
   its source/result objects were deleted afterward.
+- The merged Creator-worker preflight was exercised separately against real
+  Supabase and confirmed the live key is `sb_secret_...`, the apikey-only path
+  succeeds and the Creator queue was empty at test time.
 - Groq authentication and current production models were verified live:
   `openai/gpt-oss-20b` for text and `qwen/qwen3.8-27b` for vision.
 - The storage monitor completed a live report-only scan: the private bucket had
@@ -142,17 +145,18 @@ real-device acceptance or store-release testing.
 - Upload of edited output to the private factory inbox.
 - Server-side Python functions keep Supabase service credentials out of browser
   code. `STUDIO_ACCESS_TOKEN` protects private Studio API requests.
-- The browser AI control is enabled in this source branch. For a local image it
-  first creates a private inbox source, enqueues `/api/captions`, polls the
-  request status and loads the private result back into the editor when complete.
+- The browser AI control is enabled in merged source. For a local image it first
+  creates a private inbox source, enqueues `/api/captions`, polls the request
+  status and loads the private result back into the editor when complete.
 - Edited inbox images retain their original rights metadata. Uploaded images are
   decoded and verified before they enter the factory.
 - Headless Chromium verified local image load, canvas rendering, caption styling,
   drag positioning, PNG download, token guard and 390px mobile layout with zero
   horizontal overflow.
-- A second Chromium flow verified the AI UI sequence with hosted API calls mocked
-  at the network boundary: source upload → queue → status → result fetch → result
-  loaded/download-enabled.
+- A second Chromium flow against the merged live-AI source verified the AI UI
+  sequence with deterministic API-boundary responses: source upload → queue →
+  status → result fetch → result loaded/download-enabled, with zero browser
+  errors and no mobile overflow.
 - The complete Python helper suite passed with the Creator source changes, and the
   pre-existing Studio API regression tests were preserved while adding new-secret
   and legacy-auth coverage.
@@ -175,8 +179,12 @@ real-device acceptance or store-release testing.
   actual Supabase plan quota is still unknown to the workflow, so configure
   `SUPABASE_STORAGE_QUOTA_MB` and review the intended warning/failure thresholds
   before setting `STORAGE_MONITOR_ENABLED=true` for daily checks.
-- **Android release:** CI builds debug; signed release needs the owner's keystore
-  secrets and a configured Supabase catalog URL.
+- **Android release:** the `android-production` environment exists, but a live
+  presence-only probe found `ANDROID_KEYSTORE_BASE64`,
+  `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` and
+  `CATALOG_BASE_URL` all unset. The job stopped before keystore decoding or
+  Gradle/signing, so this is a deployment-configuration blocker rather than a
+  known build/signature failure.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
 - **Large folder migration:** progress/checkpoint/resume logic compiles and the
@@ -185,9 +193,9 @@ real-device acceptance or store-release testing.
 
 ## Still pending
 
-- Merge/deploy the Creator Studio live-AI source, configure the Vercel environment
-  and perform one authenticated hosted-browser queue/result smoke. Android can
-  remain Coming soon until that hosted path is intentionally exposed.
+- Deploy/configure the already-merged Creator Studio live-AI source on Vercel and
+  perform one authenticated hosted-browser queue/result smoke. Android can remain
+  Coming soon until that hosted path is intentionally exposed.
 - Let the private Factory complete a normal-cooldown 40-sticker day, review the
   completed pack, publish one approved GENERAL pack, import it into Android and
   record actual Groq usage/rate limits.
@@ -195,6 +203,8 @@ real-device acceptance or store-release testing.
 - Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and, after
   reviewing the first successful report-only scan, set
   `STORAGE_MONITOR_ENABLED=true` for daily checks.
+- Configure the four Android signing secrets plus `CATALOG_BASE_URL`, build a
+  signed APK/AAB candidate and install it on the target Galaxy S24 Ultra.
 - Test folder import, animated previews and WhatsApp/Business pack installation
   on the Galaxy S24 Ultra.
 - Validate resumable progress/process-death recovery for very large Android
@@ -214,13 +224,17 @@ GitHub Actions currently has validated `GROQ_API_KEY` and
 `SUPABASE_SERVICE_ROLE_KEY` secrets. The Supabase project URL is non-secret and is
 set directly in the relevant production workflows. Database migration maintenance
 can use `SUPABASE_DB_PASSWORD`; it is not needed by the Android app. Pinterest
-later requires `PINTEREST_ACCESS_TOKEN` plus board variables. Android signing uses
-its own four keystore secrets.
+later requires `PINTEREST_ACCESS_TOKEN` plus board variables.
+
+The `android-production` environment currently needs all five release values to
+be configured: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` and `CATALOG_BASE_URL`.
 
 The hosted Creator Studio additionally requires `STUDIO_ACCESS_TOKEN`,
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the Vercel/server environment.
 Those hosted settings have not yet been verified. Credentials are deployment
 settings and must not be embedded in source files or the APK.
 
-See [production deployment](PRODUCTION_DEPLOYMENT.md) and
+See [production deployment](PRODUCTION_DEPLOYMENT.md),
+[live production evidence](LIVE_PRODUCTION_EVIDENCE_2026-10-13.md), and
 [Pinterest/Creator setup](PINTEREST_AND_CREATOR_STUDIO.md) for the exact steps.
