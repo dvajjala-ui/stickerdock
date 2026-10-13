@@ -41,6 +41,22 @@ class StudioApiTest(unittest.TestCase):
         self.assertEqual(headers["apikey"], "legacy-service-role")
         self.assertEqual(headers["Authorization"], "Bearer legacy-service-role")
 
+    def test_studio_token_requires_strong_configured_secret(self):
+        strong = "s" * studio.MIN_STUDIO_TOKEN_LENGTH
+        with patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN": strong}, clear=False):
+            self.assertTrue(studio.authorized({"X-StickerDock-Token": strong}))
+            self.assertFalse(studio.authorized({"X-StickerDock-Token": strong + "x"}))
+        with patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN": "too-short"}, clear=False):
+            self.assertFalse(studio.authorized({"X-StickerDock-Token": "too-short"}))
+
+    def test_studio_token_rejects_oversized_values(self):
+        oversized = "x" * (studio.MAX_STUDIO_TOKEN_LENGTH + 1)
+        with patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN": oversized}, clear=False):
+            self.assertFalse(studio.authorized({"X-StickerDock-Token": oversized}))
+        strong = "s" * studio.MIN_STUDIO_TOKEN_LENGTH
+        with patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN": strong}, clear=False):
+            self.assertFalse(studio.authorized({"X-StickerDock-Token": oversized}))
+
     def test_truncated_jpeg_is_rejected(self):
         image = io.BytesIO()
         Image.new("RGB", (64, 64), "red").save(image, "JPEG")
