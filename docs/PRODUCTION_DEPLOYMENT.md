@@ -10,11 +10,11 @@ the worker or database.
 ## What runs where
 
 - **GitHub Actions — Sticker Factory:** the Factory workflow has an eight-times-per-day
-  schedule, but scheduled execution is gated by `STICKER_FACTORY_ENABLED=true`.
-  Manual runs are always available. Production credentials, state persistence,
-  Groq text generation and resume behavior have been live-tested. Keep the
-  recurring Factory gate disabled until one normal-cooldown 40-sticker day has
-  been reviewed.
+  schedule and normal scheduled generation is now active after the live smoke and
+  resume checks passed. Set `STICKER_FACTORY_ENABLED=false` only as an explicit
+  emergency pause. Manual runs remain available. Production credentials, state
+  persistence, Groq text generation and resume behavior have been live-tested;
+  public publication remains a separate manual/review-gated workflow.
 - **GitHub Actions — Creator worker:** checks the private Creator queue every 10
   minutes. A cheap Supabase preflight runs first; when the queue is empty it skips
   Python/package/font setup. When work exists the job can process up to five
@@ -83,7 +83,10 @@ confirmed the three tables/RLS flags, Data API grants and policies, Creator clai
 function security/EXECUTE grants, both Storage buckets, update triggers, the
 running-lease index and the 20-minute recovery logic. The old broad
 `read public factory artifacts` Storage policy is absent. The live post-apply
-lease check reported zero stale running Creator requests.
+lease check reported zero stale running Creator requests. A rollback-only live
+transaction smoke then proved both recovery branches: a stale retryable request
+was reclaimed at attempt 2, a stale fifth-attempt request was failed, and the
+fresh reclaimed lease was not claimed twice. No smoke rows were committed.
 
 The repository uses the current Supabase opaque secret-key format
 (`sb_secret_...`). Server clients send that value as `apikey` rather than treating
@@ -110,10 +113,10 @@ Optional GitHub variables can override selected runtime behavior. Important ones
 
 | Variable | Purpose |
 | --- | --- |
-| `STICKER_FACTORY_ENABLED` | Set `true` only after the reviewed full-day Factory gate |
+| `STICKER_FACTORY_ENABLED` | Optional kill switch: set `false` to pause scheduled Factory generation; unset/`true` runs normally |
 | `FACTORY_DAILY_TARGET` | Optional target override; production default is `40` |
-| `GROQ_TEXT_MODEL` | Optional text-model override |
-| `GROQ_VISION_MODEL` | Optional vision-model override |
+| `GROQ_TEXT_MODEL` | Optional text-model override; production default is `openai/gpt-oss-20b` |
+| `GROQ_VISION_MODEL` | Optional vision-model override where supported |
 
 `SUPABASE_DB_PASSWORD` is needed only for database migration maintenance, not
 normal Factory/Creator runtime and never by the Android app.
@@ -131,9 +134,12 @@ the public bucket empty. A second run with the real production configuration
 resumed that state on a fresh runner from 5 to **10/40** and synced two reference
 library assets.
 
-Do **not** force the remaining 30 stickers by bypassing the cooldown. Leave
-`STICKER_FACTORY_ENABLED` unset/false until a normal-cooldown day reaches 40/40
-and its Groq usage/rate-limit metrics plus private pack are reviewed.
+Scheduled private generation is now enabled on the normal three-hour cadence so
+the remaining full-day capacity gate can be measured honestly. Do **not** force
+extra batches or bypass the cooldown. If an operational problem appears, set
+`STICKER_FACTORY_ENABLED=false` to pause schedules without changing code. The
+capacity gate stays open until a full UTC day reaches 40/40 and its Groq
+usage/rate-limit metrics plus private pack are reviewed.
 
 The scheduled cadence is 05:45, 08:45, 11:45, 14:45, 17:45, 20:45, 23:45 and
 02:45 India time. The production default is five stickers per run, 40 per UTC
@@ -296,11 +302,13 @@ For signed GitHub release candidates, create `android-production` secrets:
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Run **Signed Android release candidate**. The workflow already defaults to the
-production Supabase catalog URL above, while `CATALOG_BASE_URL` remains available
-as an optional environment override. The protected job produces a signed APK and
-AAB retained as private workflow artifacts. This workflow does not publish to an
-app store or create a GitHub release automatically.
+Run **Signed Android release candidate**. The workflow validates that all four
+signing values are present before decoding the keystore or invoking Gradle. It
+already defaults to the production Supabase catalog URL above, while
+`CATALOG_BASE_URL` remains available as an optional environment override. The
+protected job produces a signed APK and AAB retained as private workflow artifacts.
+This workflow does not publish to an app store or create a GitHub release
+automatically.
 
 ## Production evidence and remaining release gates
 
@@ -308,6 +316,7 @@ Production evidence completed October 13, 2026 includes:
 
 - all three Supabase migration dry-run/apply operations plus
   RLS/grant/function/bucket/lease verification;
+- rollback-only live Creator lease recovery proof with no committed smoke rows;
 - live Supabase/Groq credential and current-model validation;
 - controlled 5/5 Factory generation plus real-config resume to 10/40;
 - private pack checksum verification and confirmation that public storage stayed
@@ -319,8 +328,8 @@ Production evidence completed October 13, 2026 includes:
 
 Remaining release gates are intentionally narrower:
 
-- complete one normal-cooldown **40/40** Factory day, review it, publish one
-  approved GENERAL pack and import it into Android;
+- let the now-active normal-cooldown schedule complete one full **40/40** Factory
+  day, review Groq quota metrics, then publish/import one approved GENERAL pack;
 - configure/deploy Vercel Studio and run the hosted authenticated browser/API
   smoke;
 - configure the actual Supabase storage quota and enable daily storage monitoring
