@@ -1,5 +1,5 @@
 -- Read-only post-deployment verification for StickerDock Supabase objects.
--- Run after both migrations. This script does not insert, update or delete data.
+-- Run after all StickerDock migrations. This script does not insert, update or delete data.
 
 -- Expect all three rows with rls_enabled = true.
 select
@@ -78,7 +78,30 @@ where routine_schema = 'public'
   and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role')
 order by grantee;
 
--- Expect both buckets, private=false/public=true as named below, 75 MB limits,
+-- Creator lease recovery adds a partial index on running requests. Expect exactly
+-- this index with started_at as its indexed column and status='running' predicate.
+select
+    indexname,
+    indexdef
+from pg_catalog.pg_indexes
+where schemaname = 'public'
+  and tablename = 'creator_requests'
+  and indexname = 'idx_creator_requests_running_lease';
+
+-- Expect the claim function body to contain the 20-minute stale-lease recovery
+-- and five-attempt ceiling before the normal SKIP LOCKED claim.
+select
+    p.proname as function_name,
+    position('20 minutes' in p.prosrc) > 0 as has_20_minute_lease,
+    position('attempts >= 5' in p.prosrc) > 0 as has_max_attempt_failure,
+    position('attempts < 5' in p.prosrc) > 0 as has_retry_requeue,
+    position('skip locked' in lower(p.prosrc)) > 0 as has_skip_locked_claim
+from pg_catalog.pg_proc p
+join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'claim_creator_request';
+
+-- Expect private bucket public=false and public bucket public=true, 75 MB limits,
 -- and only the configured MIME types.
 select
     id,
