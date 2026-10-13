@@ -21,15 +21,20 @@ tests/builds. It does not replace live account, device or provider testing.
 
 ### Android library
 
-- Category model and non-destructive SQLite v5 migration. Existing packs become
+- Category model plus non-destructive SQLite v6 migration. Existing packs become
   `General`; new packs can use General, Reactions, Hinglish, Movies, News,
-  Animals, Love, Work, Festivals or Other.
-- Category/topic filters, static/animated filters, pack search, category editing
-  and category-preserving backup schema v4.
+  Animals, Love, Work, Festivals or Other. Sticker rows now also have optional
+  user-visible labels and normalized tags. Robolectric covers upgrades from
+  database versions 1 through 5 without losing packs or stickers.
+- Category/topic filters, static/animated filters, pack search, global
+  sticker-level search, per-sticker label/tag editing, category editing and
+  metadata-preserving backup schema v5. Older backup schemas 1–4 remain readable.
 - Static/animated pack creation, rename/delete, sticker copy/move/remove,
-  content-hash deduplication and pack ZIP sharing.
+  content-hash deduplication and pack ZIP sharing. Copy/move preserves sticker
+  label and tag metadata.
 - PNG/JPEG/WebP imports, phone folder import through Android's system picker,
-  multi-ZIP import and local backup/restore.
+  multi-ZIP import and local backup/restore. User-visible source filenames are
+  retained as sticker labels when available from the picker, ZIP or folder scan.
 - User-accessible WhatsApp and WhatsApp Business media-folder migration.
 - Large folder scans expose live counts, save an app-private checkpoint every 25
   recognized files, persist the selected SAF read URI where Android permits it,
@@ -114,7 +119,6 @@ tests/builds. It does not replace live account, device or provider testing.
 - Validate resumable progress/process-death recovery for very large Android
   folder imports on the Galaxy S24 Ultra, including cancel/retry and lost URI
   permission behavior.
-- Add tags/filenames and global sticker-level search beyond pack names/categories.
 - Add authenticated community submission, malware scanning, rights review,
   report/block/moderation and age controls before accepting public uploads.
 - Add a Supabase request/result queue from Creator Studio to the private Factory,
