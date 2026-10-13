@@ -127,6 +127,10 @@ tests/builds. It does not replace live account, device or provider testing.
 - **Production deployment:** both Supabase migrations are applied and verified;
   remaining work is repository/Vercel secrets and variables plus the first live
   Factory/Creator smoke runs.
+- **GitHub production configuration audit:** an October 13 one-shot check confirmed
+  `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, Groq model vars,
+  factory target/enable vars and storage-monitor vars are still unset in Actions.
+  `SUPABASE_DB_PASSWORD` is configured for migration maintenance only.
 - **Groq capacity:** request budgeting and rate-limit headers are implemented;
   the selected production models and real daily allowance need one full live day.
 - **Pinterest account:** the connector is ready; it still needs an approved app,
