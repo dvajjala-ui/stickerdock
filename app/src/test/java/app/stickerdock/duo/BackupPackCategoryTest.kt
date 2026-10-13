@@ -11,13 +11,15 @@ class BackupPackCategoryTest {
         }
     }
 
-    @Test fun currentBackupRetainsCategory() {
-        assertEquals(PackCategory.MOVIES,
-            BackupPackCategory.read(JSONObject().put("category", "MOVIES"), 4))
+    @Test fun currentBackupsRetainCategory() {
+        for (schema in 4..5) {
+            assertEquals(PackCategory.MOVIES,
+                BackupPackCategory.read(JSONObject().put("category", "MOVIES"), schema))
+        }
     }
 
     @Test(expected = IllegalArgumentException::class)
     fun invalidCategoryCannotSilentlyChangeThePack() {
-        BackupPackCategory.read(JSONObject().put("category", "INVALID"), 4)
+        BackupPackCategory.read(JSONObject().put("category", "INVALID"), 5)
     }
 }
