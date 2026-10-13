@@ -13,7 +13,7 @@ the worker or database.
   downloads due free media, processes the private inbox, renders one batch and
   saves state. A separate six-hour job can monitor authorized Pinterest boards.
   A third **manual-only** Creator request worker processes at most one private
-  Studio AI request per dispatch while that feature remains under live testing.
+  Studio AI request per dispatch while the hosted Studio rollout remains gated.
   A daily/manual storage monitor measures private/public Supabase usage and
   reports retention candidates without deleting data.
 - **Supabase private bucket:** factory state, uploaded references, Creator request
@@ -145,7 +145,8 @@ GENERAL.
 
 Creator Studio is still a staged Vercel preview and the Android app still shows a
 disabled **AI meme creator — Coming soon** button. The request/result plumbing is
-implemented but intentionally manual-only until a real provider smoke test.
+implemented; the backend queue/worker/provider path passed its first real live
+smoke on October 13, 2026, while the deployed Vercel HTTP surface remains gated.
 
 Configure the Vercel Studio with server-side environment variables:
 
@@ -165,9 +166,12 @@ vision caption generator and local WebP renderer, and writes the result only to
 the private inbox. Missing rights metadata becomes `REFERENCE_ONLY`; invalid
 rights fail before the Groq call.
 
-Do not schedule this workflow or expose the visible Studio AI control until one
-live queue → worker → status/result test has verified real Supabase behavior,
-Groq model compatibility/rate limits, output quality, and private storage impact.
+The October 13 live backend test queued through the same helper used by the Studio
+route, atomically claimed the isolated request, completed Groq vision in one
+attempt, produced a valid 512×512 static WebP with correct provenance, and cleaned
+the test row/objects afterward. Keep the workflow manual-only and the visible AI
+control disabled until the deployed Vercel `/api/*` routes are exercised with the
+real `STUDIO_ACCESS_TOKEN` and rollout is deliberately approved.
 
 ## 6. Monitor storage and review retention candidates
 
@@ -190,6 +194,11 @@ project/plan rather than assuming a fixed free-tier allowance:
 At the warning threshold the workflow emits an Actions warning. At the fail
 threshold it exits non-zero so normal GitHub Actions failure notifications can
 surface the problem.
+
+The first real report on October 13, 2026 succeeded: seven private objects used
+4,204,527 bytes, the public bucket was empty and there were no retention
+candidates. `SUPABASE_STORAGE_QUOTA_MB` was still unset, so configure the actual
+project quota before enabling daily percentage-based warning/failure checks.
 
 Retention is intentionally non-destructive:
 
@@ -246,10 +255,15 @@ hash checks, fail-closed rights metadata, recursive storage accounting,
 quota/threshold decisions, retention-candidate classification and Android
 compilation. CI builds a debug APK and optimized release on every push/PR.
 
-Before calling the app generally available, complete one live scheduled day,
-inspect its Groq quota metrics, publish/import the resulting pack, complete one
-live Creator queue smoke test, run the storage monitor once against the real
-project/quota, and test the signed APK on the Galaxy S24 Ultra against WhatsApp
-and WhatsApp Business. The current development environment cannot perform
-Groq/Supabase live calls because its outbound proxy rejects those hosts before
-the request reaches the provider.
+Live GitHub Actions on October 13 also proved real Groq/Supabase Factory
+execution, persistent continuation from 5 to 10/40, Creator queue/claim/Groq
+vision/private result processing, the Studio browser interactions in Chromium and
+the first real storage report. Exact run IDs and outputs are recorded in
+[`LIVE_PRODUCTION_EVIDENCE_2026-10-13.md`](LIVE_PRODUCTION_EVIDENCE_2026-10-13.md).
+
+Before calling the app generally available, complete one normal 40-sticker UTC
+day and inspect its Groq quota metrics, human-review and publish/import the
+resulting pack, verify the deployed Vercel token-gated Studio API, configure the
+real storage quota thresholds, and test a signed APK on the Galaxy S24 Ultra
+against WhatsApp and WhatsApp Business. The public bucket should remain empty
+until a pack has passed explicit human review.
