@@ -90,6 +90,8 @@ jobs:
             started_at timestamptz
           );
           create temporary table second_claim (id uuid);
+          grant insert, select on claim_result to service_role;
+          grant insert, select on second_claim to service_role;
 
           set local role service_role;
           insert into claim_result
