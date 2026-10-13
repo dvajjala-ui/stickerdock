@@ -14,6 +14,8 @@ the worker or database.
   saves state. A separate six-hour job can monitor authorized Pinterest boards.
   A third **manual-only** Creator request worker processes at most one private
   Studio AI request per dispatch while that feature remains under live testing.
+  A daily/manual storage monitor measures private/public Supabase usage and
+  reports retention candidates without deleting data.
 - **Supabase private bucket:** factory state, uploaded references, Creator request
   inputs/results, pending ZIPs and provenance metadata. Nothing here is readable
   by the Android app.
@@ -106,8 +108,8 @@ media and `GROQ_VISION_MODEL` is set. Otherwise the run continues using original
 illustration and pulse-animation modes.
 The local input cache is capped at 20 MB and completed older-day images are
 removed from runner state after their private ZIP upload. Originals remain in
-Supabase. Monitor the project's free storage allowance and choose retention
-before scaling daily media ingestion; no unlimited free-storage promise is made.
+Supabase. Monitor the project's storage allowance before scaling daily media
+ingestion; no unlimited free-storage promise is made.
 
 Pinterest source ingestion is a separate, persistent workflow. Follow
 [`PINTEREST_AND_CREATOR_STUDIO.md`](PINTEREST_AND_CREATOR_STUDIO.md) to add an
@@ -159,7 +161,43 @@ Do not schedule this workflow or expose the visible Studio AI control until one
 live queue → worker → status/result test has verified real Supabase behavior,
 Groq model compatibility/rate limits, output quality, and private storage impact.
 
-## 6. Build the Android app against Supabase
+## 6. Monitor storage and review retention candidates
+
+The workflow **Supabase storage usage** is read-only. Run it manually before
+turning on the daily schedule. It recursively totals objects and bytes in both
+StickerDock buckets, writes a GitHub job summary, and never removes an object.
+The scan is bounded to protect against unexpectedly huge folder/object trees.
+
+Configure repository variables using the actual limits shown by your Supabase
+project/plan rather than assuming a fixed free-tier allowance:
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_STORAGE_QUOTA_MB` | Current project storage quota in MiB. Leave empty for report-only mode. |
+| `SUPABASE_STORAGE_WARN_PERCENT` | Actions warning threshold; default `70`. |
+| `SUPABASE_STORAGE_FAIL_PERCENT` | Job-failure threshold; default `90`. Must exceed warning threshold. |
+| `PRIVATE_GENERATED_RETENTION_DAYS` | Age for private generated-artifact review; default `30`. |
+| `STORAGE_MONITOR_ENABLED` | Set `true` after the first successful manual report to enable daily checks. |
+
+At the warning threshold the workflow emits an Actions warning. At the fail
+threshold it exits non-zero so normal GitHub Actions failure notifications can
+surface the problem.
+
+Retention is intentionally non-destructive:
+
+- private `inbox/` source files and `source-metadata/` provenance are retained
+  until the owner explicitly cleans them up;
+- public catalog packs are retained until deliberately delisted/replaced;
+- private `generated/YYYY-MM-DD/` artifacts older than the configured window are
+  listed by day, object count and bytes as **review candidates only**;
+- no scheduled job automatically deletes source media, provenance, approved
+  public packs or generated archives.
+
+This gives a concrete cleanup policy without risking silent loss of licensed
+source material or the only copy of a generated pack. Review the candidate list
+and delete only intentionally through Supabase/admin tooling.
+
+## 7. Build the Android app against Supabase
 
 The catalog URL is:
 
@@ -196,12 +234,14 @@ Automated tests cover persistent state archives, traversal rejection, inbox
 deduplication, private pending uploads, GENERAL-only publishing, catalog URL
 validation, rate-limit cooldowns, actual GIF/MP4 conversion, ZIP checksums,
 Creator queue validation/status parsing, atomic claim client behavior, source
-hash checks, fail-closed rights metadata and Android compilation. CI builds a
-debug APK and optimized release on every push/PR.
+hash checks, fail-closed rights metadata, recursive storage accounting,
+quota/threshold decisions, retention-candidate classification and Android
+compilation. CI builds a debug APK and optimized release on every push/PR.
 
 Before calling the app generally available, complete one live scheduled day,
 inspect its Groq quota metrics, publish/import the resulting pack, complete one
-live Creator queue smoke test, and test the signed APK on the Galaxy S24 Ultra
-against WhatsApp and WhatsApp Business. The current development environment
-cannot perform Groq/Supabase live calls because its outbound proxy rejects those
-hosts before the request reaches the provider.
+live Creator queue smoke test, run the storage monitor once against the real
+project/quota, and test the signed APK on the Galaxy S24 Ultra against WhatsApp
+and WhatsApp Business. The current development environment cannot perform
+Groq/Supabase live calls because its outbound proxy rejects those hosts before
+the request reaches the provider.
