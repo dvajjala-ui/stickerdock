@@ -4,6 +4,7 @@ import json
 import os
 from unittest.mock import patch
 import unittest
+import uuid
 
 from PIL import Image
 from api import _shared as studio
@@ -78,6 +79,52 @@ class StudioApiTest(unittest.TestCase):
     def test_storage_paths_reject_traversal(self):
         with self.assertRaises(studio.StudioError):
             studio.storage_path("../secret")
+
+    def test_creator_request_queue_is_private_and_bounded(self):
+        source = "inbox/" + "b" * 64 + ".webp"
+        calls = []
+        def capture(path, **kwargs):
+            calls.append((path, kwargs))
+            return b""
+        with patch.object(studio, "supabase_request", side_effect=capture):
+            result = studio.queue_creator_request("  make   it funny  ", source)
+        self.assertEqual(result["status"], "queued")
+        uuid.UUID(result["id"])
+        self.assertEqual(calls[0][0], "/rest/v1/creator_requests")
+        payload = json.loads(calls[0][1]["data"])
+        self.assertEqual(payload[0]["source_path"], source)
+        self.assertEqual(payload[0]["prompt"], "make it funny")
+        self.assertEqual(payload[0]["status"], "queued")
+
+    def test_creator_request_rejects_bad_input_before_supabase(self):
+        with patch.object(studio, "supabase_request") as request:
+            with self.assertRaises(studio.StudioError):
+                studio.queue_creator_request("", "inbox/" + "a" * 64 + ".png")
+            with self.assertRaises(studio.StudioError):
+                studio.queue_creator_request("hello", "../../private.png")
+            with self.assertRaises(studio.StudioError):
+                studio.queue_creator_request("x" * 501, "inbox/" + "a" * 64 + ".png")
+            request.assert_not_called()
+
+    def test_creator_request_status_is_validated(self):
+        request_id = str(uuid.uuid4())
+        row = [{
+            "id": request_id,
+            "status": "complete",
+            "source_path": "inbox/" + "c" * 64 + ".png",
+            "prompt": "caption this",
+            "result_path": "inbox/" + "d" * 64 + ".png",
+            "error_message": None,
+            "attempts": 1,
+            "created_at": "2026-10-13T10:00:00Z",
+            "updated_at": "2026-10-13T10:01:00Z",
+        }]
+        with patch.object(studio, "supabase_request", return_value=json.dumps(row).encode()):
+            result = studio.creator_request_status(request_id)
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["result_path"], row[0]["result_path"])
+        with self.assertRaises(studio.StudioError):
+            studio.creator_request_status("not-a-uuid")
 
 
 if __name__ == "__main__":
