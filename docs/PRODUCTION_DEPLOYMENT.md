@@ -1,7 +1,7 @@
 # Production deployment: GitHub Actions + Supabase
 
 This is the recommended free-first deployment. GitHub Actions runs the Python,
-Pillow and FFmpeg worker; Supabase provides PostgreSQL plus private/public object
+Pillow and FFmpeg workers; Supabase provides PostgreSQL plus private/public object
 storage; the Android app reads the approved public catalog. Vercel is not used
 for generation because its short-lived functions are a poor fit for FFmpeg and
 persistent batch state. It can host the included Creator Studio without moving
@@ -9,13 +9,21 @@ the worker or database.
 
 ## What runs where
 
-- **GitHub Actions:** every three hours, calls Groq directly, downloads due free
-  media, processes your private inbox, renders one batch and saves state. A
-  separate six-hour job can monitor authorized Pinterest boards.
-- **Supabase private bucket:** factory state, your uploaded references, pending
-  ZIPs and reference metadata. Nothing here is readable by the Android app.
+- **GitHub Actions:** every three hours, the scheduled Factory calls Groq directly,
+  downloads due free media, processes the private inbox, renders one batch and
+  saves state. A separate six-hour job can monitor authorized Pinterest boards.
+  A third **manual-only** Creator request worker processes at most one private
+  Studio AI request per dispatch while that feature remains under live testing.
+- **Supabase private bucket:** factory state, uploaded references, Creator request
+  inputs/results, pending ZIPs and provenance metadata. Nothing here is readable
+  by the Android app.
+- **Supabase PostgreSQL:** private operational state, reviewed pack metadata and a
+  service-role-only `creator_requests` queue with atomic worker claiming.
 - **Supabase public bucket:** only packs explicitly published with the reviewed
   publish workflow and its catalog JSON.
+- **Vercel Creator Studio:** private manual editor plus token-gated queue/status
+  server routes. It never sends the Supabase service-role or Groq key to browser
+  JavaScript.
 - **Android:** contains the public catalog URL. It never contains the Groq key or
   Supabase service-role key.
 
@@ -26,16 +34,30 @@ required on the phone or committed to Git.
 
 ## 1. Create the free Supabase project
 
-Create one Supabase project. In its SQL editor, run
-`supabase/migrations/202610120001_sticker_factory.sql`. It creates:
+Create one Supabase project. In its SQL editor, run these migrations in order:
+
+1. `supabase/migrations/202610120001_sticker_factory.sql`
+2. `supabase/migrations/202610130001_creator_requests.sql`
+
+The first migration creates:
 
 - `factory_runs`, readable only by the service role;
 - `sticker_packs`, where public database reads see only approved GENERAL rows;
 - private `sticker-factory-private` and public `sticker-factory-public` buckets;
 - a public read policy only for the public bucket.
 
+The second migration creates:
+
+- `creator_requests`, with RLS enabled and intentionally no public/anon/authenticated
+  policy;
+- a bounded queued/running/complete/failed/cancelled lifecycle;
+- an index for queued work;
+- the service-role-only `claim_creator_request(text)` function using
+  `FOR UPDATE SKIP LOCKED` to prevent duplicate claims.
+
 Copy the project URL and service-role key from the Supabase project settings.
-The service-role key belongs only in GitHub Actions secrets.
+The service-role key belongs only in trusted server-side deployments such as
+GitHub Actions and the private Vercel Studio functions.
 
 ## 2. Configure the repository once
 
@@ -49,7 +71,7 @@ In GitHub → repository **Settings → Secrets and variables → Actions**, add
 | Variable | `STICKER_FACTORY_ENABLED` | `true` after the smoke test |
 | Variable | `FACTORY_DAILY_TARGET` | `40` initially; maximum `100` |
 | Variable | `GROQ_TEXT_MODEL` | optional current Groq text model |
-| Variable | `GROQ_VISION_MODEL` | required for photo/clip batches and image-aware Studio ideas |
+| Variable | `GROQ_VISION_MODEL` | required for photo/clip batches and Creator requests |
 
 Create GitHub environments named `sticker-factory-production` and
 `android-production`. Add a required reviewer to both. Copy the two Supabase
@@ -109,7 +131,35 @@ MATURE generation can use a separately configured manual worker, but this public
 publisher always refuses it. The production scheduled workflow pins its rating to
 GENERAL.
 
-## 5. Build the Android app against Supabase
+## 5. Private Creator Studio AI queue
+
+Creator Studio is still a staged Vercel preview and the Android app still shows a
+disabled **AI meme creator — Coming soon** button. The request/result plumbing is
+implemented but intentionally manual-only until a real provider smoke test.
+
+Configure the Vercel Studio with server-side environment variables:
+
+- `STUDIO_ACCESS_TOKEN`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+The token-gated `/api/captions` route can enqueue a bounded prompt against an
+existing private inbox image and query its status. It cannot call Groq directly.
+The browser receives neither the service-role key nor `GROQ_API_KEY`.
+
+To test processing, open GitHub Actions → **Creator request worker** and dispatch
+it manually. It uses `GROQ_API_KEY`, `SUPABASE_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, and `GROQ_VISION_MODEL`, atomically claims at most
+one queued request, validates the source SHA/provenance, reuses the existing Groq
+vision caption generator and local WebP renderer, and writes the result only to
+the private inbox. Missing rights metadata becomes `REFERENCE_ONLY`; invalid
+rights fail before the Groq call.
+
+Do not schedule this workflow or expose the visible Studio AI control until one
+live queue → worker → status/result test has verified real Supabase behavior,
+Groq model compatibility/rate limits, output quality, and private storage impact.
+
+## 6. Build the Android app against Supabase
 
 The catalog URL is:
 
@@ -136,10 +186,6 @@ Set its `CATALOG_BASE_URL` environment variable to the URL above. Run
 AAB retained as private workflow artifacts for 14 days. This workflow does not
 publish to an app store or create a GitHub release automatically.
 
-Creator Studio is currently a staged Vercel preview. The Android app shows a
-disabled **AI meme creator — Coming soon** button. Preview configuration and its
-server-side variables are listed in the Pinterest/Studio guide.
-
 GitHub Releases is sufficient for free APK distribution to testers. Use Play
 Console for a public Android release. Vercel hosts the optional creator/editor;
 Supabase remains the database and storage layer.
@@ -148,11 +194,14 @@ Supabase remains the database and storage layer.
 
 Automated tests cover persistent state archives, traversal rejection, inbox
 deduplication, private pending uploads, GENERAL-only publishing, catalog URL
-validation, rate-limit cooldowns, actual GIF/MP4 conversion, ZIP checksums and
-Android compilation. CI builds a debug APK on every push/PR.
+validation, rate-limit cooldowns, actual GIF/MP4 conversion, ZIP checksums,
+Creator queue validation/status parsing, atomic claim client behavior, source
+hash checks, fail-closed rights metadata and Android compilation. CI builds a
+debug APK and optimized release on every push/PR.
 
 Before calling the app generally available, complete one live scheduled day,
-inspect its Groq quota metrics, publish/import the resulting pack, and test the
-signed APK on the Galaxy S24 Ultra against WhatsApp and WhatsApp Business. The
-current development environment cannot perform Groq/Supabase live calls because
-its outbound proxy rejects those hosts before the request reaches the provider.
+inspect its Groq quota metrics, publish/import the resulting pack, complete one
+live Creator queue smoke test, and test the signed APK on the Galaxy S24 Ultra
+against WhatsApp and WhatsApp Business. The current development environment
+cannot perform Groq/Supabase live calls because its outbound proxy rejects those
+hosts before the request reaches the provider.
