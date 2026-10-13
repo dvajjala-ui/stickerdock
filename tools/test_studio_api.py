@@ -76,6 +76,27 @@ class StudioApiTest(unittest.TestCase):
         self.assertEqual(metadata["license"], "USER_OWNED")
         self.assertEqual(len(result["sha256"]), 64)
 
+    def test_new_supabase_secret_key_uses_apikey_without_bearer(self):
+        with patch.dict(os.environ, {
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": "sb_secret_test"}, clear=False):
+            with patch.object(studio, "request", return_value=b"[]") as provider:
+                studio.supabase_request("/rest/v1/creator_requests")
+        headers = provider.call_args.kwargs["headers"]
+        self.assertEqual(headers["apikey"], "sb_secret_test")
+        self.assertNotIn("Authorization", headers)
+
+    def test_legacy_supabase_service_role_keeps_bearer_header(self):
+        key = "eyJhbGciOiJIUzI1NiJ9.legacy.signature"
+        with patch.dict(os.environ, {
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": key}, clear=False):
+            with patch.object(studio, "request", return_value=b"[]") as provider:
+                studio.supabase_request("/rest/v1/creator_requests")
+        headers = provider.call_args.kwargs["headers"]
+        self.assertEqual(headers["apikey"], key)
+        self.assertEqual(headers["Authorization"], "Bearer " + key)
+
     def test_storage_paths_reject_traversal(self):
         with self.assertRaises(studio.StudioError):
             studio.storage_path("../secret")

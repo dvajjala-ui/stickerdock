@@ -135,7 +135,9 @@ def supabase_request(path: str, method="GET", data=None, content_type=None,
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not url.startswith("https://") or not key:
         raise StudioError("Supabase is not configured")
-    headers = {"apikey": key, "Authorization": "Bearer " + key}
+    headers = {"apikey": key}
+    if not key.startswith("sb_"):
+        headers["Authorization"] = "Bearer " + key
     if content_type:
         headers["Content-Type"] = content_type
     if method == "POST" and path.startswith("/storage/v1/object/"):
