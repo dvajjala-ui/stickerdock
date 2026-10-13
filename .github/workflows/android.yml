@@ -34,7 +34,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -63,8 +63,14 @@ jobs:
           fi
           python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
           python3 -m unittest discover -s tools -p 'test_*.py' -v
-      - name: Test and build debug plus optimized release
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+      - name: Test, lint, and build APK plus release bundle
+        run: |
+          gradle --no-daemon \
+            :app:testDebugUnitTest \
+            :app:lintRelease \
+            :app:assembleDebug \
+            :app:assembleRelease \
+            :app:bundleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: stickerdock-debug-apk
