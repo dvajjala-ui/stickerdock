@@ -17,7 +17,7 @@ jobs:
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/stickerdock-ci.keystore
+      ANDROID_KEYSTORE_FILE: /tmp/stickerdock-ci.keystore
       ANDROID_KEYSTORE_PASSWORD: ci-only-store-pass-2026
       ANDROID_KEY_ALIAS: stickerdock-ci
       ANDROID_KEY_PASSWORD: ci-only-key-pass-2026
