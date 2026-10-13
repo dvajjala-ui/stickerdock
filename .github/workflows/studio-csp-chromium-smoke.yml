@@ -1,0 +1,192 @@
+name: Creator Studio CSP Chromium smoke
+
+on:
+  push:
+    branches:
+      - harden/creator-studio-csp
+    paths:
+      - 'vercel.json'
+      - '.github/workflows/studio-csp-chromium-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-csp-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: harden/creator-studio-csp
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Serve Studio with exact Vercel security headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import binascii, struct, zlib
+          def chunk(kind, data):
+              body = kind + data
+              return struct.pack('>I', len(data)) + body + struct.pack('>I', binascii.crc32(body) & 0xffffffff)
+          png = b'\x89PNG\r\n\x1a\n'
+          png += chunk(b'IHDR', struct.pack('>IIBBBBB', 64, 64, 8, 6, 0, 0, 0))
+          row = b'\x00' + (b'\xe8\x45\x45\xff' * 64)
+          png += chunk(b'IDAT', zlib.compress(row * 64, 9))
+          png += chunk(b'IEND', b'')
+          open('/tmp/studio-csp-source.png', 'wb').write(png)
+          PY
+
+          cat >/tmp/studio-csp-server.py <<'PY'
+          import http.server
+          import json
+          import os
+
+          with open('vercel.json', encoding='utf-8') as handle:
+              config = json.load(handle)
+          headers = {item['key']: item['value'] for item in config['headers'][0]['headers']}
+
+          class Handler(http.server.SimpleHTTPRequestHandler):
+              def do_GET(self):
+                  if self.path == '/':
+                      self.path = '/studio/index.html'
+                  return super().do_GET()
+
+              def end_headers(self):
+                  for key, value in headers.items():
+                      self.send_header(key, value)
+                  super().end_headers()
+
+              def log_message(self, fmt, *args):
+                  pass
+
+          http.server.ThreadingHTTPServer(('127.0.0.1', 4173), Handler).serve_forever()
+          PY
+          python3 /tmp/studio-csp-server.py >/tmp/studio-csp-http.log 2>&1 &
+          echo $! >/tmp/studio-csp-http.pid
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/studio-csp-http.log
+          exit 1
+
+      - name: Exercise Studio and private AI flow under CSP
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const assert = require('assert');
+          const fs = require('fs');
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+            const pageErrors = [];
+            const consoleErrors = [];
+            const cspViolations = [];
+            page.on('pageerror', error => pageErrors.push(String(error)));
+            page.on('console', message => {
+              if (message.type() === 'error') consoleErrors.push(message.text());
+            });
+
+            const sourceBytes = fs.readFileSync('/tmp/studio-csp-source.png');
+            const sourceDataUrl = 'data:image/png;base64,' + sourceBytes.toString('base64');
+            const sourceHash = 'a'.repeat(64);
+            const resultHash = 'b'.repeat(64);
+            const requestId = '11111111-1111-4111-8111-111111111111';
+            const apiCalls = [];
+
+            await page.route('http://127.0.0.1:4173/api/**', async route => {
+              const request = route.request();
+              const body = request.postDataJSON();
+              apiCalls.push({ path: new URL(request.url()).pathname, body });
+              const pathname = new URL(request.url()).pathname;
+              if (pathname === '/api/upload') {
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ path: `inbox/${sourceHash}.png`, sha256: sourceHash }) });
+              }
+              if (pathname === '/api/captions' && body.action === 'queue') {
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: requestId, status: 'queued' }) });
+              }
+              if (pathname === '/api/captions' && body.action === 'status') {
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: requestId, status: 'complete', result_path: `inbox/${resultHash}.webp` }) });
+              }
+              if (pathname === '/api/library' && body.action === 'fetch') {
+                return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ image: sourceDataUrl }) });
+              }
+              return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'unexpected test request' }) });
+            });
+
+            const response = await page.goto('http://127.0.0.1:4173/', { waitUntil: 'networkidle' });
+            assert(response && response.ok(), 'Studio root did not return HTTP 200');
+            const headers = response.headers();
+            const csp = headers['content-security-policy'] || '';
+            assert(csp.includes("default-src 'self'"), 'CSP default-src is missing');
+            assert(csp.includes("frame-ancestors 'none'"), 'CSP frame-ancestors is missing');
+            assert(csp.includes("connect-src 'self'"), 'CSP connect-src is missing');
+            assert(csp.includes("img-src 'self' data: blob:"), 'CSP does not allow required local image URLs');
+            assert.strictEqual(headers['x-frame-options'], 'DENY');
+            assert.strictEqual(headers['cross-origin-opener-policy'], 'same-origin');
+            assert.strictEqual(await page.title(), 'StickerDock Creator');
+
+            await page.evaluate(() => {
+              window.__cspViolations = [];
+              document.addEventListener('securitypolicyviolation', event => {
+                window.__cspViolations.push(`${event.violatedDirective}:${event.blockedURI}`);
+              });
+            });
+
+            await page.setInputFiles('#file', '/tmp/studio-csp-source.png');
+            await page.waitForFunction(() => !document.querySelector('#download').disabled);
+            await page.fill('#caption', 'CSP bhi solid hai');
+            const rendered = await page.locator('#canvas').evaluate(canvas => canvas.toDataURL('image/png'));
+            assert(rendered.startsWith('data:image/png;base64,') && rendered.length > 500, 'Canvas did not render under CSP');
+
+            await page.fill('#token', 'browser-smoke-token');
+            await page.fill('#prompt', 'Make a friendly Hinglish reaction sticker');
+            assert(!(await page.locator('#generate').isDisabled()), 'AI button did not enable under CSP');
+            await page.click('#generate');
+            await page.waitForFunction(() => document.querySelector('#status').textContent.includes('AI sticker ready'), null, { timeout: 10000 });
+            assert.strictEqual(apiCalls.map(call => call.path).join(','), '/api/upload,/api/captions,/api/captions,/api/library');
+            assert.strictEqual(apiCalls[1].body.source_path, `inbox/${sourceHash}.png`);
+            assert.strictEqual(apiCalls[3].body.path, `inbox/${resultHash}.webp`);
+
+            const downloadPromise = page.waitForEvent('download');
+            await page.click('#download');
+            const download = await downloadPromise;
+            await download.saveAs('/tmp/studio-csp-download.png');
+            const downloadBytes = fs.statSync('/tmp/studio-csp-download.png').size;
+            assert(downloadBytes > 500, 'PNG download failed under CSP');
+
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.waitForTimeout(100);
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+            assert(overflow <= 1, `Mobile layout has ${overflow}px horizontal overflow`);
+
+            cspViolations.push(...await page.evaluate(() => window.__cspViolations || []));
+            assert.deepStrictEqual(cspViolations, [], `CSP violations: ${cspViolations.join(' | ')}`);
+            assert.deepStrictEqual(pageErrors, [], `Page errors: ${pageErrors.join(' | ')}`);
+            assert.deepStrictEqual(consoleErrors, [], `Console errors: ${consoleErrors.join(' | ')}`);
+            console.log(JSON.stringify({
+              http: response.status(),
+              csp: 'enforced',
+              canvas: 'pass',
+              ai_same_origin_flow: 'pass',
+              api_calls: apiCalls.length,
+              png_download_bytes: downloadBytes,
+              mobile_overflow_px: overflow,
+              csp_violations: cspViolations.length,
+              page_errors: pageErrors.length,
+              console_errors: consoleErrors.length
+            }));
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          JS
