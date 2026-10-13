@@ -23,22 +23,27 @@ jobs:
       GROQ_VISION_MODEL: qwen/qwen3.8-27b
     steps:
       - uses: actions/checkout@v4
-      - name: Check for queued Creator requests
+      - name: Check for queued or recoverable Creator work
         id: queue
         shell: bash
         run: |
           python - <<'PY'
-          import json, os, urllib.request
+          import json, os, urllib.parse, urllib.request
           key = os.environ['SUPABASE_SERVICE_ROLE_KEY'].strip()
           headers = {'apikey': key}
           if not key.startswith('sb_secret_'):
               headers['Authorization'] = 'Bearer ' + key
-          url = os.environ['SUPABASE_URL'].rstrip('/') + '/rest/v1/creator_requests?status=eq.queued&select=id&limit=1'
+          params = urllib.parse.urlencode({
+              'status': 'in.(queued,running)',
+              'select': 'id,status',
+              'limit': 1,
+          })
+          url = os.environ['SUPABASE_URL'].rstrip('/') + '/rest/v1/creator_requests?' + params
           with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
               rows = json.load(response)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
               output.write('has_queue=' + ('true' if rows else 'false') + '\n')
-          print('Queued Creator request found' if rows else 'Creator queue is empty')
+          print('Creator work found' if rows else 'Creator queue is empty')
           PY
       - uses: actions/setup-python@v5
         if: steps.queue.outputs.has_queue == 'true'
