@@ -19,6 +19,7 @@ MAX_REQUEST = 6_000_000
 MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
+CREATOR_MAX_OUTSTANDING = 25
 
 
 class StudioError(ValueError):
@@ -180,10 +181,23 @@ def normalize_request_id(value) -> str:
     return str(parsed)
 
 
+def creator_outstanding_count() -> int:
+    status_filter = urllib.parse.quote("in.(queued,running)")
+    path = ("/rest/v1/creator_requests?status=" + status_filter +
+            "&select=id&limit=" + str(CREATOR_MAX_OUTSTANDING + 1))
+    raw = supabase_request(path, limit=64_000)
+    rows = json.loads(raw or b"[]")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise StudioError("Supabase returned an invalid Creator queue")
+    return len(rows)
+
+
 def queue_creator_request(prompt, source_path) -> dict:
     prompt_text = safe_text(prompt, "prompt", 500, required=True)
     if not isinstance(source_path, str) or not CREATOR_SOURCE_RE.fullmatch(source_path):
         raise StudioError("Invalid source image path")
+    if creator_outstanding_count() >= CREATOR_MAX_OUTSTANDING:
+        raise StudioError("Creator queue is busy; try again after current requests finish")
     request_id = str(uuid.uuid4())
     payload = json.dumps([{
         "id": request_id,
