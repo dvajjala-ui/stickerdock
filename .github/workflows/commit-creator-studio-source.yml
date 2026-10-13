@@ -1,0 +1,50 @@
+name: Commit Creator Studio source
+
+on:
+  push:
+    branches:
+      - feat/creator-studio-live-ai
+    paths:
+      - '.github/workflows/commit-creator-studio-source.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  commit-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/creator-studio-live-ai
+
+      - name: Reapply already-validated source patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/patch-creator-studio-live-ai.yml').read_text()
+          marker = "          python - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end_marker = "\n          PY\n\n      - name: Install Python test dependencies"
+          end = workflow.index(end_marker, start)
+          script = workflow[start:end]
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in script.splitlines()) + '\n'
+          exec(compile(script, '<creator-live-ai-patch>', 'exec'), {'__name__': '__main__'})
+          PY
+          # Workflow changes are landed separately through the GitHub connector.
+          git checkout -- .github/workflows/creator-request-worker.yml
+          python -m compileall -q api tools
+
+      - name: Commit normal source files only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "dvajjala-ui"
+          git config user.email "dvajjala@gmail.com"
+          git add api/_shared.py studio/index.html studio/app.js tools/test_studio_api.py
+          git diff --cached --check
+          git commit -m "Enable live Creator Studio AI UI"
+          git push origin HEAD:feat/creator-studio-live-ai
