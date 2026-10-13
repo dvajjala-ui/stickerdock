@@ -3,16 +3,16 @@
 A Kotlin/Jetpack Compose Android app that keeps your own sticker library independently from WhatsApp and Sticker.ly. Source is actively developed; install the latest GitHub Actions debug APK for testing only.
 
 ## Current source features
-- **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs and filter by topic or Static/Animated.
+- **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs, globally search stickers, edit per-sticker labels/tags, and filter by topic or Static/Animated.
 - **Static and animated WebP:** WhatsApp-compliant separate pack types, 512×512 static conversion, animated frame/duration checks, animated previews (real-device QA pending).
-- **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, split into 30-sticker packs, deduplicate across previously imported items. Large scans show progress and keep an app-private resume checkpoint. This is not access to other apps' private databases.
+- **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, retain source filenames as searchable sticker labels when available, split into 30-sticker packs, and deduplicate across previously imported items. Large scans show progress and keep an app-private resume checkpoint. This is not access to other apps' private databases.
 - **Desktop ADB assistant:** `python tools/adb_sticker_export.py --account both` copies accessible WhatsApp sticker media folders from your own authorized phone and creates safe ZIP batches. No root, ADB requires your consent.
-- **Batch ZIP ingestion:** select up to 100 ZIP files; supports images from directories, simple generic ZIPs and StickerDock archives. A separate guide covers limitations of Sticker.ly personal migration.
+- **Batch ZIP ingestion:** select up to 100 ZIP files; supports images from directories, simple generic ZIPs, Sticker Maker `.wastickers` archives and StickerDock archives. Source filenames are retained as sticker labels where possible. A separate guide covers limitations of Sticker.ly personal migration.
 - **Sticker.ly public links:** save/paste bulk pack URLs or share links into the app; follow back to Sticker.ly. **Does not mass-download or rehost Sticker.ly's catalog.**
 - **Sharing:** send a StickerDock pack as a portable ZIP through Android share sheet; import archives and received images.
 - **Two WhatsApp installations:** supports separate consumer WhatsApp and Business integration intents; Android's public API does not route to a specified account within one WhatsApp app.
 - **Community:** read-only, reviewed GENERAL-content catalog from `catalog/packs.json`. No public packs are included yet, and no unmoderated uploads; MATURE labels stay local/private.
-- **Persistence:** SQLite migrations, app-private storage, local backup/restore, no user account or paid cloud required. Public gallery is networked and opt-in.
+- **Persistence:** non-destructive SQLite migrations through schema v6, app-private storage, metadata-preserving backup schema v5 with restore support for schemas 1–4, no user account or paid cloud required. Public gallery is networked and opt-in.
 
 ## Migrate your phone's stickers
 [Detailed phone/ADB/Sticker.ly guide](docs/PHONE_MIGRATION.md) · [Sticker.ly legal export limitations](docs/STICKERLY_MIGRATION.md)
