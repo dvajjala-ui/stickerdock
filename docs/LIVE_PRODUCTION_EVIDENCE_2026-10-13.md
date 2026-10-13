@@ -7,11 +7,32 @@ test branches and removed after use. No secret values are recorded here.
 
 ## Supabase migrations and security verification
 
-The two production migrations were dry-run, applied and verified earlier on
-October 13. The read-only verification confirmed RLS/grants for `factory_runs`,
+All three production migrations were dry-run, applied and verified on October 13.
+The first two established the Factory tables/buckets plus the private Creator
+queue. The third migration (`202610130002_creator_request_leases.sql`) adds stale
+Creator-worker lease recovery and a partial index for running requests.
+
+The read-only verification confirmed RLS/grants for `factory_runs`,
 `sticker_packs` and `creator_requests`, the service-role-only Creator claim
 function, both storage buckets, absence of the old broad storage read policy, and
 the expected update triggers.
+
+### Creator lease recovery migration
+
+- Workflow run: `38401177334`
+- Result: **success**
+- Dry-run listed only `202610130002_creator_request_leases.sql`.
+- Apply completed successfully against the production Supabase project.
+- `idx_creator_requests_running_lease` exists.
+- `claim_creator_request(text)` contains the verified 20-minute stale-lease
+  recovery and retains `FOR UPDATE SKIP LOCKED` semantics.
+- `service_role` can execute the claim function; `anon` and `authenticated`
+  cannot.
+- Live post-apply check reported `stale_running_requests=0`.
+
+Running requests older than 20 minutes are now recovered automatically: requests
+below the five-attempt ceiling return to `queued`; stale requests already at five
+attempts become `failed` instead of remaining permanently leased.
 
 ## Factory: real Groq + Supabase generation
 
@@ -164,7 +185,8 @@ status polling and result loading:
 This browser smoke is not a hosted-Vercel proof; the HTTP API responses in this
 specific UI test were deterministic test responses. The actual Supabase/Groq
 backend path is independently proven by run `38397706738` above. A deployed
-Vercel URL with `STUDIO_ACCESS_TOKEN` still needs a real authenticated smoke.
+Vercel URL with a random 32–256 character `STUDIO_ACCESS_TOKEN` still needs a real
+authenticated smoke.
 
 ## Supabase storage monitor
 
