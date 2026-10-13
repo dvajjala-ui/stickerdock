@@ -45,13 +45,23 @@ real-device acceptance or store-release testing.
   source URIs and global SHA-256 deduplication makes a small unflushed tail safe.
 - Sticker.ly public link bookmarks and import of user-supplied exports/ZIPs.
   There is no automatic Sticker.ly account/catalog download.
-- Read-only approved public catalog and GENERAL/MATURE local labels.
+- Read-only approved public catalog and GENERAL/MATURE local labels. A missing
+  public `catalog/packs.json` is treated as an intentional empty catalog until the
+  first reviewed pack is published; other HTTP errors remain strict. Catalog
+  parsing exposes only explicit `GENERAL` entries and rejects duplicate IDs/files,
+  malformed hashes/control text, unsupported versions and oversized indexes.
+- Android network configuration rejects cleartext HTTP; catalog bases are HTTPS
+  only. App backup remains disabled and no broad storage/camera/location/account
+  permission is requested.
 - Disabled **AI meme creator — Coming soon** Android entry.
 
 ### Private Sticker Factory
 
 - Forty-sticker daily target, five per Groq request, three-hour scheduling,
   saved cooldowns, request caps, deduplication and crash-safe persistent state.
+  Normal private scheduled generation is now active; setting
+  `STICKER_FACTORY_ENABLED=false` is the explicit emergency pause. Public
+  publication remains a separate manual/review-gated workflow.
 - Restores file paths on fresh runners, paginates the private inbox and keeps a
   bounded local reference cache. Licensed library inputs are mirrored into the
   private inbox for manual editing.
@@ -86,7 +96,9 @@ real-device acceptance or store-release testing.
 - Public pack size and animation timing match Android import limits.
 - Invalid inbox media are skipped, and failed runs retain prior progress and
   usage metrics. Pinterest scans have attempt/time budgets and bounded staging.
-- Signed Android APK/AAB workflow with configurable public catalog URL.
+- Signed Android APK/AAB workflow with the production Supabase catalog as its
+  default and an optional URL override. The workflow fails fast with a named
+  Actions error if any of the four signing secrets is missing.
 
 ### Live Supabase / Groq verification
 
@@ -105,6 +117,10 @@ real-device acceptance or store-release testing.
   A separate live behavior smoke (`38401538953`) inserted a 21-minute-old
   synthetic running request at attempt 1; the real RPC reclaimed it with a fresh
   lease at attempt 2, and the smoke row was deleted immediately afterward.
+  A later rollback-only production transaction proved both lease branches without
+  committing test rows: a retryable stale request was reclaimed at attempt 2, an
+  exhausted attempt-5 request was failed, and the fresh lease was not double
+  claimed.
 - `sticker-factory-private` is private, `sticker-factory-public` is public, and
   no broad `storage.objects` SELECT policy exists for client roles.
 - All three `updated_at` triggers are present.
@@ -169,7 +185,8 @@ real-device acceptance or store-release testing.
   errors and no mobile overflow.
 - The complete Python helper suite passed with the Creator source changes, and the
   pre-existing Studio API regression tests were preserved while adding new-secret
-  and legacy-auth coverage.
+  and legacy-auth coverage. The consolidated production Python suite passed 89
+  tests after the lease/token hardening.
 
 ## Partially complete — needs live verification or configuration
 
@@ -179,9 +196,11 @@ real-device acceptance or store-release testing.
   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` server-side and run a hosted
   browser smoke before treating Studio as remotely available.
 - **Full-day Factory capacity:** the real Factory generated/resumed to 10/40 and
-  Groq models authenticate successfully. Keep the recurring Factory schedule
-  disabled until one normal-cooldown 40-sticker day completes and actual
-  usage/rate-limit behavior is reviewed.
+  Groq models authenticate successfully. Normal three-hour scheduled generation
+  is now active with a default 40/day target. Do not bypass the cooldown; keep the
+  gate open until one full UTC day naturally reaches 40/40 and actual
+  usage/rate-limit behavior is reviewed. Set `STICKER_FACTORY_ENABLED=false` only
+  to pause production if an operational issue appears.
 - **Pinterest account:** the connector is ready; it still needs an approved app,
   OAuth token and numeric authorized board IDs. Official video URLs may require
   separate Pinterest approval.
@@ -194,9 +213,9 @@ real-device acceptance or store-release testing.
   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
   `ANDROID_KEY_PASSWORD`. `CATALOG_BASE_URL` no longer blocks release because the
   workflow defaults to the deployed Supabase public catalog while retaining an
-  optional environment override. The probe stopped before keystore decoding or
-  Gradle/signing, so the remaining blocker is signing configuration rather than a
-  known build/signature failure.
+  optional environment override. The workflow now fails fast with the exact
+  missing secret name before keystore decoding/Gradle. The remaining blocker is
+  signing configuration rather than a known build/signature failure.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
 - **Large folder migration:** progress/checkpoint/resume logic compiles and the
@@ -208,9 +227,9 @@ real-device acceptance or store-release testing.
 - Deploy/configure the already-merged Creator Studio live-AI source on Vercel and
   perform one authenticated hosted-browser queue/result smoke. Android can remain
   Coming soon until that hosted path is intentionally exposed.
-- Let the private Factory complete a normal-cooldown 40-sticker day, review the
-  completed pack, publish one approved GENERAL pack, import it into Android and
-  record actual Groq usage/rate limits.
+- Let the active private Factory schedule complete a natural 40/40 UTC day,
+  review the completed pack, publish one approved GENERAL pack, import it into
+  Android and record actual Groq usage/rate limits.
 - Connect the Pinterest account and complete one official-board smoke sync.
 - Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and, after
   reviewing the first successful report-only scan, set
@@ -237,6 +256,11 @@ GitHub Actions currently has validated `GROQ_API_KEY` and
 set directly in the relevant production workflows. Database migration maintenance
 can use `SUPABASE_DB_PASSWORD`; it is not needed by the Android app. Pinterest
 later requires `PINTEREST_ACCESS_TOKEN` plus board variables.
+
+`STICKER_FACTORY_ENABLED` is now an optional emergency pause: unset or `true`
+allows the normal production schedule, while `false` pauses scheduled Factory
+runs. `FACTORY_DAILY_TARGET` and Groq model variables remain optional overrides;
+source contains the validated 40/day and current model defaults.
 
 The `android-production` environment currently needs four signing values to be
 configured: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
