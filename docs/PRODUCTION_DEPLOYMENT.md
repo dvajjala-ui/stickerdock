@@ -9,13 +9,21 @@ the worker or database.
 
 ## What runs where
 
-- **GitHub Actions:** every three hours, the scheduled Factory calls Groq directly,
-  downloads due free media, processes the private inbox, renders one batch and
-  saves state. A separate six-hour job can monitor authorized Pinterest boards.
-  A third **manual-only** Creator request worker processes at most one private
-  Studio AI request per dispatch while that feature remains under live testing.
-  A daily/manual storage monitor measures private/public Supabase usage and
-  reports retention candidates without deleting data.
+- **GitHub Actions — Sticker Factory:** the Factory workflow has an eight-times-per-day
+  schedule, but scheduled execution is gated by `STICKER_FACTORY_ENABLED=true`.
+  Manual runs are always available. Production credentials, state persistence,
+  Groq text generation and resume behavior have been live-tested. Keep the
+  recurring Factory gate disabled until one normal-cooldown 40-sticker day has
+  been reviewed.
+- **GitHub Actions — Creator worker:** checks the private Creator queue every 10
+  minutes. A cheap Supabase preflight runs first; when the queue is empty it skips
+  Python/package/font setup. When work exists the job can process up to five
+  queued requests in one serialized run. The real queue → claim → Groq vision →
+  private result/status path has passed production smoke testing.
+- **GitHub Actions — other private jobs:** a six-hour Pinterest job can monitor
+  authorized boards after Pinterest credentials are configured. A daily/manual
+  storage monitor measures private/public Supabase usage and reports retention
+  candidates without deleting data.
 - **Supabase private bucket:** factory state, uploaded references, Creator request
   inputs/results, pending ZIPs and provenance metadata. Nothing here is readable
   by the Android app.
@@ -23,20 +31,18 @@ the worker or database.
   service-role-only `creator_requests` queue with atomic worker claiming.
 - **Supabase public bucket:** only packs explicitly published with the reviewed
   publish workflow and its catalog JSON.
-- **Vercel Creator Studio:** private manual editor plus token-gated queue/status
-  server routes. It never sends the Supabase service-role or Groq key to browser
-  JavaScript.
-- **Android:** contains the public catalog URL. It never contains the Groq key or
-  Supabase service-role key.
+- **Vercel Creator Studio:** static editor plus token-gated Python server routes.
+  The source supports manual editing and the private AI queue flow, but the
+  production Vercel deployment/environment has not yet been verified.
+- **Android:** contains only the public catalog URL. It never contains the Groq
+  key or Supabase service-role key.
 
-One production key entered into GitHub's secret UI powers the worker directly.
-Putting the same key into the APK would give every installer the ability to use
-the account and would make a stable shared service impossible. No `.env` file is
-required on the phone or committed to Git.
+No `.env` file is required on the phone or committed to Git. Provider credentials
+belong only in trusted server-side deployment settings.
 
-## 1. Create the free Supabase project
+## 1. Supabase production project
 
-Create one Supabase project. In its SQL editor, run these migrations in order:
+The production project already has these migrations applied in order:
 
 1. `supabase/migrations/202610120001_sticker_factory.sql`
 2. `supabase/migrations/202610130001_creator_requests.sql`
@@ -60,163 +66,199 @@ The second migration creates:
   `SECURITY INVOKER`, an empty `search_path`, and `FOR UPDATE SKIP LOCKED` to
   prevent duplicate claims without granting elevated function privileges.
 
-After both migrations, run `supabase/verify_sticker_factory.sql`. It is read-only
-and reports the three tables/RLS flags, Data API grants, policies, Creator claim
+`supabase/verify_sticker_factory.sql` was run after deployment. Verification
+confirmed the three tables/RLS flags, Data API grants and policies, Creator claim
 function security/EXECUTE grants, both Storage buckets and the update triggers.
-The old `read public factory artifacts` Storage policy should return no row.
+The old broad `read public factory artifacts` Storage policy is absent.
 
-Copy the project URL and service-role key from the Supabase project settings.
-The service-role key belongs only in trusted server-side deployments such as
-GitHub Actions and the private Vercel Studio functions.
+The repository uses the current Supabase opaque secret-key format
+(`sb_secret_...`). Server clients send that value as `apikey` rather than treating
+it as a JWT bearer token; legacy service-role JWTs remain supported for backwards
+compatibility.
 
-## 2. Configure the repository once
+## 2. GitHub production configuration
 
-In GitHub → repository **Settings → Secrets and variables → Actions**, add:
+In GitHub → repository **Settings → Secrets and variables → Actions** the two
+runtime secrets that have been live-validated are:
 
-| Type | Name | Value |
+| Type | Name | Purpose |
 | --- | --- | --- |
-| Secret | `GROQ_API_KEY` | Groq production key |
-| Secret | `SUPABASE_URL` | `https://PROJECT.supabase.co` |
-| Secret | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key |
-| Variable | `STICKER_FACTORY_ENABLED` | `true` after the smoke test |
-| Variable | `FACTORY_DAILY_TARGET` | `40` initially; maximum `100` |
-| Variable | `GROQ_TEXT_MODEL` | optional current Groq text model |
-| Variable | `GROQ_VISION_MODEL` | required for photo/clip batches and Creator requests |
+| Secret | `GROQ_API_KEY` | Groq text/vision API access |
+| Secret | `SUPABASE_SERVICE_ROLE_KEY` | Trusted server-side database/storage access |
 
-Create GitHub environments named `sticker-factory-production` and
-`android-production`. Add a required reviewer to both. Copy the two Supabase
-secrets into `sticker-factory-production` as well because the manual publisher
-uses that protected environment.
+The Supabase project URL is non-secret and is set directly in the production
+workflows. Current default models are also encoded in source/workflows:
 
-Leave `STICKER_FACTORY_ENABLED` unset for the first run. Open Actions →
-**Scheduled sticker factory** → **Run workflow**. A successful run creates or
-updates the UTC day's `factory_runs` row and stores persistent state privately.
-Then set the enable variable to `true`.
+- text: `openai/gpt-oss-20b`
+- vision: `qwen/qwen3.8-27b`
 
-The schedule runs at 05:45, 08:45, 11:45, 14:45, 17:45, 20:45, 23:45 and
-02:45 India time. Its production default is five stickers per run, 40 per UTC day.
-Provider cooldowns can lower the total. Increase to 100 only after the state row's
-recorded Groq headers show the selected model/account can sustain 20 daily calls.
-The worker's cooldown is 165 minutes to tolerate small scheduler delays while
-the workflow cadence remains three hours. Five stickers per scheduled run gives
-a maximum of 40 at this cadence; reaching 100 requires an explicitly faster
-schedule or larger batches as well as sufficient account quota.
+Optional GitHub variables can override selected runtime behavior. Important ones:
 
-## 3. Add your own photos and clips
+| Variable | Purpose |
+| --- | --- |
+| `STICKER_FACTORY_ENABLED` | Set `true` only after the reviewed full-day Factory gate |
+| `FACTORY_DAILY_TARGET` | Optional target override; production default is `40` |
+| `GROQ_TEXT_MODEL` | Optional text-model override |
+| `GROQ_VISION_MODEL` | Optional vision-model override |
 
-In Supabase Storage, open `sticker-factory-private` and create the `inbox` folder.
-Upload authorized PNG/JPEG/WebP/GIF/MP4/WebM/MOV files there. Each scheduled run
-imports at most 30 new files, hashes duplicates, records provenance as owner upload
-and persists the processed list. Inputs remain private. Unsupported or files over
-20MB are skipped.
+`SUPABASE_DB_PASSWORD` is needed only for database migration maintenance, not
+normal Factory/Creator runtime and never by the Android app.
 
-Commons CC0/public-domain discovery is already enabled with a daily network
-budget. Photo and clip modes activate only when the inbox/library has matching
-media and `GROQ_VISION_MODEL` is set. Otherwise the run continues using original
+If protected publishing/signing is used, create GitHub environments named
+`sticker-factory-production` and `android-production`, add required reviewers,
+and place only the secrets required by those protected jobs into the appropriate
+environment.
+
+### Factory activation state
+
+A controlled production smoke already generated five GENERAL stickers, persisted
+`factory_runs`, stored and checksum-verified a private ZIP/pending pack, and left
+the public bucket empty. A second run with the real production configuration
+resumed that state on a fresh runner from 5 to **10/40** and synced two reference
+library assets.
+
+Do **not** force the remaining 30 stickers by bypassing the cooldown. Leave
+`STICKER_FACTORY_ENABLED` unset/false until a normal-cooldown day reaches 40/40
+and its Groq usage/rate-limit metrics plus private pack are reviewed.
+
+The scheduled cadence is 05:45, 08:45, 11:45, 14:45, 17:45, 20:45, 23:45 and
+02:45 India time. The production default is five stickers per run, 40 per UTC
+day. Provider cooldowns can lower the total. Increase targets only after recorded
+Groq headers demonstrate the selected account/model can sustain the needed call
+volume.
+
+## 3. Add authorized photos and clips
+
+In Supabase Storage, use `sticker-factory-private/inbox/` for authorized
+PNG/JPEG/WebP/GIF/MP4/WebM/MOV files. Each scheduled run imports a bounded number
+of new files, hashes duplicates, records provenance and persists the processed
+list. Inputs remain private. Unsupported or oversized files are skipped.
+
+Commons CC0/public-domain discovery is available with a daily network budget.
+Photo and clip modes activate only when the inbox/library has matching media and a
+vision model is configured. Otherwise the run continues using original
 illustration and pulse-animation modes.
-The local input cache is capped at 20 MB and completed older-day images are
-removed from runner state after their private ZIP upload. Originals remain in
-Supabase. Monitor the project's storage allowance before scaling daily media
-ingestion; no unlimited free-storage promise is made.
 
-Pinterest source ingestion is a separate, persistent workflow. Follow
+The local input cache is bounded and completed older-day images are removed from
+runner state after private ZIP upload; originals remain in Supabase. Monitor the
+project's real storage allowance before scaling daily media ingestion.
+
+Pinterest source ingestion is a separate persistent workflow. Follow
 [`PINTEREST_AND_CREATOR_STUDIO.md`](PINTEREST_AND_CREATOR_STUDIO.md) to add an
-authorized token and numeric board IDs. New Pinterest assets are marked
+approved token and numeric board IDs. New Pinterest assets are
 `REFERENCE_ONLY` unless a specific per-Pin rights declaration is configured.
 
-## 4. Review and publish a completed day
+## 4. Review and publish a completed Factory day
 
 Generated daily ZIPs appear under
 `sticker-factory-private/generated/YYYY-MM-DD/`. Download and inspect the ZIP and
-`references.json`. To publish a GENERAL day, open Actions →
+`references.json`. To publish a reviewed GENERAL day, open Actions →
 **Publish reviewed factory pack**, enter its UTC date, and approve the protected
 environment job. The publisher revalidates the ZIP, refuses MATURE packs and any
 pack using `REFERENCE_ONLY` media, copies it to public storage, updates
 `catalog/packs.json`, and marks the database row approved.
+
 Public archives must fit Android's 25 MB download bound; animations require
 frames of at least 8 ms and total duration at most 10 seconds. Private archives
 can be larger, but must be split or reduced before public release.
 
-MATURE generation can use a separately configured manual worker, but this public
-publisher always refuses it. The production scheduled workflow pins its rating to
-GENERAL.
+Do not publish the five-sticker smoke pack created during production validation.
+Wait for a completed reviewed production day and publish only the intended final
+GENERAL pack.
 
 ## 5. Private Creator Studio AI queue
 
-Creator Studio is still a staged Vercel preview and the Android app still shows a
-disabled **AI meme creator — Coming soon** button. The request/result plumbing is
-implemented but intentionally manual-only until a real provider smoke test.
+The Android app still shows **AI meme creator — Coming soon**. The separate
+browser Studio source now supports the real private AI flow, but its production
+Vercel deployment/environment is still a remaining gate.
 
-Configure the Vercel Studio with server-side environment variables:
+Configure Vercel/server-side environment variables:
 
 - `STUDIO_ACCESS_TOKEN`
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-The token-gated `/api/captions` route can enqueue a bounded prompt against an
-existing private inbox image and query its status. It cannot call Groq directly.
-The browser receives neither the service-role key nor `GROQ_API_KEY`.
+The token-gated `/api/upload`, `/api/library`, and `/api/captions` routes keep the
+Supabase secret on the server. `/api/captions` can create a bounded request and
+query status; the browser never receives `GROQ_API_KEY`.
 
-To test processing, open GitHub Actions → **Creator request worker** and dispatch
-it manually. It uses `GROQ_API_KEY`, `SUPABASE_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`, and `GROQ_VISION_MODEL`, atomically claims at most
-one queued request, validates the source SHA/provenance, reuses the existing Groq
-vision caption generator and local WebP renderer, and writes the result only to
-the private inbox. Missing rights metadata becomes `REFERENCE_ONLY`; invalid
-rights fail before the Groq call.
+For a local image, the Studio AI flow is:
 
-Do not schedule this workflow or expose the visible Studio AI control until one
-live queue → worker → status/result test has verified real Supabase behavior,
-Groq model compatibility/rate limits, output quality, and private storage impact.
+1. upload the validated source into the private inbox;
+2. enqueue `/api/captions` with that private source path and prompt;
+3. poll the request status;
+4. after `complete`, fetch the private result through `/api/library`;
+5. load the result back into the editor for further editing/download.
+
+The GitHub **Creator request worker** now checks for queued requests every 10
+minutes. Its first small Supabase query is intentionally cheap. Empty queues skip
+Python/package/font setup. Active runs process up to five requests, while workflow
+concurrency plus the database `FOR UPDATE SKIP LOCKED` claim protect against
+races/duplicate claims.
+
+The real production backend path has already been verified with an isolated test:
+queue → exactly-one atomic claim → Groq vision → bounded private WebP → provenance
+linkage → completed status. The smoke source/request/result/provenance objects were
+cleaned afterward. Headless Chromium also verified both manual editor behavior and
+the browser AI upload/queue/status/result interaction flow.
+
+Remaining Studio activation work is deployment-specific: deploy the current
+source to Vercel with the three server values above and run one authenticated
+browser smoke against the hosted URL. Keep the Android entry Coming soon until
+that hosted path is intentionally exposed.
 
 ## 6. Monitor storage and review retention candidates
 
-The workflow **Supabase storage usage** is read-only. Run it manually before
-turning on the daily schedule. It recursively totals objects and bytes in both
-StickerDock buckets, writes a GitHub job summary, and never removes an object.
-The scan is bounded to protect against unexpectedly huge folder/object trees.
+The workflow **Supabase storage usage** is read-only. It recursively totals
+objects/bytes in both StickerDock buckets, writes a GitHub job summary, and never
+removes an object. The scan is bounded to protect against unexpectedly large
+folder/object trees.
 
-Configure repository variables using the actual limits shown by your Supabase
-project/plan rather than assuming a fixed free-tier allowance:
+The first live report-only production scan already passed on October 13, 2026:
+
+- private bucket: **7 objects / 4,204,527 bytes (~4.01 MB)**;
+- public bucket: **0 objects / 0 bytes**;
+- private generated artifacts older than 30 days: **none**;
+- no objects were deleted.
+
+No usage percentage was calculated because the real project quota has not yet
+been configured. Configure repository variables using the actual limits shown by
+the Supabase project/plan rather than assuming a fixed free-tier allowance:
 
 | Variable | Purpose |
 | --- | --- |
-| `SUPABASE_STORAGE_QUOTA_MB` | Current project storage quota in MiB. Leave empty for report-only mode. |
-| `SUPABASE_STORAGE_WARN_PERCENT` | Actions warning threshold; default `70`. |
-| `SUPABASE_STORAGE_FAIL_PERCENT` | Job-failure threshold; default `90`. Must exceed warning threshold. |
-| `PRIVATE_GENERATED_RETENTION_DAYS` | Age for private generated-artifact review; default `30`. |
-| `STORAGE_MONITOR_ENABLED` | Set `true` after the first successful manual report to enable daily checks. |
+| `SUPABASE_STORAGE_QUOTA_MB` | Current project storage quota in MiB |
+| `SUPABASE_STORAGE_WARN_PERCENT` | Actions warning threshold; default `70` |
+| `SUPABASE_STORAGE_FAIL_PERCENT` | Failure threshold; default `90`, must exceed warning |
+| `PRIVATE_GENERATED_RETENTION_DAYS` | Private generated-artifact review age; default `30` |
+| `STORAGE_MONITOR_ENABLED` | Set `true` after quota/threshold review to enable daily checks |
 
 At the warning threshold the workflow emits an Actions warning. At the fail
 threshold it exits non-zero so normal GitHub Actions failure notifications can
-surface the problem.
+surface the issue.
 
 Retention is intentionally non-destructive:
 
 - private `inbox/` source files and `source-metadata/` provenance are retained
-  until the owner explicitly cleans them up;
-- public catalog packs are retained until deliberately delisted/replaced;
+  until explicit owner cleanup;
+- approved public catalog packs stay until deliberately delisted/replaced;
 - private `generated/YYYY-MM-DD/` artifacts older than the configured window are
-  listed by day, object count and bytes as **review candidates only**;
+  listed as review candidates only;
 - no scheduled job automatically deletes source media, provenance, approved
   public packs or generated archives.
 
-This gives a concrete cleanup policy without risking silent loss of licensed
-source material or the only copy of a generated pack. Review the candidate list
-and delete only intentionally through Supabase/admin tooling.
-
 ## 7. Build the Android app against Supabase
 
-The catalog URL is:
+The public catalog base URL is:
 
 ```text
-https://PROJECT.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/
+https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/
 ```
 
 For a local release candidate:
 
 ```sh
-gradle -PcatalogBaseUrl="https://PROJECT.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/" \
+gradle -PcatalogBaseUrl="https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/" \
   :app:testDebugUnitTest :app:assembleRelease
 ```
 
@@ -229,27 +271,35 @@ For signed GitHub release candidates, create `android-production` secrets:
 
 Set its `CATALOG_BASE_URL` environment variable to the URL above. Run
 **Signed Android release candidate**. The protected job produces a signed APK and
-AAB retained as private workflow artifacts for 14 days. This workflow does not
-publish to an app store or create a GitHub release automatically.
-
-GitHub Releases is sufficient for free APK distribution to testers. Use Play
-Console for a public Android release. Vercel hosts the optional creator/editor;
-Supabase remains the database and storage layer.
+AAB retained as private workflow artifacts. This workflow does not publish to an
+app store or create a GitHub release automatically.
 
 ## Production evidence and remaining release gates
 
-Automated tests cover persistent state archives, traversal rejection, inbox
-deduplication, private pending uploads, GENERAL-only publishing, catalog URL
-validation, rate-limit cooldowns, actual GIF/MP4 conversion, ZIP checksums,
-Creator queue validation/status parsing, atomic claim client behavior, source
-hash checks, fail-closed rights metadata, recursive storage accounting,
-quota/threshold decisions, retention-candidate classification and Android
-compilation. CI builds a debug APK and optimized release on every push/PR.
+Production evidence completed October 13, 2026 includes:
 
-Before calling the app generally available, complete one live scheduled day,
-inspect its Groq quota metrics, publish/import the resulting pack, complete one
-live Creator queue smoke test, run the storage monitor once against the real
-project/quota, and test the signed APK on the Galaxy S24 Ultra against WhatsApp
-and WhatsApp Business. The current development environment cannot perform
-Groq/Supabase live calls because its outbound proxy rejects those hosts before
-the request reaches the provider.
+- Supabase migration dry-run/apply plus RLS/grant/function/bucket verification;
+- live Supabase/Groq credential and current-model validation;
+- controlled 5/5 Factory generation plus real-config resume to 10/40;
+- private pack checksum verification and confirmation that public storage stayed
+  empty;
+- real Creator queue/vision/result/provenance/status smoke with cleanup;
+- headless Chromium manual Studio and AI-interaction testing;
+- live read-only storage scan (about 4.01 MB private, zero public, no 30-day
+  retention candidates).
+
+Remaining release gates are intentionally narrower:
+
+- complete one normal-cooldown **40/40** Factory day, review it, publish one
+  approved GENERAL pack and import it into Android;
+- configure/deploy Vercel Studio and run the hosted authenticated browser/API
+  smoke;
+- configure the actual Supabase storage quota and enable daily storage monitoring
+  only after threshold review;
+- connect an approved Pinterest app/token/board IDs and run one official-board
+  sync;
+- configure Android signing/catalog release settings and perform Galaxy S24 Ultra
+  tests for WhatsApp/Business installation, animation and 10k+/process-death
+  migration behavior;
+- finish privacy policy, app identity, store listing and production regression
+  work before general availability.
