@@ -1,0 +1,107 @@
+name: Patch production runtime defaults
+
+on:
+  push:
+    branches:
+      - chore/production-runtime-defaults
+    paths:
+      - '.github/workflows/patch-runtime-defaults.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chore/production-runtime-defaults
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/requirements-stickers.txt
+
+      - name: Apply exact runtime-default patches
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'tools/daily_stickers.py': [
+                  ('config.get("model", "llama-3.3-70b-versatile")',
+                   'config.get("model", "openai/gpt-oss-20b")'),
+              ],
+              'tools/production_worker.py': [
+                  ('config.get("model", "llama-3.3-70b-versatile")',
+                   'config.get("model", "openai/gpt-oss-20b")'),
+              ],
+              '.github/workflows/sticker-factory.yml': [
+                  ('SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+                   "SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qqicsllktmcmvmzplsxl.supabase.co' }}"),
+                  ('GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL }}',
+                   "GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b' }}"),
+                  ('GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL }}',
+                   "GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b' }}"),
+                  ('FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET }}',
+                   "FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET || '40' }}"),
+              ],
+              '.github/workflows/creator-request-worker.yml': [
+                  ('SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+                   "SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qqicsllktmcmvmzplsxl.supabase.co' }}"),
+                  ('GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL }}',
+                   "GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b' }}"),
+              ],
+              '.github/workflows/storage-usage.yml': [
+                  ('SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+                   "SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qqicsllktmcmvmzplsxl.supabase.co' }}"),
+              ],
+              '.github/workflows/publish-factory-pack.yml': [
+                  ('SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+                   "SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qqicsllktmcmvmzplsxl.supabase.co' }}"),
+              ],
+              '.github/workflows/pinterest-autosync.yml': [
+                  ('SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+                   "SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://qqicsllktmcmvmzplsxl.supabase.co' }}"),
+              ],
+          }
+
+          for name, pairs in replacements.items():
+              path = Path(name)
+              text = path.read_text()
+              for old, new in pairs:
+                  count = text.count(old)
+                  if count != 1:
+                      raise SystemExit(f'{name}: expected exactly one occurrence of {old!r}, found {count}')
+                  text = text.replace(old, new)
+              path.write_text(text)
+
+          for name in ('tools/daily_stickers.py', 'tools/production_worker.py', 'tools/factory-production.json'):
+              if 'llama-3.3-70b-versatile' in Path(name).read_text():
+                  raise SystemExit(f'{name}: deprecated Groq model remains')
+          PY
+
+      - name: Install test dependencies
+        run: python -m pip install -r tools/requirements-stickers.txt
+
+      - name: Run Python helper tests and syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q tools
+          python -m unittest discover -s tools/tests -p 'test_*.py'
+
+      - name: Commit validated defaults and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/patch-runtime-defaults.yml
+          git config user.name "dvajjala-ui"
+          git config user.email "dvajjala@gmail.com"
+          git add -A
+          git commit -m "Use current production runtime defaults"
+          git push origin HEAD:chore/production-runtime-defaults
