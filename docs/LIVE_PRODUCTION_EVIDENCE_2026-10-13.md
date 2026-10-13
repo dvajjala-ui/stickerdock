@@ -194,16 +194,21 @@ thresholds cannot be evaluated yet. The monitor never deletes remote objects.
 ## Android production signing configuration
 
 - Workflow run: `38398554181`
-- Result: **blocked by missing environment configuration before Gradle/signing**
+- Result: **blocked by missing signing configuration before Gradle/signing**
 
-The real `android-production` environment exists and the job entered it, but the
-presence-only check found all five required release values empty:
+The real `android-production` environment exists and the earlier presence-only
+check found these signing secrets empty:
 
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
-- `CATALOG_BASE_URL`
+
+At the time of that probe `CATALOG_BASE_URL` was also unset. That is no longer a
+release blocker: the signed-release workflow now defaults to the deployed
+Supabase public catalog and retains `CATALOG_BASE_URL` only as an optional
+environment override. The remaining Android configuration blocker is therefore
+the four signing secrets above.
 
 The job stopped before decoding a keystore, building or signing anything. This is
 therefore a configuration blocker, not a known Android build/signature failure.
@@ -225,7 +230,7 @@ run `38398846749`; post-job cleanup was the only work still running when inspect
   `/api/*` browser smoke against the hosted URL.
 - Configure the real Supabase storage quota before enabling meaningful daily
   percentage thresholds.
-- Configure the five Android production values above, then build/sign a release
+- Configure the four Android signing secrets above, then build/sign a release
   candidate and install/test it on the target Galaxy S24 Ultra.
 - Configure an approved Pinterest OAuth token plus numeric board IDs and perform
   one official-board sync.
