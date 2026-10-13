@@ -11,12 +11,12 @@ val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 
 android {
     namespace = "app.stickerdock.duo"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "app.stickerdock.duo"
         minSdk = 30
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 3
         versionName = "0.3.0"
         val defaultCatalog = "https://raw.githubusercontent.com/dvajjala-ui/stickerdock/main/catalog/"
