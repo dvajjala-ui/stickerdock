@@ -159,7 +159,12 @@ class FolderStickerImporter(
                         current
                     }
 
-                    when (files.importBytes(candidate.id, image, globalDedup = true)) {
+                    when (files.importBytes(
+                        candidate.id,
+                        image,
+                        globalDedup = true,
+                        label = name
+                    )) {
                         ImportResult.Added -> {
                             session.added++
                             packCounts[candidate.id] = (packCounts[candidate.id] ?: 0) + 1
