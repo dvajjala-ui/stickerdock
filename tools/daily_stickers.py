@@ -379,7 +379,7 @@ def run(config, root, font_path, now=None):
             mode = modes[batch_index % len(modes)]
             topic = topics[batch_index % len(topics)]
             image_path = None
-            model = config.get("model", "llama-3.3-70b-versatile")
+            model = config.get("model", "openai/gpt-oss-20b")
             if mode in ("photo", "clip"):
                 from video_stickers import CLIP_EXTENSIONS
                 input_dir = Path(config.get("image_directory", "reference-images"))

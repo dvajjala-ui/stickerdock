@@ -240,7 +240,7 @@ def configure(config, runtime, now):
     target = os.environ.get("FACTORY_DAILY_TARGET", "").strip()
     text_model = os.environ.get("GROQ_TEXT_MODEL", "").strip()
     config["daily_target"] = int(target or config.get("daily_target", 40))
-    config["model"] = text_model or config.get("model", "llama-3.3-70b-versatile")
+    config["model"] = text_model or config.get("model", "openai/gpt-oss-20b")
     vision = os.environ.get("GROQ_VISION_MODEL", config.get("vision_model", "")).strip()
     if vision:
         config["vision_model"] = vision
