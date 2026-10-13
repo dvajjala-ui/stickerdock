@@ -1,0 +1,148 @@
+name: Creator Studio Chromium smoke
+
+on:
+  push:
+    branches:
+      - test/live-factory-smoke-20261013
+    paths:
+      - '.github/workflows/studio-browser-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/live-factory-smoke-20261013
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Create browser fixture and serve Studio
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import binascii, struct, zlib
+          def chunk(kind, data):
+              body = kind + data
+              return struct.pack('>I', len(data)) + body + struct.pack('>I', binascii.crc32(body) & 0xffffffff)
+          png = b'\x89PNG\r\n\x1a\n'
+          png += chunk(b'IHDR', struct.pack('>IIBBBBB', 64, 64, 8, 6, 0, 0, 0))
+          row = b'\x00' + (b'\xe8\x45\x45\xff' * 64)
+          png += chunk(b'IDAT', zlib.compress(row * 64, 9))
+          png += chunk(b'IEND', b'')
+          open('/tmp/studio-source.png', 'wb').write(png)
+          PY
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/studio-http.log 2>&1 &
+          echo $! >/tmp/studio-http.pid
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/studio/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/studio-http.log
+          exit 1
+
+      - name: Navigate and exercise Creator Studio in Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'JS'
+          const assert = require('assert');
+          const fs = require('fs');
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+            const consoleErrors = [];
+            const pageErrors = [];
+            page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+            page.on('pageerror', err => pageErrors.push(String(err)));
+
+            const response = await page.goto('http://127.0.0.1:4173/studio/', { waitUntil: 'networkidle' });
+            assert(response && response.ok(), 'Studio page did not return HTTP 200');
+            assert.strictEqual(await page.title(), 'StickerDock Creator');
+            assert(await page.locator('text=Creator Studio').count() > 0, 'Creator Studio branding missing');
+            assert(await page.locator('#prompt').isDisabled(), 'AI prompt must remain disabled before live vision queue test');
+            assert(await page.locator('#generate').isDisabled(), 'AI generate control must remain disabled');
+            assert(await page.locator('#download').isDisabled(), 'Download should start disabled');
+            assert(await page.locator('#upload').isDisabled(), 'Upload should start disabled');
+
+            await page.setInputFiles('#file', '/tmp/studio-source.png');
+            await page.waitForFunction(() => !document.querySelector('#download').disabled);
+            assert(!(await page.locator('#upload').isDisabled()), 'Upload should enable after valid image load');
+            assert((await page.locator('#status').textContent()).includes('Image ready'), 'Ready status missing');
+
+            await page.locator('#caption').fill('Scene kya hai bhai?');
+            const rendered = await page.locator('#canvas').evaluate(c => c.toDataURL('image/png'));
+            assert(rendered.startsWith('data:image/png;base64,'), 'Canvas did not render a PNG');
+            assert(rendered.length > 500, 'Rendered canvas is unexpectedly empty');
+
+            const beforeStyle = rendered;
+            await page.locator('#fill').evaluate(el => { el.value = '#ffee33'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+            await page.locator('#font-size').evaluate(el => { el.value = '68'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+            const afterStyle = await page.locator('#canvas').evaluate(c => c.toDataURL('image/png'));
+            assert.notStrictEqual(afterStyle, beforeStyle, 'Caption styling did not redraw the canvas');
+
+            const box = await page.locator('#canvas').boundingBox();
+            assert(box, 'Canvas has no visible bounding box');
+            await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.8);
+            await page.mouse.down();
+            await page.mouse.move(box.x + box.width * 0.35, box.y + box.height * 0.55, { steps: 4 });
+            await page.mouse.up();
+            const afterDrag = await page.locator('#canvas').evaluate(c => c.toDataURL('image/png'));
+            assert.notStrictEqual(afterDrag, afterStyle, 'Caption drag did not reposition/redraw');
+
+            const downloadPromise = page.waitForEvent('download');
+            await page.click('#download');
+            const download = await downloadPromise;
+            assert(download.suggestedFilename().startsWith('stickerdock-') && download.suggestedFilename().endsWith('.png'), 'Unexpected download filename');
+            await download.saveAs('/tmp/studio-download.png');
+            assert(fs.statSync('/tmp/studio-download.png').size > 500, 'Downloaded PNG is unexpectedly small');
+
+            await page.click('#upload');
+            await page.waitForFunction(() => document.querySelector('#status').textContent.includes('Enter your creator token first.'));
+            assert((await page.locator('#status').textContent()).includes('Enter your creator token first.'), 'Missing token error not surfaced');
+            assert(!(await page.locator('#upload').isDisabled()), 'Upload button did not recover after token error');
+
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.waitForTimeout(100);
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+            assert(overflow <= 1, `Mobile layout has horizontal overflow: ${overflow}px`);
+            await page.screenshot({ path: '/tmp/studio-mobile.png', fullPage: true });
+
+            assert.deepStrictEqual(pageErrors, [], `Page errors: ${pageErrors.join(' | ')}`);
+            assert.deepStrictEqual(consoleErrors, [], `Console errors: ${consoleErrors.join(' | ')}`);
+            console.log(JSON.stringify({
+              http: response.status(),
+              image_upload: 'pass',
+              canvas_caption: 'pass',
+              style_controls: 'pass',
+              caption_drag: 'pass',
+              png_download_bytes: fs.statSync('/tmp/studio-download.png').size,
+              missing_token_guard: 'pass',
+              mobile_overflow_px: overflow,
+              ai_controls_disabled: true
+            }));
+            await browser.close();
+          })().catch(error => { console.error(error); process.exit(1); });
+          JS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: creator-studio-chromium-smoke
+          path: |
+            /tmp/studio-mobile.png
+            /tmp/studio-download.png
+          if-no-files-found: ignore
+          retention-days: 3
