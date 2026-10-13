@@ -16,7 +16,8 @@ tests/builds. It does not replace live account, device or provider testing.
 3. **AI meme editor** — shown as **Coming soon** in Android. A manual-editor
    Vercel preview and a private asynchronous Studio → Factory request/result
    queue are implemented. The queue keeps Groq and Supabase service credentials
-   server-side and is intentionally manual-only until live provider testing.
+   server-side. Its backend path has passed a live provider smoke test; the
+   worker remains manual-only while the hosted Studio/auth rollout is still gated.
 
 ## Complete in source
 
@@ -97,6 +98,33 @@ tests/builds. It does not replace live account, device or provider testing.
   no broad `storage.objects` SELECT policy exists for client roles.
 - All three `updated_at` triggers are present.
 
+### Live production smoke evidence — October 13, 2026
+
+- The merged `main` commit `00767afa` passed the normal Android debug workflow.
+- A controlled real Groq + Supabase Factory run generated 5/5 GENERAL stickers,
+  persisted `factory_runs=complete`, stored a pending private pack with a verified
+  19,715-byte ZIP, and left the public bucket empty.
+- A second run used the real `tools/factory-production.json` and resumed the
+  persisted state from 5 to 10/40 instead of starting over. The runtime archive
+  contained all 10 records, the live reference library contained two assets,
+  and the public bucket remained empty.
+- Creator Studio passed a real headless-Chromium interaction smoke: local image
+  upload, canvas/caption rendering, style changes, caption drag, PNG download,
+  missing-token guard and a 390px mobile viewport with zero horizontal overflow.
+  AI controls remained disabled.
+- The Creator request backend passed an isolated live queue → atomic claim → Groq
+  vision → local render → private result test using the same queue helper as the
+  Studio API. It completed in one attempt and produced a valid 512×512 static
+  WebP with verified provenance. The test row and all four temporary storage
+  objects were removed afterward.
+- The real storage monitor reported seven private objects totaling 4,204,527
+  bytes, zero public objects and no retention candidates. The quota variable is
+  not configured yet, so percentage-based warning/failure thresholds could not
+  be evaluated.
+
+Detailed run IDs and exact outputs are recorded in
+[`LIVE_PRODUCTION_EVIDENCE_2026-10-13.md`](LIVE_PRODUCTION_EVIDENCE_2026-10-13.md).
+
 ### Image and video sources
 
 - Manual private Supabase/Creator Studio upload with exact-hash deduplication.
@@ -117,35 +145,39 @@ tests/builds. It does not replace live account, device or provider testing.
 - Upload of edited output to the private factory inbox.
 - Server-side Vercel functions keep Supabase service credentials out of browser
   code. `STUDIO_ACCESS_TOKEN` protects private Studio API requests.
-- Authenticated AI queue/status server routes are implemented, but the visible
-  AI control remains disabled and labeled Coming soon until live validation.
+- Authenticated AI queue/status server routes are implemented. The queue helper,
+  live Supabase claim, Groq vision and private result path are now provider-tested;
+  the visible AI control remains disabled until the deployed Vercel token-gated
+  HTTP route is verified and rollout is intentionally enabled.
 - Edited inbox images retain their original rights metadata. Uploaded images
   are decoded and verified before they enter the factory.
 
 ## Partially complete — needs live verification or configuration
 
-- **Production deployment:** both Supabase migrations are applied and verified;
-  remaining work is repository/Vercel secrets and variables plus the first live
-  Factory/Creator smoke runs.
-- **GitHub production configuration audit:** an October 13 one-shot check confirmed
-  `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, Groq model vars,
-  factory target/enable vars and storage-monitor vars are still unset in Actions.
-  `SUPABASE_DB_PASSWORD` is configured for migration maintenance only.
-- **Groq capacity:** request budgeting and rate-limit headers are implemented;
-  the selected production models and real daily allowance need one full live day.
+- **Production activation:** migrations, Factory smoke/resume, Creator backend and
+  the first storage report are live-verified. The recurring Factory schedule is
+  still deliberately gated, and one complete 40-sticker day plus review/publish/
+  Android import is still required before treating the pipeline as fully proven.
+- **GitHub/Vercel configuration:** live Actions runs confirm the Groq and Supabase
+  service-role credentials used by the workers are present and usable. The
+  storage quota variable is not configured, Android signing/catalog environment
+  readiness still needs verification, and the hosted Vercel Studio token-gated
+  routes still need a real deployed HTTP smoke test.
+- **Groq capacity:** two live Factory requests and one live Creator vision request
+  succeeded. The selected production models and real daily allowance still need
+  one full live day and quota-header review.
 - **Pinterest account:** the connector is ready; it still needs an approved app,
   OAuth token and numeric authorized board IDs. Official video URLs may require
   separate Pinterest approval.
-- **Creator Studio AI queue:** schema, token-gated enqueue/status API, atomic
-  worker claim, provenance checks and manual worker are implemented and tested,
-  and the real Supabase schema is deployed. One live authenticated queue → worker
-  → result/status smoke test with Groq vision is still required. The workflow is
-  intentionally manual-only and the UI remains disabled until then.
-- **Storage monitoring:** report/threshold/retention-candidate logic and the daily
-  workflow are implemented and tested. Set the quota/threshold variables to the
-  real Supabase plan, run it manually once, then enable the daily schedule.
-- **Android release:** CI builds debug; signed release needs the owner's keystore
-  secrets and a configured Supabase catalog URL.
+- **Creator Studio AI rollout:** the queue, atomic worker claim, provenance checks
+  and Groq vision result path are live-verified. Keep the worker manual-only and
+  the UI disabled until the deployed Vercel authenticated enqueue/status route is
+  tested and an explicit rollout decision is made.
+- **Storage monitoring:** the first real report succeeded. Configure
+  `SUPABASE_STORAGE_QUOTA_MB` from the actual Supabase plan before enabling the
+  daily monitor so usage percentages and 70/90-percent thresholds are meaningful.
+- **Android release:** merged-main CI builds successfully; signed release still
+  needs verification of the `android-production` keystore secrets and catalog URL.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
 - **Large folder migration:** progress/checkpoint/resume logic compiles and the
@@ -154,10 +186,15 @@ tests/builds. It does not replace live account, device or provider testing.
 
 ## Still pending
 
-- Configure remaining repository/Vercel secrets and variables, then run the first
-  live Factory smoke run.
-- Run the private factory for a full day, review a completed pack, publish it,
-  import it into Android and record actual Groq usage/rate limits.
+- Run the private Factory for a complete 40-sticker UTC day, inspect actual Groq
+  quota/rate-limit metrics, review the completed pack, publish it deliberately,
+  import it into Android and verify the resulting public catalog end-to-end.
+- Verify the deployed Creator Studio `/api/*` routes with `STUDIO_ACCESS_TOKEN`;
+  only after that decide whether to expose the AI control or schedule its worker.
+- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and enable
+  `STORAGE_MONITOR_ENABLED=true` only after the percentage thresholds are known.
+- Verify the `android-production` signing secrets/catalog variable, build a signed
+  APK/AAB candidate and install it on the target Galaxy S24 Ultra.
 - Connect the Pinterest account and complete one official-board smoke sync.
 - Test folder import, animated previews and WhatsApp/Business pack installation
   on the Galaxy S24 Ultra.
@@ -166,13 +203,6 @@ tests/builds. It does not replace live account, device or provider testing.
   permission behavior.
 - Add authenticated community submission, malware scanning, rights review,
   report/block/moderation and age controls before accepting public uploads.
-- Enqueue one authenticated Studio request against real Supabase, manually run
-  **Creator request worker**, confirm its private result/status and actual Groq
-  vision behavior, then decide whether to schedule the worker and replace the
-  Coming soon UI.
-- Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan, manually run
-  **Supabase storage usage**, review the first retention-candidate report, then
-  set `STORAGE_MONITOR_ENABLED=true` for daily checks.
 - Add a dedicated image-generation provider if fully synthetic AI imagery is
   required. Groq currently supplies captions/reasoning; Pillow and supplied media
   create the visual output.
@@ -189,5 +219,6 @@ additionally uses `STUDIO_ACCESS_TOKEN` plus the Supabase URL/service-role key
 server-side. These values are deployment settings and are not source files or APK
 fields.
 
-See [production deployment](PRODUCTION_DEPLOYMENT.md) and
+See [production deployment](PRODUCTION_DEPLOYMENT.md),
+[live production evidence](LIVE_PRODUCTION_EVIDENCE_2026-10-13.md), and
 [Pinterest/Creator setup](PINTEREST_AND_CREATOR_STUDIO.md) for the exact steps.
