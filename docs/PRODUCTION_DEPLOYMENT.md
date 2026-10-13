@@ -46,16 +46,24 @@ The first migration creates:
 - `factory_runs`, readable only by the service role;
 - `sticker_packs`, where public database reads see only approved GENERAL rows;
 - private `sticker-factory-private` and public `sticker-factory-public` buckets;
-- a public read policy only for the public bucket.
+- explicit least-privilege table grants; the public Storage bucket is served by
+  Supabase's public object endpoint without a broad `storage.objects` SELECT/list
+  policy for anon/authenticated clients.
 
 The second migration creates:
 
-- `creator_requests`, with RLS enabled and intentionally no public/anon/authenticated
-  policy;
+- `creator_requests`, with RLS enabled and explicit service-role-only table
+  privileges;
 - a bounded queued/running/complete/failed/cancelled lifecycle;
 - an index for queued work;
 - the service-role-only `claim_creator_request(text)` function using
-  `FOR UPDATE SKIP LOCKED` to prevent duplicate claims.
+  `SECURITY INVOKER`, an empty `search_path`, and `FOR UPDATE SKIP LOCKED` to
+  prevent duplicate claims without granting elevated function privileges.
+
+After both migrations, run `supabase/verify_sticker_factory.sql`. It is read-only
+and reports the three tables/RLS flags, Data API grants, policies, Creator claim
+function security/EXECUTE grants, both Storage buckets and the update triggers.
+The old `read public factory artifacts` Storage policy should return no row.
 
 Copy the project URL and service-role key from the Supabase project settings.
 The service-role key belongs only in trusted server-side deployments such as
