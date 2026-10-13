@@ -22,7 +22,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GROQ_VISION_MODEL: qwen/qwen3.8-27b
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check for queued or recoverable Creator work
         id: queue
         shell: bash
@@ -45,7 +45,7 @@ jobs:
               output.write('has_queue=' + ('true' if rows else 'false') + '\n')
           print('Creator work found' if rows else 'Creator queue is empty')
           PY
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         if: steps.queue.outputs.has_queue == 'true'
         with:
           python-version: '3.12'

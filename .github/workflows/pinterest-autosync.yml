@@ -28,8 +28,8 @@ jobs:
       PINTEREST_TOPICS: ${{ vars.PINTEREST_TOPICS }}
       PINTEREST_PIN_RIGHTS_JSON: ${{ secrets.PINTEREST_PIN_RIGHTS_JSON }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
