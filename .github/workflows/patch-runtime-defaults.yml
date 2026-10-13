@@ -27,13 +27,13 @@ jobs:
             tools/requirements-stickers.txt
             tools/requirements-pinterest.txt
 
-      - name: Apply exact runtime-default patches
+      - name: Replace deprecated Python model fallbacks
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          exact = {
+          replacements = {
               'tools/daily_stickers.py': (
                   'config.get("model", "llama-3.3-70b-versatile")',
                   'config.get("model", "openai/gpt-oss-20b")',
@@ -43,40 +43,13 @@ jobs:
                   'config.get("model", "openai/gpt-oss-20b")',
               ),
           }
-          for name, (old, new) in exact.items():
+          for name, (old, new) in replacements.items():
               path = Path(name)
               text = path.read_text()
               count = text.count(old)
               if count != 1:
                   raise SystemExit(f'{name}: expected one deprecated fallback, found {count}')
               path.write_text(text.replace(old, new))
-
-          def replace_env_line(name, key, value):
-              path = Path(name)
-              lines = path.read_text().splitlines()
-              matches = [i for i, line in enumerate(lines) if line.lstrip().startswith(key + ':')]
-              if len(matches) != 1:
-                  raise SystemExit(f'{name}: expected one {key} line, found {len(matches)}')
-              i = matches[0]
-              indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
-              lines[i] = f'{indent}{key}: {value}'
-              path.write_text('\n'.join(lines) + '\n')
-
-          project_url = 'https://qqicsllktmcmvmzplsxl.supabase.co'
-          for name in (
-              '.github/workflows/sticker-factory.yml',
-              '.github/workflows/creator-request-worker.yml',
-              '.github/workflows/storage-usage.yml',
-              '.github/workflows/publish-factory-pack.yml',
-              '.github/workflows/pinterest-autosync.yml',
-          ):
-              replace_env_line(name, 'SUPABASE_URL', project_url)
-
-          for name in (
-              '.github/workflows/sticker-factory.yml',
-              '.github/workflows/creator-request-worker.yml',
-          ):
-              replace_env_line(name, 'GROQ_VISION_MODEL', 'qwen/qwen3.8-27b')
 
           for name in (
               'tools/daily_stickers.py',
@@ -105,13 +78,12 @@ jobs:
           python -m compileall -q tools
           python -m unittest discover -s tools -p 'test_*.py' -v
 
-      - name: Commit validated defaults and remove this one-shot workflow
+      - name: Commit validated Python defaults
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/patch-runtime-defaults.yml
           git config user.name "dvajjala-ui"
           git config user.email "dvajjala@gmail.com"
-          git add -A
-          git commit -m "Use current production runtime defaults"
+          git add tools/daily_stickers.py tools/production_worker.py
+          git commit -m "Use current Groq text model fallback"
           git push origin HEAD:chore/production-runtime-defaults
