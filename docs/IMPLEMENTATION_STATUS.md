@@ -64,7 +64,9 @@ real-device acceptance or store-release testing.
   enqueue/status API, atomic service-role claim using `FOR UPDATE SKIP LOCKED`,
   bounded retries and a GitHub worker. The worker checks the queue every 10
   minutes, skips dependency setup when idle, and can drain up to five requests in
-  one active run.
+  one active run. Running claims older than 20 minutes are recovered: attempts
+  below five are requeued, while stale fifth-attempt claims are failed instead of
+  remaining permanently stuck.
 - Creator request results stay in the private inbox. The worker verifies the
   source object's SHA-256 path, reuses the existing Groq vision + local renderer,
   preserves source rights, treats missing rights metadata as `REFERENCE_ONLY`,
@@ -87,15 +89,18 @@ real-device acceptance or store-release testing.
 
 ### Live Supabase / Groq verification
 
-- Both production migrations were applied successfully on October 13, 2026 after
-  a successful `supabase db push --dry-run`.
+- All three production migrations were applied successfully on October 13, 2026
+  after successful `supabase db push --dry-run` checks. The third migration adds
+  recoverable Creator-worker leases and a partial running-request index.
 - Post-deployment verification confirmed RLS is enabled on `factory_runs`,
   `sticker_packs` and `creator_requests`.
 - `factory_runs` and `creator_requests` expose table privileges only to
   `service_role`; `sticker_packs` exposes client SELECT only and RLS limits those
   reads to approved `GENERAL` rows.
 - `claim_creator_request(text)` is `SECURITY INVOKER`, uses an empty search path,
-  and grants EXECUTE only to `service_role`.
+  grants EXECUTE only to `service_role`, retains `FOR UPDATE SKIP LOCKED`, and
+  contains the verified 20-minute stale-lease recovery with the five-attempt
+  ceiling. The live deployment reported zero stale running requests after apply.
 - `sticker-factory-private` is private, `sticker-factory-public` is public, and
   no broad `storage.objects` SELECT policy exists for client roles.
 - All three `updated_at` triggers are present.
@@ -144,7 +149,8 @@ real-device acceptance or store-release testing.
   uppercase toggle and PNG download.
 - Upload of edited output to the private factory inbox.
 - Server-side Python functions keep Supabase service credentials out of browser
-  code. `STUDIO_ACCESS_TOKEN` protects private Studio API requests.
+  code. `STUDIO_ACCESS_TOKEN` protects private Studio API requests and must be
+  32–256 characters; short or oversized deployment tokens fail closed.
 - The browser AI control is enabled in merged source. For a local image it first
   creates a private inbox source, enqueues `/api/captions`, polls the request
   status and loads the private result back into the editor when complete.
@@ -165,9 +171,9 @@ real-device acceptance or store-release testing.
 
 - **Hosted Creator Studio deployment:** source and real backend queue/worker are
   validated, but no production Vercel URL or Vercel environment configuration has
-  been verified yet. Configure `STUDIO_ACCESS_TOKEN`, `SUPABASE_URL` and
-  `SUPABASE_SERVICE_ROLE_KEY` server-side and run a hosted browser smoke before
-  treating Studio as remotely available.
+  been verified yet. Configure a random 32–256 character `STUDIO_ACCESS_TOKEN`,
+  `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` server-side and run a hosted
+  browser smoke before treating Studio as remotely available.
 - **Full-day Factory capacity:** the real Factory generated/resumed to 10/40 and
   Groq models authenticate successfully. Keep the recurring Factory schedule
   disabled until one normal-cooldown 40-sticker day completes and actual
@@ -234,10 +240,11 @@ configured: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
 the production Supabase catalog by default; `CATALOG_BASE_URL` is now an optional
 override rather than a required release value.
 
-The hosted Creator Studio additionally requires `STUDIO_ACCESS_TOKEN`,
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the Vercel/server environment.
-Those hosted settings have not yet been verified. Credentials are deployment
-settings and must not be embedded in source files or the APK.
+The hosted Creator Studio additionally requires a random 32–256 character
+`STUDIO_ACCESS_TOKEN`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the
+Vercel/server environment. Those hosted settings have not yet been verified.
+Credentials are deployment settings and must not be embedded in source files or
+the APK.
 
 See [production deployment](PRODUCTION_DEPLOYMENT.md),
 [live production evidence](LIVE_PRODUCTION_EVIDENCE_2026-10-13.md), and
