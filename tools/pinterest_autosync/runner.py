@@ -7,7 +7,7 @@ import random
 import time
 from pathlib import Path
 
-from .connectors import OfficialBoards, PublicTopics
+from .connectors import OfficialBoards, PinterestAccessDenied, PublicTopics
 from .database import Database
 from .downloader import StorageLimitReached, UnsupportedMedia, save_candidate
 from .models import Candidate
@@ -102,6 +102,10 @@ def run_scan(config: dict, root: Path, official=None, public=None, db=None) -> d
             try:
                 items.extend(official.discover(
                     int(limits["official_api_requests_per_rolling_24h"])))
+            except PinterestAccessDenied:
+                # Authentication failure needs operator action. Do not turn it
+                # into a misleading successful run with zero discoveries.
+                raise
             except Exception:
                 LOG.exception("Official Pinterest discovery failed")
         if config["unofficial"].get("enabled", False):

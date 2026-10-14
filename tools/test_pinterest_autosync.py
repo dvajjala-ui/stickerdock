@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from pinterest_autosync.config import load_config
-from pinterest_autosync.connectors import APIBudgetExceeded, OfficialBoards, PublicTopics
+from pinterest_autosync.connectors import APIBudgetExceeded, OfficialBoards, PinterestAccessDenied, PublicTopics
 from pinterest_autosync.database import Database
 from pinterest_autosync.downloader import StorageLimitReached, UnsupportedMedia, official_download, validate_cdn_url
 from pinterest_autosync.runner import AlreadyRunning, ProcessLock, run_scan
@@ -73,6 +73,11 @@ class FakeOfficial:
         return []
 
 
+class DeniedOfficial:
+    def discover(self, _):
+        raise PinterestAccessDenied("expired")
+
+
 class PinterestAutoSyncTest(unittest.TestCase):
     def test_failures_are_bounded_by_attempt_budget(self):
         self.config["limits"]["max_attempts_per_scan"] = 4
@@ -81,6 +86,11 @@ class PinterestAutoSyncTest(unittest.TestCase):
         self.assertEqual(save.call_count, 4)
         self.assertEqual(result["download_attempts"], 4)
         self.assertEqual(result["failed"], 4)
+
+    def test_official_auth_failure_fails_the_run(self):
+        self.config["official"]["enabled"] = True
+        with self.assertRaises(PinterestAccessDenied):
+            run_scan(self.config, self.root, official=DeniedOfficial(), public=FakePublic(0))
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
