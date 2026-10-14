@@ -28,6 +28,7 @@ Pinterest remains a separate optional source integration:
 | Type | Exact name | Purpose |
 | --- | --- | --- |
 | Secret | `PINTEREST_ACCESS_TOKEN` | OAuth access token from an approved Pinterest developer app |
+| Variable | `PINTEREST_OFFICIAL_ENABLED` | Optional official-connector switch; set `false` while Pinterest app access is pending |
 | Variable | `PINTEREST_BOARD_IDS` | Optional comma-separated board IDs; when omitted, the worker discovers boards authorized for the account |
 | Secret | `PINTEREST_PIN_RIGHTS_JSON` | Per-Pin reuse rights for Pins you own or may legally reuse |
 | Variable | `PINTEREST_SYNC_ENABLED` | Set to `true` only after a successful manual workflow smoke |

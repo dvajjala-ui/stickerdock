@@ -212,9 +212,11 @@ Pinterest boards with rolling budgets, retry/dedup and private provenance.
 Pinterest defaults to `REFERENCE_ONLY`; public publishing refuses those derived
 pixels unless explicit compatible rights metadata exists.
 
-Pinterest production remains blocked on external configuration: approved app,
-OAuth token and numeric authorized board IDs. Optional public-topic discovery is
-disabled by default and remains REFERENCE_ONLY.
+Pinterest's developer dashboard currently shows Trial access pending for
+`apphidwarkesh`, and the supplied token was rejected by API v5. The public-topic
+adapter is configured as a private `REFERENCE_ONLY` fallback while the official
+connector is paused. Official board sync still requires Pinterest approval and a
+fresh OAuth token; board IDs can then be discovered automatically.
 
 `tools/video_stickers.py` converts authorized GIF/MP4/WebM/MOV inputs to bounded
 captioned animated WebP using FFmpeg. This does not imply device-side animated
@@ -234,8 +236,8 @@ first storage report unless a later change specifically invalidates them.
    environment values, and run the hosted authenticated browser/API smoke.
 4. Configure the actual Supabase storage quota/thresholds, then optionally enable
    daily storage monitoring.
-5. Connect an approved Pinterest app/token/board IDs and run one official-board
-   smoke sync.
+5. After Pinterest approves the app, generate a fresh token, re-enable the
+   official connector and run one official-board smoke sync.
 6. Configure Android signing/catalog release settings.
 7. On Galaxy S24 Ultra test WhatsApp + WhatsApp Business install, animated
    previews, folder URI persistence, cancel/retry and forced process-death

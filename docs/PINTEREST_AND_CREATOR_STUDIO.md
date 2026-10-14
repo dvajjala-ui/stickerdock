@@ -32,6 +32,7 @@ and refuses any pack made with `REFERENCE_ONLY` pixels.
 | Type | Name | Example/purpose |
 | --- | --- | --- |
 | Secret | `PINTEREST_ACCESS_TOKEN` | Approved OAuth token |
+| Variable | `PINTEREST_OFFICIAL_ENABLED` | Set `false` while app access is pending; unset/`true` uses the stored token |
 | Variable | `PINTEREST_BOARD_IDS` | Optional comma-separated numeric IDs; omit to discover all boards authorized for the account |
 | Variable | `PINTEREST_DAILY_TARGET` | `90` (maximum `100`) |
 | Variable | `PINTEREST_PER_RUN` | `30` maximum |
@@ -70,7 +71,9 @@ metadata automatically.
 
 ### Optional public-topic discovery
 
-The uploaded Pinterest AutoSync v2 topic adapter is included but disabled. To
+The uploaded Pinterest AutoSync v2 topic adapter is included but disabled by
+default. It can keep a private reference inbox moving while official app access
+is pending. To
 try it, set:
 
 - `PINTEREST_UNOFFICIAL_ENABLED=true`

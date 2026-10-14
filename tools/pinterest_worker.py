@@ -48,10 +48,16 @@ def configure(config: dict) -> tuple[dict, dict[str, str]]:
     config = json.loads(json.dumps(config))
     boards = csv_values(os.environ.get("PINTEREST_BOARD_IDS", ""), r"\d{5,25}")
     token = os.environ.get("PINTEREST_ACCESS_TOKEN", "").strip()
+    official_setting = os.environ.get("PINTEREST_OFFICIAL_ENABLED", "").strip().lower()
+    if official_setting not in {"", "true", "false"}:
+        raise ValueError("PINTEREST_OFFICIAL_ENABLED must be true or false")
+    official_enabled = bool(token) and official_setting != "false"
+    if official_setting == "true" and not token:
+        raise ValueError("PINTEREST_OFFICIAL_ENABLED requires PINTEREST_ACCESS_TOKEN")
     config["official"]["boards"] = [{"id": board, "enabled": True} for board in boards]
     # With an OAuth token, an empty board list means discover this account's
     # accessible boards through Pinterest's official /v5/boards endpoint.
-    config["official"]["enabled"] = bool(token)
+    config["official"]["enabled"] = official_enabled
 
     unofficial = os.environ.get("PINTEREST_UNOFFICIAL_ENABLED", "").lower() == "true"
     topics = csv_values(os.environ.get("PINTEREST_TOPICS", ""), maximum=20)

@@ -58,7 +58,7 @@ real-device acceptance or store-release testing.
   only. App backup remains disabled and no broad storage/camera/location/account
   permission is requested.
 - Android now compiles and targets API 36 with AGP 8.9.1 and Gradle 8.11.1. The
-  current local path passes the 116-test production Python helper suite, Android unit
+  current local path passes the 118-test production Python helper suite, Android unit
   tests, `lintRelease`, debug/release APK assembly and release AAB construction.
   Production workflows use the current Node-24 GitHub Action lines validated in
   CI (`checkout@v7`, `setup-python@v7`, `setup-java@v6`, `setup-gradle@v6` and
@@ -220,9 +220,11 @@ real-device acceptance or store-release testing.
   gate open until one full UTC day naturally reaches 40/40 and actual
   usage/rate-limit behavior is reviewed. Set `STICKER_FACTORY_ENABLED=false` only
   to pause production if an operational issue appears.
-- **Pinterest account:** the connector is ready; it still needs an approved app,
-  OAuth token and numeric authorized board IDs. Official video URLs may require
-  separate Pinterest approval.
+- **Pinterest account:** app `apphidwarkesh` exists, but Pinterest currently shows
+  Trial access pending and rejected the supplied OAuth token. The scheduled worker
+  can run the user-provided public-topic adapter into the private
+  `REFERENCE_ONLY` inbox while official access is paused. Official video URLs may
+  require separate Pinterest approval.
 - **Storage monitoring thresholds:** the first live read-only scan passed. The
   actual Supabase plan quota is still unknown to the workflow, so configure
   `SUPABASE_STORAGE_QUOTA_MB` and review the intended warning/failure thresholds
@@ -257,7 +259,8 @@ real-device acceptance or store-release testing.
 - Let the active private Factory schedule complete a natural 40/40 UTC day,
   review the completed pack, publish one approved GENERAL pack, import it into
   Android and record actual Groq usage/rate limits.
-- Connect the Pinterest account and complete one official-board smoke sync.
+- After Pinterest approves the app, generate a fresh OAuth token, enable the
+  official connector and complete one authorized-board smoke sync.
 - Configure `SUPABASE_STORAGE_QUOTA_MB` from the actual project plan and, after
   reviewing the first successful report-only scan, set
   `STORAGE_MONITOR_ENABLED=true` for daily checks.

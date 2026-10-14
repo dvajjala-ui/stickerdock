@@ -76,6 +76,23 @@ class PinterestWorkerTest(unittest.TestCase):
         self.assertTrue(result["official"]["enabled"])
         self.assertEqual(result["official"]["boards"], [])
 
+    def test_official_connector_can_be_paused_while_trial_access_is_pending(self):
+        config = json.loads((Path(__file__).parent / "pinterest-production.json").read_text())
+        with patch.dict(os.environ, {
+                "PINTEREST_ACCESS_TOKEN": "pending-token",
+                "PINTEREST_OFFICIAL_ENABLED": "false",
+                "PINTEREST_UNOFFICIAL_ENABLED": "true",
+                "PINTEREST_TOPICS": "india reaction memes"}, clear=True):
+            result, _ = pinterest_worker.configure(config)
+        self.assertFalse(result["official"]["enabled"])
+        self.assertTrue(result["unofficial"]["enabled"])
+
+    def test_explicit_official_mode_requires_a_token(self):
+        config = json.loads((Path(__file__).parent / "pinterest-production.json").read_text())
+        with patch.dict(os.environ, {"PINTEREST_OFFICIAL_ENABLED": "true"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "requires PINTEREST_ACCESS_TOKEN"):
+                pinterest_worker.configure(config)
+
     def test_per_pin_rights_are_validated(self):
         self.assertEqual(pinterest_worker.rights_map('{"12345":"USER_OWNED"}'),
                          {"12345": "USER_OWNED"})
