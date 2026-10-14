@@ -78,6 +78,20 @@ class DeniedOfficial:
         raise PinterestAccessDenied("expired")
 
 
+class BrokenPublic:
+    def discover(self):
+        raise RuntimeError("provider changed")
+
+
+class StrictPublicClient:
+    def __init__(self):
+        self.kwargs = None
+
+    def search(self, **kwargs):
+        self.kwargs = kwargs
+        return [DummyNative("123456789")]
+
+
 class PinterestAutoSyncTest(unittest.TestCase):
     def test_failures_are_bounded_by_attempt_budget(self):
         self.config["limits"]["max_attempts_per_scan"] = 4
@@ -91,6 +105,20 @@ class PinterestAutoSyncTest(unittest.TestCase):
         self.config["official"]["enabled"] = True
         with self.assertRaises(PinterestAccessDenied):
             run_scan(self.config, self.root, official=DeniedOfficial(), public=FakePublic(0))
+
+    def test_unofficial_only_failure_fails_the_run(self):
+        self.config["official"]["enabled"] = False
+        with self.assertRaisesRegex(RuntimeError, "provider changed"):
+            run_scan(self.config, self.root, official=FakeOfficial(), public=BrokenPublic())
+
+    def test_public_search_supplies_required_minimum_resolution(self):
+        client = StrictPublicClient()
+        config = dict(self.config["unofficial"])
+        config.update(enabled=True, topics=[{"query": "reaction memes", "enabled": True}],
+                      min_resolution=[256, 256])
+        found = PublicTopics(config, client=client).discover()
+        self.assertEqual([item.pin_id for item in found], ["123456789"])
+        self.assertEqual(client.kwargs["min_resolution"], (256, 256))
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

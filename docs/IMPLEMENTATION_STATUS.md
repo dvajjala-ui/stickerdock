@@ -58,7 +58,7 @@ real-device acceptance or store-release testing.
   only. App backup remains disabled and no broad storage/camera/location/account
   permission is requested.
 - Android now compiles and targets API 36 with AGP 8.9.1 and Gradle 8.11.1. The
-  current local path passes the 118-test production Python helper suite, Android unit
+  current local path passes the 120-test production Python helper suite, Android unit
   tests, `lintRelease`, debug/release APK assembly and release AAB construction.
   Production workflows use the current Node-24 GitHub Action lines validated in
   CI (`checkout@v7`, `setup-python@v7`, `setup-java@v6`, `setup-gradle@v6` and

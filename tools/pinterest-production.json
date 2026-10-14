@@ -29,6 +29,7 @@
     "enabled": false,
     "topics": [],
     "results_per_topic": 90,
+    "min_resolution": [256, 256],
     "request_delay_seconds": 1.25,
     "request_timeout_seconds": 20
   }

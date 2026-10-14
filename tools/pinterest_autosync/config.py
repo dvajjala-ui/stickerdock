@@ -43,6 +43,10 @@ def validate_config(config: dict) -> dict:
         raise ValueError("official.max_pages_per_board must be 1..30")
     if not 1 <= int(config["unofficial"]["results_per_topic"]) <= 500:
         raise ValueError("unofficial.results_per_topic must be 1..500")
+    resolution = config["unofficial"].get("min_resolution", [256, 256])
+    if (not isinstance(resolution, list) or len(resolution) != 2 or
+            any(not isinstance(value, int) or not 0 <= value <= 4096 for value in resolution)):
+        raise ValueError("unofficial.min_resolution must contain two integers from 0..4096")
     if (float(limits["delay_between_downloads_seconds"]) < 0 or
             float(config["unofficial"]["request_delay_seconds"]) < 0.4):
         raise ValueError("Download delay must be >= 0; unofficial delay must be >= 0.4 seconds")

@@ -205,19 +205,27 @@ class PublicTopics:
         if not self.cfg.get("enabled", False):
             return []
         collected = []
+        attempted = 0
+        succeeded = 0
+        resolution = tuple(int(value) for value in self.cfg.get("min_resolution", [256, 256]))
         for item in self.cfg["topics"]:
             if not item.get("enabled", True):
                 continue
             topic = str(item["query"]).strip()
             if not topic:
                 continue
+            attempted += 1
             try:
                 results = self._client().search(
                     query=topic, num=int(self.cfg["results_per_topic"]),
+                    min_resolution=resolution,
                     delay=float(self.cfg["request_delay_seconds"]))
+                succeeded += 1
                 collected.extend(self.from_native(media, topic) for media in results)
             except Exception:
                 LOG.exception("Public Pinterest topic discovery failed")
+        if attempted and not succeeded:
+            raise RuntimeError("All public Pinterest topic searches failed")
         return collected
 
     def get_single(self, pin_url: str) -> Candidate | None:

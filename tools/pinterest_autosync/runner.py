@@ -113,6 +113,8 @@ def run_scan(config: dict, root: Path, official=None, public=None, db=None) -> d
                 items.extend(public.discover())
             except Exception:
                 LOG.exception("Unofficial Pinterest discovery failed")
+                if not config["official"].get("enabled", False):
+                    raise
         stats["discovered"] = len(items)
         deduplicated = {candidate.key: candidate for candidate in old}
         for candidate in items:
