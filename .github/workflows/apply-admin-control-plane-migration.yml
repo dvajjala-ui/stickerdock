@@ -1,0 +1,85 @@
+name: Apply admin control plane migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-admin-control-plane-migration.yml'
+      - 'supabase/migrations/202610140001_admin_control_plane.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: qqicsllktmcmvmzplsxl
+      POOLER_HOST: aws-0-ap-south-1.pooler.supabase.com
+      POOLER_PORT: '5432'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Prepare production connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_DB_PASSWORD:-}" || { echo 'SUPABASE_DB_PASSWORD is not configured.' >&2; exit 2; }
+          DB_URL=$(python - <<'PY'
+          import os
+          from urllib.parse import quote
+          password = quote(os.environ['SUPABASE_DB_PASSWORD'], safe='')
+          print(
+              f"postgresql://postgres.{os.environ['PROJECT_REF']}:{password}"
+              f"@{os.environ['POOLER_HOST']}:{os.environ['POOLER_PORT']}/postgres?sslmode=require"
+          )
+          PY
+          )
+          echo "::add-mask::$DB_URL"
+          echo "DB_URL=$DB_URL" >> "$GITHUB_ENV"
+          test -f supabase/config.toml || supabase init
+
+      - name: Dry-run pending migrations
+        run: supabase db push --db-url "$DB_URL" --dry-run
+
+      - name: Apply pending migrations
+        run: supabase db push --db-url "$DB_URL"
+
+      - name: Verify admin control plane
+        shell: bash
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client
+          psql \
+            "host=$POOLER_HOST port=$POOLER_PORT dbname=postgres user=postgres.$PROJECT_REF sslmode=require" \
+            -v ON_ERROR_STOP=1 <<'SQL'
+          select to_regclass('public.admin_packs') as admin_packs,
+                 to_regclass('public.factory_settings') as factory_settings,
+                 to_regclass('public.content_briefs') as content_briefs,
+                 to_regclass('public.admin_events') as admin_events,
+                 to_regclass('public.catalog_leases') as catalog_leases;
+          select table_name, column_name
+          from information_schema.columns
+          where table_schema = 'public'
+            and table_name in ('admin_packs', 'content_briefs')
+            and column_name = 'references'
+          order by table_name;
+          select tablename, rowsecurity
+          from pg_tables
+          where schemaname = 'public'
+            and tablename in ('admin_packs','factory_settings','content_briefs','admin_events','catalog_leases')
+          order by tablename;
+          SQL
