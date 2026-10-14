@@ -1,8 +1,13 @@
 {
   "rewrites": [
+    {"source": "/admin", "destination": "/admin/index.html"},
+    {"source": "/admin/", "destination": "/admin/index.html"},
     {"source": "/privacy", "destination": "/studio/privacy.html"},
     {"source": "/", "destination": "/studio/index.html"}
   ],
+  "functions": {
+    "api/admin.py": {"includeFiles": "tools/**"}
+  },
   "headers": [
     {
       "source": "/(.*)",

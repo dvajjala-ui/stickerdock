@@ -21,6 +21,26 @@ class CommunityCatalogTest {
         assertEquals(1, listings.size)
         assertEquals("safe-pack", listings.single().id)
         assertEquals(base + "packs/safe.zip", listings.single().downloadUrl)
+        assertTrue(listings.single().categories.isEmpty())
+    }
+
+    @Test
+    fun parsesValidatedFactoryCategories() {
+        val listing = parse(
+            """{"id":"topic-pack","name":"Topics","creator":"StickerDock","file":"topics.zip","sha256":"$hashA","rating":"GENERAL","categories":["NEWS","MOVIES","HINGLISH"]}"""
+        ).single()
+
+        assertEquals(listOf(PackCategory.NEWS, PackCategory.MOVIES, PackCategory.HINGLISH), listing.categories)
+        assertRejected("Duplicate public pack category") {
+            parse(
+                """{"id":"duplicate-topics","name":"Topics","creator":"StickerDock","file":"topics.zip","sha256":"$hashA","rating":"GENERAL","categories":["NEWS","NEWS"]}"""
+            )
+        }
+        assertRejected("Invalid public pack category") {
+            parse(
+                """{"id":"bad-topic","name":"Topics","creator":"StickerDock","file":"topics.zip","sha256":"$hashA","rating":"GENERAL","categories":["TRENDING"]}"""
+            )
+        }
     }
 
     @Test

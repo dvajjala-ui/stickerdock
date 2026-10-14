@@ -42,9 +42,11 @@ object WebpSticker {
         return Details(animated, width, height, duration.toInt(), frames)
     }
     fun isAnimatedHeader(bytes: ByteArray): Boolean =
-        bytes.size >= 21 && ascii(bytes, 0, 4) == "RIFF" &&
-            ascii(bytes, 8, 4) == "WEBP" && ascii(bytes, 12, 4) == "VP8X" &&
+        isWebpHeader(bytes) && bytes.size >= 21 && ascii(bytes, 12, 4) == "VP8X" &&
             (bytes[20].toInt() and 0x02) != 0
+
+    fun isWebpHeader(bytes: ByteArray): Boolean =
+        bytes.size >= 12 && ascii(bytes, 0, 4) == "RIFF" && ascii(bytes, 8, 4) == "WEBP"
 
     private fun ascii(bytes: ByteArray, start: Int, length: Int) = String(bytes, start, length, Charsets.US_ASCII)
     private fun uint24(bytes: ByteArray, start: Int) =

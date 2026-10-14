@@ -28,8 +28,8 @@ class StickerStoreMigrationTest {
     }
 
     @Test
-    fun upgradesEveryLegacySchemaToV6WithoutLosingPackOrSticker() {
-        for (legacyVersion in 1..5) {
+    fun upgradesEveryLegacySchemaToV7WithoutLosingPackOrSticker() {
+        for (legacyVersion in 1..6) {
             context.deleteDatabase(DB_NAME)
             seedLegacyDatabase(legacyVersion)
 
@@ -68,7 +68,11 @@ class StickerStoreMigrationTest {
                 ).use { cursor ->
                     assertTrue("v$legacyVersion sha index", cursor.moveToFirst())
                 }
-                assertEquals(6, store.readableDatabase.version)
+                store.readableDatabase.rawQuery(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='folder_import_items'",
+                    null
+                ).use { cursor -> assertTrue("v$legacyVersion import journal", cursor.moveToFirst()) }
+                assertEquals(7, store.readableDatabase.version)
             } finally {
                 store.close()
             }
@@ -85,11 +89,14 @@ class StickerStoreMigrationTest {
                 if (version >= 5) append(", category TEXT NOT NULL DEFAULT 'GENERAL'")
             }
             db.execSQL("CREATE TABLE packs ($packColumns)")
+            val stickerMetadataColumns = if (version >= 6)
+                ", label TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT ''" else ""
             db.execSQL(
                 "CREATE TABLE stickers (" +
                     "id TEXT PRIMARY KEY, " +
                     "pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, " +
-                    "file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, " +
+                    "file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL" +
+                    stickerMetadataColumns + ", " +
                     "UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))"
             )
             db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
@@ -121,6 +128,54 @@ class StickerStoreMigrationTest {
         } finally {
             db.close()
         }
+    }
+
+    @Test
+    fun folderImportJournalTracksSourcesAndCascadesWithSession() {
+        val store = StickerStore(context)
+        try {
+            val pack = store.createPack("Imported")
+            val session = store.createFolderImport("content://tree/root", "Imported")
+            store.addFolderImportPack(session.id, pack.id)
+            store.recordFolderImportItem(session.id, "content://one.webp", "ADDED", 123)
+            store.recordFolderImportItem(session.id, "content://two.webp", "REJECTED", 0)
+
+            assertEquals(session, store.pendingFolderImport())
+            assertEquals(setOf(pack.id), store.folderImportPackIds(session.id))
+            assertEquals(setOf("content://one.webp", "content://two.webp"),
+                store.folderImportProcessedSources(session.id))
+            assertEquals(FolderImportStats(2, 0, 1, 123), store.folderImportStats(session.id))
+
+            store.deleteFolderImport(session.id)
+            assertEquals(null, store.pendingFolderImport())
+            assertTrue(store.folderImportProcessedSources(session.id).isEmpty())
+            assertTrue(store.folderImportPackIds(session.id).isEmpty())
+            assertEquals(0, store.stickerCount(pack.id))
+        } finally { store.close() }
+    }
+
+    @Test
+    fun folderImportStickerAndJournalOutcomeRollbackTogether() {
+        val store = StickerStore(context)
+        try {
+            val pack = store.createPack("Atomic")
+            val session = store.createFolderImport("content://tree/atomic", "Atomic")
+            store.addFolderImportPack(session.id, pack.id)
+
+            runCatching {
+                store.transaction {
+                    assertTrue(store.addSticker(StickerItem(
+                        "pending", pack.id, "pending.webp", "pending-hash", 1
+                    )))
+                    store.recordFolderImportItem(session.id, "content://pending.webp", "ADDED", 20)
+                    error("simulate interruption before commit")
+                }
+            }
+
+            assertEquals(0, store.stickerCount(pack.id))
+            assertTrue(store.folderImportProcessedSources(session.id).isEmpty())
+            assertEquals(FolderImportStats(0, 0, 0, 0), store.folderImportStats(session.id))
+        } finally { store.close() }
     }
 
     companion object {

@@ -20,6 +20,7 @@ import urllib.parse
 import urllib.request
 
 from PIL import Image, ImageOps
+from file_lock import acquire
 
 LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
 MEDIA_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".webm", ".mov"}
@@ -153,7 +154,6 @@ def save_asset(item, root):
 
 def sync(config, root, now=None):
     """One bounded hourly sync; failures count and cooldown survives midnight."""
-    import fcntl
     now = time.time() if now is None else now
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
     daily = config.get("daily_download_limit", 6)
@@ -164,9 +164,9 @@ def sync(config, root, now=None):
         raise ValueError("Invalid download budget")
     root.mkdir(parents=True, exist_ok=True)
     state_path = root / "library.json"
-    with (root / ".library.lock").open("a") as lock:
+    with (root / ".library.lock").open("a+b") as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquire(lock)
         except BlockingIOError:
             return {"status": "busy", "added": 0}
         state = {"day": day, "attempts": 0, "next_sync_at": 0, "assets": [], "query_index": 0}

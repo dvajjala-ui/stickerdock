@@ -49,7 +49,9 @@ def configure(config: dict) -> tuple[dict, dict[str, str]]:
     boards = csv_values(os.environ.get("PINTEREST_BOARD_IDS", ""), r"\d{5,25}")
     token = os.environ.get("PINTEREST_ACCESS_TOKEN", "").strip()
     config["official"]["boards"] = [{"id": board, "enabled": True} for board in boards]
-    config["official"]["enabled"] = bool(token and boards)
+    # With an OAuth token, an empty board list means discover this account's
+    # accessible boards through Pinterest's official /v5/boards endpoint.
+    config["official"]["enabled"] = bool(token)
 
     unofficial = os.environ.get("PINTEREST_UNOFFICIAL_ENABLED", "").lower() == "true"
     topics = csv_values(os.environ.get("PINTEREST_TOPICS", ""), maximum=20)
@@ -60,7 +62,7 @@ def configure(config: dict) -> tuple[dict, dict[str, str]]:
     if unofficial and not topics:
         raise ValueError("PINTEREST_TOPICS is required for unofficial discovery")
     if not config["official"]["enabled"] and not unofficial:
-        raise ValueError("Configure authorized Pinterest boards or explicitly enable topics")
+        raise ValueError("Configure a Pinterest access token or explicitly enable topics")
 
     daily = os.environ.get("PINTEREST_DAILY_TARGET", "").strip()
     per_run = os.environ.get("PINTEREST_PER_RUN", "").strip()

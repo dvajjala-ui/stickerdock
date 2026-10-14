@@ -123,6 +123,22 @@ class PinterestAutoSyncTest(unittest.TestCase):
             self.assertEqual(database.api_used_24h(), 1)
             self.assertNotIn("test-only", http.calls[0][0])
 
+    def test_official_connector_discovers_authorized_boards_when_ids_are_empty(self):
+        with Database(self.root / "discover.sqlite3") as database, patch.dict(
+                "os.environ", {"PINTEREST_ACCESS_TOKEN": "test-only"}):
+            config = dict(self.config["official"])
+            config.update(enabled=True, boards=[])
+            pin = {"id": "123456789", "media": {"media_type": "image", "images": {
+                "large": {"url": "https://i.pinimg.com/large.jpg", "width": 512, "height": 512}}}}
+            http = FakeHTTP([
+                FakeHTTPResponse(payload={"items": [{"id": "987654321"}], "bookmark": None}),
+                FakeHTTPResponse(payload={"items": [pin], "bookmark": None}),
+            ])
+            found = OfficialBoards(config, database, http).discover(10)
+        self.assertEqual([item.pin_id for item in found], ["123456789"])
+        self.assertTrue(http.calls[0][0].endswith("/v5/boards"))
+        self.assertTrue(http.calls[1][0].endswith("/v5/boards/987654321/pins"))
+
     def test_cdn_redirect_and_size_controls(self):
         validate_cdn_url("https://i.pinimg.com/image.jpg")
         for invalid in ("http://i.pinimg.com/a.jpg", "https://pinimg.com.evil.org/a.jpg",

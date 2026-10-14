@@ -7,12 +7,24 @@
   "vision_model": "qwen/qwen3.8-27b",
   "modes": ["illustration", "animated", "photo", "clip"],
   "topics": [
-    "Latest technology and light news reactions in Hinglish",
-    "Everyday desi reactions in Hinglish",
-    "Original movie-inspired jokes in Hinglish without copying dialogue",
-    "Office, chai, friendships and weekend memes in Hinglish"
+    "TECHNOLOGY | Latest technology and light news reactions in Hinglish",
+    "EVERYDAY | Everyday desi reactions in Hinglish",
+    "MOVIES | Original movie-inspired jokes in Hinglish without copying dialogue",
+    "CREATIVE | Office, chai, friendships and weekend memes in Hinglish"
   ],
   "rating": "GENERAL",
+  "discovery_enabled": true,
+  "content_categories": [
+    "TRENDING",
+    "POLITICS",
+    "CREATIVE",
+    "MOVIES",
+    "SERIES",
+    "INDIA",
+    "SPORTS",
+    "TECHNOLOGY",
+    "EVERYDAY"
+  ],
   "feeds": ["https://feeds.bbci.co.uk/news/technology/rss.xml"],
   "references": [],
   "media_library": {

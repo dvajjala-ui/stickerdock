@@ -2,7 +2,6 @@ package app.stickerdock.duo
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
@@ -25,12 +24,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : ComponentActivity() {
     private lateinit var store: StickerStore
@@ -50,6 +53,8 @@ class MainActivity : ComponentActivity() {
     private fun Home() {
         val scope = rememberCoroutineScope()
         val snackbar = remember { SnackbarHostState() }
+        val previewCache = remember { StickerPreviewCache() }
+        val pausePhoneImport = remember { AtomicBoolean(false) }
         var packs by remember { mutableStateOf<List<StickerPack>>(emptyList()) }
         var selectedId by remember { mutableStateOf<String?>(null) }
         var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
@@ -58,12 +63,14 @@ class MainActivity : ComponentActivity() {
         var stickerQuery by remember { mutableStateOf("") }
         var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
         var packFilter by remember { mutableStateOf("All") }
+        var packSort by remember { mutableStateOf("Newest") }
         var categoryFilter by remember { mutableStateOf<PackCategory?>(null) }
         var newPackKind by remember { mutableStateOf(StickerKind.STATIC) }
         var newPackRating by remember { mutableStateOf(PackRating.GENERAL) }
         var newPackCategory by remember { mutableStateOf(PackCategory.GENERAL) }
         var busy by remember { mutableStateOf(false) }
         var phoneImportProgress by remember { mutableStateOf<FolderStickerImporter.Progress?>(null) }
+        var phonePauseRequested by remember { mutableStateOf(false) }
         var pendingFolderImportUri by remember {
             mutableStateOf(FolderStickerImporter.pendingImportUri(this@MainActivity)?.toString())
         }
@@ -76,6 +83,7 @@ class MainActivity : ComponentActivity() {
         var communityLoading by remember { mutableStateOf(false) }
         var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
         var communityError by remember { mutableStateOf<String?>(null) }
+        var catalogImportedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         var moving by remember { mutableStateOf<StickerItem?>(null) }
         var target by remember { mutableStateOf<String?>(null) }
         var editingSticker by remember { mutableStateOf<StickerItem?>(null) }
@@ -94,9 +102,6 @@ class MainActivity : ComponentActivity() {
                 stickers = data.second
                 counts = data.third
                 if (selectedId != null && packs.none { it.id == selectedId }) selectedId = null
-                if (stickerQuery.isNotBlank()) {
-                    stickerMatches = withContext(Dispatchers.IO) { store.searchStickers(stickerQuery) }
-                }
             }
         }
         fun operation(action: suspend () -> String) {
@@ -112,19 +117,64 @@ class MainActivity : ComponentActivity() {
                 } finally { busy = false }
             }
         }
+        fun refreshFactory() {
+            if (communityLoading) return
+            communityLoading = true
+            communityError = null
+            scope.launch {
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        val catalog = CommunityCatalog(this@MainActivity, backup).browse()
+                        val imports = CatalogImports(this@MainActivity, store)
+                        catalog to catalog.filter {
+                            imports.importedPackIds(it.id, it.sha256).isNotEmpty()
+                        }.mapTo(mutableSetOf()) { it.id }
+                    }
+                    communityPacks = result.first
+                    catalogImportedIds = result.second
+                } catch (e: Exception) {
+                    communityError = e.message ?: "Unable to load Factory packs"
+                } finally { communityLoading = false }
+            }
+        }
+        fun importFactoryPack(entry: CommunityCatalog.Listing) {
+            showCommunity = false
+            operation {
+                val summary = CommunityCatalog(this@MainActivity, backup).downloadAndImport(entry)
+                val importedIds = CatalogImports(this@MainActivity, store).importedPackIds(entry.id, entry.sha256)
+                runOnUiThread {
+                    catalogImportedIds = catalogImportedIds + entry.id
+                    selectedId = importedIds.firstOrNull()
+                }
+                if (summary.stickers == 0) "Pack already in your library"
+                else "Imported ${summary.stickers} stickers. Choose Add to WhatsApp to use them."
+            }
+        }
         fun runFolderImport(uri: android.net.Uri) {
             if (busy) return
             pendingFolderImportUri = uri.toString()
             phoneImportProgress = null
+            phonePauseRequested = false
+            pausePhoneImport.set(false)
             operation {
                 try {
-                    val report = FolderStickerImporter(this@MainActivity, store, files).import(uri) { progress ->
-                        runOnUiThread { phoneImportProgress = progress }
+                    val report = FolderStickerImporter(this@MainActivity, store, files).import(
+                        uri,
+                        shouldPause = { pausePhoneImport.get() || !scope.isActive },
+                        onProgress = { progress -> runOnUiThread { phoneImportProgress = progress } }
+                    )
+                    buildString {
+                        append(if (report.paused) "Phone import paused" else "Phone import complete")
+                        append(": ${report.added} stickers in ${report.packsCreated} packs, ")
+                        append("${report.duplicates} duplicate, ${report.rejected} rejected")
+                        if (report.skippedDirectories > 0) {
+                            append(", ${report.skippedDirectories} folders skipped at depth limit; import them separately")
+                        }
                     }
-                    "Phone import: ${report.added} stickers in ${report.packsCreated} packs, ${report.duplicates} duplicate, ${report.rejected} rejected"
                 } finally {
                     runOnUiThread {
                         phoneImportProgress = null
+                        phonePauseRequested = false
                         pendingFolderImportUri = FolderStickerImporter.pendingImportUri(this@MainActivity)?.toString()
                     }
                 }
@@ -191,10 +241,24 @@ class MainActivity : ComponentActivity() {
         }
         LaunchedEffect(selectedId) { refresh() }
         LaunchedEffect(stickerQuery) {
-            stickerMatches = if (stickerQuery.isBlank()) emptyList()
-            else withContext(Dispatchers.IO) { store.searchStickers(stickerQuery) }
+            val requested = stickerQuery
+            if (requested.isBlank()) stickerMatches = emptyList()
+            else {
+                delay(300)
+                val matches = withContext(Dispatchers.IO) { store.searchStickers(requested) }
+                if (stickerQuery == requested) stickerMatches = matches
+            }
+        }
+        DisposableEffect(Unit) { onDispose { previewCache.clear() } }
+        DisposableEffect(Unit) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) refreshFactory()
+            }
+            lifecycle.addObserver(observer)
+            onDispose { lifecycle.removeObserver(observer) }
         }
         LaunchedEffect(Unit) {
+            refreshFactory()
             if (intent.action == android.content.Intent.ACTION_SEND || intent.action == android.content.Intent.ACTION_SEND_MULTIPLE) {
                 operation { IncomingStickers(this@MainActivity, store, files).import(intent) }
             }
@@ -212,7 +276,16 @@ class MainActivity : ComponentActivity() {
                     Text("To migrate saved WhatsApp/Sticker.ly stickers, choose Android/media → com.whatsapp → WhatsApp → Media → WhatsApp Stickers (or the Business equivalent).")
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(onClick = { name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL; newPackCategory = PackCategory.GENERAL; dialog = "create" }) { Text("New pack") }
-                        OutlinedButton(onClick = { saveBackup.launch("stickerdock.zip") }) { Text("Backup") }
+                        OutlinedButton(enabled = !busy, onClick = {
+                            scope.launch {
+                                try {
+                                    withContext(Dispatchers.IO) { backup.estimate() }
+                                    saveBackup.launch("stickerdock.zip")
+                                } catch (e: Exception) {
+                                    snackbar.showSnackbar(e.message ?: "Cannot create backup")
+                                }
+                            }
+                        }) { Text("Backup") }
                         OutlinedButton(onClick = { loadBackup.launch(arrayOf("application/zip")) }) { Text("Restore") }
                     }
                     phoneImportProgress?.let { progress ->
@@ -225,6 +298,15 @@ class MainActivity : ComponentActivity() {
                         progress.currentFile?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
                     }
                     if (busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    if (busy && phoneImportProgress != null) {
+                        OutlinedButton(
+                            enabled = !phonePauseRequested,
+                            onClick = {
+                                phonePauseRequested = true
+                                pausePhoneImport.set(true)
+                            }
+                        ) { Text(if (phonePauseRequested) "Pausing…" else "Pause phone import") }
+                    }
                     pendingFolderImportUri?.takeIf { !busy }?.let { savedUri ->
                         OutlinedButton(onClick = { runFolderImport(android.net.Uri.parse(savedUri)) }) {
                             Text("Resume phone import")
@@ -246,20 +328,52 @@ class MainActivity : ComponentActivity() {
                         showSavedLinks = true
                         scope.launch { savedLinks = withContext(Dispatchers.IO) { StickerlyLinks(this@MainActivity).list() } }
                     }) { Text("Saved Sticker.ly pack links") }
-                    OutlinedButton(onClick = {
-                        showCommunity = true
-                        communityLoading = true
-                        communityError = null
-                        scope.launch {
-                            try { communityPacks = withContext(Dispatchers.IO) { CommunityCatalog(this@MainActivity, backup).browse() } }
-                            catch (e: Exception) { communityError = e.message ?: "Unable to load catalog" }
-                            finally { communityLoading = false }
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text("From the Factory", style = MaterialTheme.typography.titleMedium)
+                                TextButton(enabled = !communityLoading, onClick = { refreshFactory() }) { Text("Refresh") }
+                            }
+                            Text("Reviewed AI sticker packs. Import a pack, then add it to WhatsApp.",
+                                style = MaterialTheme.typography.bodySmall)
+                            if (communityLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                            if (communityError != null) Text("Factory is unavailable. Your local stickers still work.",
+                                style = MaterialTheme.typography.bodySmall)
+                            else if (!communityLoading && communityPacks.isEmpty()) {
+                                Text("New packs will appear here after review and publication.",
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            communityPacks.take(3).forEach { entry ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(entry.name, style = MaterialTheme.typography.bodyMedium)
+                                        Text(entry.creator, style = MaterialTheme.typography.labelSmall)
+                                        if (entry.categories.isNotEmpty()) {
+                                            Text(entry.categories.joinToString(" • ") { it.label },
+                                                style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                    TextButton(enabled = !busy, onClick = { importFactoryPack(entry) }) {
+                                        Text(if (entry.id in catalogImportedIds) "Open" else "Import")
+                                    }
+                                }
+                            }
+                            if (communityPacks.size > 3) TextButton(onClick = { showCommunity = true }) {
+                                Text("View all ${communityPacks.size} packs")
+                            }
                         }
-                    }) { Text("Community packs") }
+                    }
                     OutlinedButton(enabled = false, onClick = {}) { Text("AI meme creator — Coming soon") }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("All", "Static", "Animated").forEach { type ->
                             FilterChip(selected = packFilter == type, onClick = { packFilter = type }, label = { Text(type) })
+                        }
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(listOf("Newest", "Name", "Largest")) { option ->
+                            FilterChip(selected = packSort == option,
+                                onClick = { packSort = option }, label = { Text(option) })
                         }
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -286,7 +400,13 @@ class MainActivity : ComponentActivity() {
                         if (stickerQuery.isBlank()) {
                             items(packs.filter { it.name.contains(query, true) &&
                                     (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
-                                    (categoryFilter == null || it.category == categoryFilter) }, key = { it.id }) { item ->
+                                    (categoryFilter == null || it.category == categoryFilter) }
+                                .let { filtered -> when (packSort) {
+                                    "Name" -> filtered.sortedBy { it.name.lowercase() }
+                                    "Largest" -> filtered.sortedWith(compareByDescending<StickerPack> { counts[it.id] ?: 0 }
+                                        .thenBy { it.name.lowercase() })
+                                    else -> filtered.sortedByDescending { it.createdAt }
+                                } }, key = { it.id }) { item ->
                                 Card(Modifier.fillMaxWidth().clickable { selectedId = item.id }) {
                                     Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Column(modifier = Modifier.weight(1f)) {
@@ -345,11 +465,17 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         gridItems(stickers, key = { it.id }) { item ->
                             val path = files.stickerFile(item.packId, item.fileName).path
-                            val image = remember(path) { if (pack.kind == StickerKind.STATIC) BitmapFactory.decodeFile(path)?.asImageBitmap() else null }
-                            val animation = remember(path) {
-                                if (pack.kind == StickerKind.ANIMATED) try {
-                                    ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path)))
-                                } catch (_: Exception) { null } else null
+                            val image by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, path, pack.kind) {
+                                value = withContext(Dispatchers.IO) {
+                                    if (pack.kind == StickerKind.STATIC) previewCache.load(path) else null
+                                }
+                            }
+                            val animation by produceState<android.graphics.drawable.Drawable?>(null, path, pack.kind) {
+                                value = withContext(Dispatchers.IO) {
+                                    if (pack.kind == StickerKind.ANIMATED) try {
+                                        ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path)))
+                                    } catch (_: Exception) { null } else null
+                                }
                             }
                             DisposableEffect(animation) {
                                 (animation as? AnimatedImageDrawable)?.start()
@@ -363,7 +489,7 @@ class MainActivity : ComponentActivity() {
                                             else AndroidView(factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
                                                 update = { it.setImageDrawable(animation) }, modifier = Modifier.fillMaxSize())
                                         } else if (image == null) Text("Missing")
-                                        else Image(image, contentDescription = "Sticker", modifier = Modifier.fillMaxSize())
+                                        else image?.let { Image(it, contentDescription = "Sticker", modifier = Modifier.fillMaxSize()) }
                                     }
                                     Text(item.displayName, maxLines = 1, style = MaterialTheme.typography.labelMedium)
                                     if (item.tags.isNotBlank()) Text(item.tags, maxLines = 2, style = MaterialTheme.typography.labelSmall)
@@ -422,22 +548,20 @@ class MainActivity : ComponentActivity() {
             }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { showSavedLinks = false }) { Text("Close") } })
         if (showCommunity) AlertDialog(onDismissRequest = { showCommunity = false },
-            title = { Text("Community packs") },
+            title = { Text("From the Factory") },
             text = {
                 Column {
                     Text("Only moderator-approved general-audience packs are shown.")
                     if (communityLoading) CircularProgressIndicator()
                     else if (communityError != null) Text(communityError ?: "")
-                    else if (communityPacks.isEmpty()) Text("No approved public packs yet. Contributors can submit via GitHub pull request.")
+                    else if (communityPacks.isEmpty()) Text("No reviewed packs have been published yet.")
                     else LazyColumn(Modifier.heightIn(max = 360.dp)) {
                         items(communityPacks, key = { it.id }) { entry ->
-                            TextButton(enabled = !busy, onClick = {
-                                showCommunity = false
-                                operation {
-                                    val summary = CommunityCatalog(this@MainActivity, backup).downloadAndImport(entry)
-                                    "Imported ${summary.packs} packs and ${summary.stickers} stickers"
-                                }
-                            }) { Text("${entry.name} — ${entry.creator} (import)") }
+                            TextButton(enabled = !busy, onClick = { importFactoryPack(entry) }) {
+                                val topics = entry.categories.takeIf { it.isNotEmpty() }
+                                    ?.joinToString(" • ") { it.label }?.let { " — $it" }.orEmpty()
+                                Text("${entry.name} — ${entry.creator}$topics (${if (entry.id in catalogImportedIds) "open" else "import"})")
+                            }
                         }
                     }
                 }

@@ -50,6 +50,9 @@ class FakeSupabase:
     def find(self, table, column, value):
         return self.rows.get((table, str(value)))
 
+    def rpc(self, function, payload):
+        return [{"acquired": True}] if function == "acquire_catalog_lease" else [{"released": True}]
+
 
 def png_bytes(color="red"):
     output = io.BytesIO()
@@ -74,6 +77,38 @@ def pack_bytes(rating="GENERAL"):
 
 
 class ProductionWorkerTest(unittest.TestCase):
+    def test_daily_brief_drives_categories_and_complete_pack_auto_migrates(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {
+            "id": "default", "enabled": True, "daily_target": 3, "batch_size": 3,
+            "topics": ["INDIA | Cricket reactions"], "rating": "GENERAL",
+            "content_categories": ["INDIA"], "discovery_enabled": True,
+            "auto_migrate_completed": True}
+        brief = {"day": DAY, "status": "ready", "source_mode": "groq_browser_search",
+            "model": "test", "rating": "GENERAL", "categories": ["INDIA"],
+            "custom_topics": ["INDIA | Cricket reactions"], "items": [],
+            "topic_plans": [{"category": "INDIA", "pack_category": "HINGLISH",
+                             "topic": "Cricket reactions", "source": "owner"}],
+            "references": [], "warnings": []}
+        def generator(config, generated, font, now):
+            self.assertEqual(config["topic_plans"][0]["pack_category"], "HINGLISH")
+            day = generated / DAY
+            day.mkdir(parents=True)
+            (day / "daily-complete.zip").write_bytes(pack_bytes())
+            (day / "references.json").write_text(json.dumps([{"caption": str(i)} for i in range(3)]))
+            (day / "state.json").write_text(json.dumps({"records": [{"caption": str(i)} for i in range(3)]}))
+            return "complete"
+        with tempfile.TemporaryDirectory() as temporary, patch.object(worker, "build_brief", return_value=brief):
+            summary = worker.run_production({"daily_target": 3, "batch_size": 3,
+                "modes": ["illustration"]}, Path(temporary), client, NOW, generator)
+        self.assertEqual(summary["content_source"], "groq_browser_search")
+        self.assertIsNotNone(summary["admin_draft_id"])
+        draft = client.find("admin_packs", "id", summary["admin_draft_id"])
+        self.assertEqual(draft["status"], "draft")
+        self.assertEqual(draft["origin_id"], str(worker.uuid.uuid5(
+            worker.uuid.NAMESPACE_URL, "stickerdock-production:" + DAY)))
+        self.assertIn((PRIVATE_BUCKET, "content-briefs/" + DAY + ".json"), client.objects)
+
     def test_public_archive_must_fit_android_download_bound(self):
         from publish_factory_pack import MAX_PUBLIC_PACK_BYTES, validate_pack
         with self.assertRaises(ValueError):
@@ -284,6 +319,7 @@ class ProductionWorkerTest(unittest.TestCase):
         self.assertEqual(result["published"], "daily-2026-10-12")
         catalog = json.loads(client.objects[(PUBLIC_BUCKET, "catalog/packs.json")])
         self.assertEqual(catalog["packs"][0]["rating"], "GENERAL")
+        self.assertEqual(catalog["packs"][0]["categories"], ["GENERAL"])
         self.assertEqual(len(client.updates), 1)
         client.objects[private] = pack_bytes("MATURE")
         with self.assertRaises(ValueError):

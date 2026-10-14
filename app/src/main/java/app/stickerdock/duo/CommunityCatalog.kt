@@ -16,7 +16,14 @@ class CommunityCatalog(
     private val context: Context,
     private val backup: StickerBackup
 ) {
-    data class Listing(val id: String, val name: String, val creator: String, val downloadUrl: String, val sha256: String)
+    data class Listing(
+        val id: String,
+        val name: String,
+        val creator: String,
+        val downloadUrl: String,
+        val sha256: String,
+        val categories: List<PackCategory> = emptyList()
+    )
     private val base = CatalogUrls.normalizeBase(BuildConfig.COMMUNITY_CATALOG_BASE_URL)
 
     fun browse(): List<Listing> {
@@ -29,6 +36,12 @@ class CommunityCatalog(
     }
 
     fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary {
+        StickerStore(context.applicationContext).use { store ->
+            val imported = CatalogImports(context, store)
+            if (imported.importedPackIds(item.id, item.sha256).isNotEmpty()) {
+                return StickerBackup.RestoreSummary(0, 0, 0)
+            }
+        }
         require(CatalogUrls.isAllowed(base, item.downloadUrl) &&
             item.downloadUrl.startsWith(base + "packs/"))
         val bytes = fetch(item.downloadUrl, 25_000_000)
@@ -37,7 +50,13 @@ class CommunityCatalog(
         val tmp = File.createTempFile("catalog-", ".zip", context.cacheDir)
         return try {
             tmp.writeBytes(bytes)
-            backup.restore(Uri.fromFile(tmp))
+            StickerStore(context.applicationContext).use { store ->
+                val before = store.listPacks().mapTo(mutableSetOf()) { it.id }
+                val summary = backup.restore(Uri.fromFile(tmp))
+                val added = store.listPacks().mapTo(mutableSetOf()) { it.id } - before
+                if (added.isNotEmpty()) CatalogImports(context, store).record(item.id, item.sha256, added)
+                summary
+            }
         } finally { tmp.delete() }
     }
 
@@ -54,12 +73,22 @@ class CommunityCatalog(
         try {
             val responseCode = connection.responseCode
             if (allowMissing && responseCode == HttpURLConnection.HTTP_NOT_FOUND) return null
+            if (allowMissing && responseCode == HttpURLConnection.HTTP_BAD_REQUEST) {
+                val error = connection.errorStream?.use { StickerFiles.boundedRead(it, 4096) }
+                if (error != null && isMissingObjectResponse(error)) return null
+            }
             require(responseCode == HttpURLConnection.HTTP_OK) { "Catalog unavailable: HTTP $responseCode" }
             return connection.inputStream.use { StickerFiles.boundedRead(it, maxBytes) }
         } finally { connection.disconnect() }
     }
 
     companion object {
+        internal fun isMissingObjectResponse(bytes: ByteArray): Boolean = runCatching {
+            val error = JSONObject(bytes.toString(Charsets.UTF_8))
+            error.optString("code") in setOf("NoSuchKey", "not_found") ||
+                (error.optString("statusCode") == "404" && error.optString("message") == "Object not found")
+        }.getOrDefault(false)
+
         /** Parse only explicitly reviewed GENERAL entries; missing moderation data is not safe by default. */
         internal fun parseCatalog(bytes: ByteArray, base: String): List<Listing> {
             val normalizedBase = CatalogUrls.normalizeBase(base)
@@ -80,6 +109,19 @@ class CommunityCatalog(
                 val id = item.getString("id")
                 val file = item.getString("file")
                 val hash = item.getString("sha256")
+                val categories = item.optJSONArray("categories")?.let { array ->
+                    require(array.length() in 1..PackCategory.entries.size) {
+                        "Invalid public pack categories"
+                    }
+                    (0 until array.length()).map { index ->
+                        runCatching { PackCategory.valueOf(array.getString(index)) }
+                            .getOrElse { throw IllegalArgumentException("Invalid public pack category") }
+                    }.also { values ->
+                        require(values.distinct().size == values.size) {
+                            "Duplicate public pack category"
+                        }
+                    }
+                } ?: emptyList()
 
                 require(name.isNotBlank() && name.length <= 60 && name.none { it.code < 32 }) {
                     "Invalid public pack name"
@@ -95,7 +137,7 @@ class CommunityCatalog(
                 require(seenIds.add(id)) { "Duplicate public pack id" }
                 require(seenFiles.add(file)) { "Duplicate public pack file" }
 
-                Listing(id, name, creator, CatalogUrls.pack(normalizedBase, file), hash)
+                Listing(id, name, creator, CatalogUrls.pack(normalizedBase, file), hash, categories)
             }
         }
     }

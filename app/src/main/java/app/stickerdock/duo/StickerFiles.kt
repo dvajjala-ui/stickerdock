@@ -42,7 +42,6 @@ class StickerFiles(private val context: Context, private val store: StickerStore
     ): ImportResult {
         return try {
         val pack = store.getPack(packId) ?: return ImportResult.Failed("Pack not found")
-        if (store.listStickers(packId).size >= 30) return ImportResult.Failed("Pack full")
         val image = if (pack.kind == StickerKind.ANIMATED) {
             if (input.size > 500_000 || !WebpSticker.isAnimatedHeader(input))
                 return ImportResult.Failed("Animated packs require animated WebP files up to 500 KB")
@@ -55,8 +54,9 @@ class StickerFiles(private val context: Context, private val store: StickerStore
                 return ImportResult.Failed("Animated stickers need a separate animated pack")
             normalize(input)
         }
-        val hash = MessageDigest.getInstance("SHA-256").digest(image).joinToString("") { "%02x".format(it) }
-        if ((globalDedup && store.hasStickerHash(hash)) || store.listStickers(packId).any { it.sha256 == hash }) return ImportResult.Duplicate
+        val hash = sha256(image)
+        if (store.hasStickerHash(hash, if (globalDedup) null else packId)) return ImportResult.Duplicate
+        if (store.stickerCount(packId) >= 30) return ImportResult.Failed("Pack full")
         val id = UUID.randomUUID().toString()
         val name = "$id.webp"
         val dest = stickerFile(packId, name)
@@ -74,9 +74,53 @@ class StickerFiles(private val context: Context, private val store: StickerStore
             ))
         } catch (e: Exception) { dest.delete(); throw e }
         if (!added) { dest.delete(); return ImportResult.Duplicate }
-        refreshTray(packId)
+        runCatching { refreshTray(packId) }
         ImportResult.Added
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Image conversion failed") }
+    }
+
+    /** Restores already-normalized StickerDock bytes without lossy recompression. */
+    fun restoreBytes(
+        packId: String,
+        input: ByteArray,
+        expectedSha256: String,
+        label: String = "",
+        tags: String = ""
+    ): ImportResult {
+        return try {
+            val pack = store.getPack(packId) ?: return ImportResult.Failed("Pack not found")
+            if (!WebpSticker.isWebpHeader(input)) return ImportResult.Failed("Backup sticker is not WebP")
+            if (pack.kind == StickerKind.ANIMATED) {
+                if (input.size > 500_000 || WebpSticker.inspect(input)?.animated != true)
+                    return ImportResult.Failed("Invalid animated backup sticker")
+            } else {
+                if (input.size > 100_000 || WebpSticker.isAnimatedHeader(input))
+                    return ImportResult.Failed("Invalid static backup sticker")
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(input, 0, input.size, bounds)
+                if (bounds.outWidth != 512 || bounds.outHeight != 512)
+                    return ImportResult.Failed("Static backup sticker must be 512x512")
+            }
+            val hash = sha256(input)
+            if (!hash.equals(expectedSha256, ignoreCase = true))
+                return ImportResult.Failed("Backup sticker checksum mismatch")
+            if (store.hasStickerHash(hash, packId)) return ImportResult.Duplicate
+            if (store.stickerCount(packId) >= 30) return ImportResult.Failed("Pack full")
+
+            val id = UUID.randomUUID().toString()
+            val name = "$id.webp"
+            val dest = stickerFile(packId, name)
+            dest.parentFile?.mkdirs()
+            dest.writeBytes(input)
+            val added = try {
+                store.addSticker(StickerItem(id, packId, name, hash, System.currentTimeMillis(), label, tags))
+            } catch (e: Exception) { dest.delete(); throw e }
+            if (!added) { dest.delete(); return ImportResult.Duplicate }
+            runCatching { refreshTray(packId) }
+            ImportResult.Added
+        } catch (e: Exception) {
+            ImportResult.Failed(e.message ?: "Backup restore failed")
+        }
     }
 
     fun transferSticker(item: StickerItem, targetPackId: String, move: Boolean): ImportResult {
@@ -85,8 +129,8 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         val origin = store.getPack(item.packId) ?: return ImportResult.Failed("Source pack not found")
         val target = store.getPack(targetPackId) ?: return ImportResult.Failed("Target pack not found")
         if (origin.kind != target.kind) return ImportResult.Failed("Static and animated stickers must use separate packs")
-        if (store.listStickers(targetPackId).size >= 30) return ImportResult.Failed("Target pack full")
-        if (store.listStickers(targetPackId).any { it.sha256 == item.sha256 }) return ImportResult.Duplicate
+        if (store.hasStickerHash(item.sha256, targetPackId)) return ImportResult.Duplicate
+        if (store.stickerCount(targetPackId) >= 30) return ImportResult.Failed("Target pack full")
         val id = UUID.randomUUID().toString()
         val filename = "$id.webp"
         val dest = stickerFile(targetPackId, filename)
@@ -104,7 +148,7 @@ class StickerFiles(private val context: Context, private val store: StickerStore
             ))
         } catch (e: Exception) { dest.delete(); throw e }
         if (!added) { dest.delete(); return ImportResult.Duplicate }
-        refreshTray(targetPackId)
+        runCatching { refreshTray(targetPackId) }
         if (move) deleteSticker(item)
         ImportResult.Added
     } catch (e: Exception) { ImportResult.Failed(e.message ?: "Transfer failed") }
@@ -119,6 +163,17 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         store.deletePack(packId)
         File(stickersDir, packId).deleteRecursively()
         trayFile(packId).delete()
+    }
+    fun deleteOrphanedPackFiles(packId: String): Int {
+        val directory = File(stickersDir, packId)
+        if (!directory.isDirectory) return 0
+        val known = store.listStickers(packId).mapTo(mutableSetOf()) { it.fileName }
+        var deleted = 0
+        directory.listFiles().orEmpty().forEach { candidate ->
+            if (candidate.isFile && candidate.name !in known && candidate.delete()) deleted++
+        }
+        if (deleted > 0) runCatching { refreshTray(packId) }
+        return deleted
     }
     fun refreshTray(packId: String) {
         val first = store.listStickers(packId).firstOrNull()
@@ -167,6 +222,9 @@ class StickerFiles(private val context: Context, private val store: StickerStore
     }
     private fun isGif(data: ByteArray) = data.size >= 3 && String(data, 0, 3, Charsets.US_ASCII) == "GIF"
     companion object {
+        fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+            .digest(bytes).joinToString("") { "%02x".format(it) }
+
         fun boundedRead(stream: java.io.InputStream, limit: Int): ByteArray {
             val out = ByteArrayOutputStream()
             val buf = ByteArray(8192)

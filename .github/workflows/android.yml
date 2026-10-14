@@ -6,6 +6,9 @@ on:
     paths:
       - 'app/**'
       - 'api/**'
+      - 'admin/**'
+      - 'supabase/**'
+      - 'vercel.json'
       - 'tools/**'
       - 'build.gradle*'
       - 'settings.gradle*'
@@ -20,6 +23,9 @@ on:
     paths:
       - 'app/**'
       - 'api/**'
+      - 'admin/**'
+      - 'supabase/**'
+      - 'vercel.json'
       - 'tools/**'
       - 'build.gradle*'
       - 'settings.gradle*'
@@ -63,6 +69,7 @@ jobs:
           fi
           python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
           python3 -m unittest discover -s tools -p 'test_*.py' -v
+          node --check admin/app.js
       - name: Test, lint, and build APK plus release bundle
         run: |
           gradle --no-daemon \

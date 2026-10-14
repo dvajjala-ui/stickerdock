@@ -17,11 +17,12 @@ import tempfile
 import uuid
 
 from daily_stickers import groq_ideas, render
+from sticker_fonts import default_font
 from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, require_production_environment
 
 SOURCE_RE = re.compile(r"inbox/([0-9a-f]{64})\.(png|jpg|jpeg|webp)")
 SOURCE_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"}
-FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+FONT_PATH = default_font()
 
 
 def utc_now():

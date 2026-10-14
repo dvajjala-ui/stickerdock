@@ -1,1 +1,2 @@
 requests==2.32.5
+tzdata==2026.5; sys_platform == "win32"

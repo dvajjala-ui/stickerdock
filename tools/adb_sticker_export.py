@@ -106,7 +106,7 @@ def create_archives(destination: Path, max_files: int, max_megabytes: int) -> in
         if current is not None:
             current.close()
     print(f"Created {created} ZIP batch(es) for {accepted} unique stickers in {archives_dir}.")
-    print("Transfer these ZIP files to the phone and open StickerDock → Import sticker ZIP.")
+    print("Transfer these ZIP files to the phone and open StickerDock > Import sticker ZIP.")
     print("Raw copies remain on your computer. None were uploaded to a server.")
     return created
 

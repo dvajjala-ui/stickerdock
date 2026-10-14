@@ -42,6 +42,8 @@ The Android app is configured to reject cleartext HTTP traffic. Public catalog
 requests use HTTPS and fetch only the reviewed StickerDock catalog and selected
 pack archives. The catalog client does not upload the user's local sticker
 library, device media, or StickerDock database to the catalog service.
+The home screen refreshes this public catalog when the app opens or returns to
+the foreground. Pack images are downloaded only when the user chooses Import.
 
 Like ordinary HTTPS requests, the hosting provider may receive technical network
 information such as the requesting IP address and standard connection metadata.

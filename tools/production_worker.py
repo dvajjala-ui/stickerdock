@@ -16,8 +16,10 @@ import zipfile
 from PIL import Image
 
 from daily_stickers import atomic_json, run as run_generator
+from sticker_fonts import default_font
 from media_library import sync as sync_media
-from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, require_production_environment
+from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, SupabaseError, require_production_environment
+from trend_intelligence import build_brief, DEFAULT_CATEGORIES
 from video_stickers import CLIP_EXTENSIONS
 
 STATE_OBJECT = "state/runtime.zip"
@@ -25,6 +27,71 @@ SOURCE_METADATA_PREFIX = "source-metadata/"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 INBOX_EXTENSIONS = IMAGE_EXTENSIONS | CLIP_EXTENSIONS
 SOURCE_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"}
+
+
+def content_settings(config, controls):
+    return {"rating": controls.get("rating", config.get("rating", "GENERAL")),
+            "content_categories": (controls.get("content_categories") or
+                                   config.get("content_categories") or DEFAULT_CATEGORIES),
+            "topics": controls.get("topics") or config.get("topics", []),
+            "feeds": config.get("feeds", []),
+            "discovery_enabled": controls.get("discovery_enabled", True)}
+
+
+def ensure_content_brief(client, config, controls, now):
+    """Create at most one brief per UTC day and settings revision."""
+    day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+    settings = content_settings(config, controls)
+    signature = hashlib.sha256(json.dumps(settings, sort_keys=True,
+        separators=(",", ":")).encode()).hexdigest()
+    existing = client.find("content_briefs", "day", day)
+    if existing and existing.get("settings_hash") == signature:
+        brief = {key: existing.get(key) for key in (
+            "day", "status", "source_mode", "model", "rating", "categories",
+            "custom_topics", "items", "topic_plans", "references", "warnings")}
+    else:
+        brief = build_brief(settings, now)
+        row = {**brief, "settings_hash": signature,
+               "item_count": len(brief["items"])}
+        client.upsert("content_briefs", [row], "day")
+        client.upload(PRIVATE_BUCKET, "content-briefs/" + day + ".json",
+                      json.dumps(brief, ensure_ascii=False, separators=(",", ":")).encode(),
+                      "application/json")
+    configured = dict(config)
+    configured["topic_plans"] = brief["topic_plans"]
+    configured["references"] = brief["references"]
+    configured["rating"] = brief["rating"]
+    return configured, brief
+
+
+def auto_migrate_completed(client, generated, summary):
+    """Copy a completed immutable Factory archive into the editable admin inbox."""
+    if summary.get("status") != "complete":
+        return None
+    day = summary["day"]
+    source_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-production:" + day))
+    source = client.find("sticker_packs", "id", source_id)
+    if not source:
+        raise ValueError("Completed Factory pack metadata is missing")
+    target_id = str(uuid.uuid5(uuid.NAMESPACE_URL,
+        "stickerdock-admin:" + source_id + ":" + source["sha256"]))
+    if client.find("admin_packs", "id", target_id):
+        return target_id
+    archive = (generated / day / "daily-complete.zip").read_bytes()
+    if hashlib.sha256(archive).hexdigest() != source["sha256"]:
+        raise ValueError("Completed Factory archive checksum mismatch")
+    references_path = generated / day / "references.json"
+    references = json.loads(references_path.read_text()) if references_path.exists() else []
+    if len(references) != source["sticker_count"]:
+        raise ValueError("Completed Factory provenance count mismatch")
+    private_path = f"admin/packs/{target_id}/{source['sha256']}.zip"
+    client.upload(PRIVATE_BUCKET, private_path, archive, "application/zip")
+    client.upsert("admin_packs", [{"id": target_id, "name": source["name"],
+        "creator": source["creator"], "rating": source["rating"], "status": "draft",
+        "private_path": private_path, "sha256": source["sha256"],
+        "sticker_count": source["sticker_count"], "references": references,
+        "origin_id": source_id}], "id")
+    return target_id
 
 
 def safe_restore(data, destination):
@@ -291,11 +358,15 @@ def persist_run(client, generated, config, now, result):
         if references.exists():
             client.upload(PRIVATE_BUCKET, "generated/" + day + "/references.json",
                           references.read_bytes(), "application/json")
+        with zipfile.ZipFile(__import__("io").BytesIO(data)) as archive:
+            manifest = json.loads(archive.read("manifest.json"))
+        categories = sorted({pack.get("category", "GENERAL") for pack in manifest.get("packs", [])})
         client.upsert("sticker_packs", [{
             "id": pack_id, "day": day, "name": "Daily " + day,
             "creator": "StickerDock AI Factory", "rating": config["rating"],
             "status": pack_status, "private_path": remote, "sha256": digest,
-            "sticker_count": count, "metadata": {"modes": config["modes"]}}], "id")
+            "sticker_count": count, "metadata": {"modes": config["modes"],
+                                                    "categories": categories}}], "id")
     return {"day": day, "status": status, "generated": count,
             "target": config["daily_target"], "result": result}
 
@@ -317,6 +388,23 @@ def persist_failure(client, config, now, error, generated=None):
 
 def run_production(config, runtime, client, now=None, generator=run_generator):
     now = __import__("time").time() if now is None else now
+    # Existing installations without the additive admin migration keep their
+    # configured schedule. Other failures stop generation rather than bypass pause.
+    try:
+        controls = client.find("factory_settings", "id", "default")
+    except SupabaseError as error:
+        if "HTTP 404" not in str(error):
+            raise
+        controls = None
+    if controls:
+        if controls.get("enabled") is not True:
+            return {"status": "paused", "result": "Paused by the owner admin panel"}
+        config = dict(config)
+        config["daily_target"] = controls["daily_target"]
+        config["batch_size"] = controls["batch_size"]
+        config["rating"] = controls.get("rating", config.get("rating", "GENERAL"))
+        if controls.get("topics"):
+            config["topics"] = controls["topics"]
     runtime.mkdir(parents=True, exist_ok=True)
     safe_restore(client.download(PRIVATE_BUCKET, STATE_OBJECT, missing_ok=True), runtime)
     relocate_state(runtime)
@@ -326,11 +414,20 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         prune_old_days(generated, now)
         inbox_added = sync_inbox(client, runtime)
         configured = configure(config, runtime, now)
+        if controls:
+            # Admin controls take precedence over workflow defaults.
+            configured["daily_target"] = controls["daily_target"]
+            configured["batch_size"] = controls["batch_size"]
+            configured, brief = ensure_content_brief(client, configured, controls, now)
         mirror_licensed_inputs(client, runtime)
         result = generator(configured, generated,
-                           Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"), now)
+                           default_font(), now)
         summary = persist_run(client, generated, configured, now, result)
         summary["inbox_added"] = inbox_added
+        if controls:
+            summary["content_source"] = brief["source_mode"]
+            if controls.get("auto_migrate_completed") is True:
+                summary["admin_draft_id"] = auto_migrate_completed(client, generated, summary)
         return summary
     except Exception as error:
         try:

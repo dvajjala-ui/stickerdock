@@ -29,13 +29,21 @@ data class StickerItem(
     val displayName: String get() = label.ifBlank { fileName }
 }
 data class StickerSearchResult(val item: StickerItem, val pack: StickerPack)
+data class FolderImportSession(val id: String, val treeUri: String, val fallbackName: String)
+data class FolderImportStats(
+    val filesScanned: Int,
+    val duplicates: Int,
+    val rejected: Int,
+    val totalBytes: Long
+)
 
-class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 6) {
+class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 7) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL', category TEXT NOT NULL DEFAULT 'GENERAL')")
         db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, label TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '', UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
         db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
         db.execSQL("CREATE INDEX idx_stickers_sha ON stickers(sha256)")
+        createFolderImportTables(db)
     }
     override fun onConfigure(db: SQLiteDatabase) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true) }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -47,6 +55,7 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
             db.execSQL("ALTER TABLE stickers ADD COLUMN label TEXT NOT NULL DEFAULT ''")
             db.execSQL("ALTER TABLE stickers ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
         }
+        if (oldVersion < 7 && newVersion >= 7) createFolderImportTables(db)
     }
 
     fun listPacks(): List<StickerPack> {
@@ -110,8 +119,17 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
             return readSticker(cursor, 0)
         }
     }
-    fun hasStickerHash(hash: String): Boolean {
-        readableDatabase.rawQuery("SELECT 1 FROM stickers WHERE sha256=? LIMIT 1", arrayOf(hash)).use { cursor ->
+    fun stickerCount(packId: String): Int {
+        readableDatabase.rawQuery("SELECT COUNT(*) FROM stickers WHERE pack_id=?", arrayOf(packId)).use { cursor ->
+            cursor.moveToFirst()
+            return cursor.getInt(0)
+        }
+    }
+    fun hasStickerHash(hash: String, packId: String? = null): Boolean {
+        val sql = if (packId == null) "SELECT 1 FROM stickers WHERE sha256=? LIMIT 1"
+            else "SELECT 1 FROM stickers WHERE pack_id=? AND sha256=? LIMIT 1"
+        val args = if (packId == null) arrayOf(hash) else arrayOf(packId, hash)
+        readableDatabase.rawQuery(sql, args).use { cursor ->
             return cursor.moveToFirst()
         }
     }
@@ -161,6 +179,97 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
     fun deleteSticker(packId: String, id: String) {
         if (writableDatabase.delete("stickers", "id=? AND pack_id=?", arrayOf(id, packId)) > 0) bumpVersion(packId)
     }
+
+    fun pendingFolderImport(): FolderImportSession? {
+        readableDatabase.rawQuery(
+            "SELECT id,tree_uri,fallback_name FROM folder_import_sessions ORDER BY created_at DESC LIMIT 1",
+            null
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            return FolderImportSession(cursor.getString(0), cursor.getString(1), cursor.getString(2))
+        }
+    }
+
+    fun createFolderImport(treeUri: String, fallbackName: String): FolderImportSession {
+        val session = FolderImportSession(UUID.randomUUID().toString(), treeUri, fallbackName)
+        writableDatabase.insertOrThrow("folder_import_sessions", null, ContentValues().apply {
+            put("id", session.id)
+            put("tree_uri", session.treeUri)
+            put("fallback_name", session.fallbackName)
+            put("created_at", System.currentTimeMillis())
+        })
+        return session
+    }
+
+    fun deleteFolderImport(sessionId: String) {
+        writableDatabase.delete("folder_import_sessions", "id=?", arrayOf(sessionId))
+    }
+
+    fun addFolderImportPack(sessionId: String, packId: String) {
+        writableDatabase.insertOrThrow("folder_import_packs", null, ContentValues().apply {
+            put("session_id", sessionId)
+            put("pack_id", packId)
+        })
+    }
+
+    fun folderImportPackIds(sessionId: String): Set<String> {
+        val result = linkedSetOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT pack_id FROM folder_import_packs WHERE session_id=? ORDER BY rowid",
+            arrayOf(sessionId)
+        ).use { cursor -> while (cursor.moveToNext()) result += cursor.getString(0) }
+        return result
+    }
+
+    fun folderImportProcessedSources(sessionId: String): MutableSet<String> {
+        val result = mutableSetOf<String>()
+        readableDatabase.rawQuery(
+            "SELECT source_uri FROM folder_import_items WHERE session_id=?",
+            arrayOf(sessionId)
+        ).use { cursor -> while (cursor.moveToNext()) result += cursor.getString(0) }
+        return result
+    }
+
+    fun folderImportStats(sessionId: String): FolderImportStats {
+        readableDatabase.rawQuery(
+            """SELECT COUNT(*),
+                COALESCE(SUM(CASE WHEN outcome='DUPLICATE' THEN 1 ELSE 0 END),0),
+                COALESCE(SUM(CASE WHEN outcome='REJECTED' THEN 1 ELSE 0 END),0),
+                COALESCE(SUM(source_bytes),0)
+                FROM folder_import_items WHERE session_id=?""".trimIndent(),
+            arrayOf(sessionId)
+        ).use { cursor ->
+            cursor.moveToFirst()
+            return FolderImportStats(cursor.getInt(0), cursor.getInt(1), cursor.getInt(2), cursor.getLong(3))
+        }
+    }
+
+    fun recordFolderImportItem(
+        sessionId: String,
+        sourceUri: String,
+        outcome: String,
+        sourceBytes: Long
+    ) {
+        require(outcome in setOf("ADDED", "DUPLICATE", "REJECTED"))
+        writableDatabase.insertOrThrow("folder_import_items", null, ContentValues().apply {
+            put("session_id", sessionId)
+            put("source_uri", sourceUri)
+            put("outcome", outcome)
+            put("source_bytes", sourceBytes)
+        })
+    }
+
+    fun <T> transaction(block: () -> T): T {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val result = block()
+            db.setTransactionSuccessful()
+            return result
+        } finally {
+            db.endTransaction()
+        }
+    }
     private fun readSticker(cursor: Cursor, offset: Int) = StickerItem(
         cursor.getString(offset), cursor.getString(offset + 1), cursor.getString(offset + 2),
         cursor.getString(offset + 3), cursor.getLong(offset + 4), cursor.getString(offset + 5),
@@ -172,4 +281,13 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         PackRating.valueOf(cursor.getString(offset + 5)), PackCategory.valueOf(cursor.getString(offset + 6))
     )
     private fun bumpVersion(id: String) { writableDatabase.execSQL("UPDATE packs SET version=version+1 WHERE id=?", arrayOf(id)) }
+
+    companion object {
+        private fun createFolderImportTables(db: SQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS folder_import_sessions (id TEXT PRIMARY KEY, tree_uri TEXT NOT NULL, fallback_name TEXT NOT NULL, created_at INTEGER NOT NULL)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS folder_import_packs (session_id TEXT NOT NULL REFERENCES folder_import_sessions(id) ON DELETE CASCADE, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, PRIMARY KEY(session_id, pack_id))")
+            db.execSQL("CREATE TABLE IF NOT EXISTS folder_import_items (session_id TEXT NOT NULL REFERENCES folder_import_sessions(id) ON DELETE CASCADE, source_uri TEXT NOT NULL, outcome TEXT NOT NULL CHECK(outcome IN ('ADDED','DUPLICATE','REJECTED')), source_bytes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(session_id, source_uri))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_folder_import_items_session ON folder_import_items(session_id)")
+        }
+    }
 }

@@ -1,4 +1,4 @@
-# StickerDock development handoff — updated October 13, 2026
+# StickerDock development handoff — updated October 14, 2026
 
 ## Goal and historical decisions
 
@@ -16,17 +16,25 @@ access as reuse permission.
 
 ## Key Android technical details
 
-- Kotlin + Jetpack Compose; JDK 17, Android SDK 35, Gradle 8.9.
-- SQLite schema v6 with pack kind/rating/category, sticker labels/tags, SHA-256
-  indexes and additive/non-destructive migrations.
+- Kotlin + Jetpack Compose; JDK 17, Android SDK 36, Gradle 8.11.1.
+- Debug/release defaults now use the production Supabase catalog. Home exposes
+  “From the Factory” and refreshes on open/resume. Catalog ID/hash mappings avoid
+  repeat downloads. Supabase's precise HTTP-400/NoSuchKey empty-index response
+  is handled without hiding other service errors. See `ADMIN_PORTAL.md` for the
+  implemented owner web app and its unapplied database migration/deployment gates.
+- SQLite schema v7 with pack kind/rating/category, sticker labels/tags, SHA-256
+  indexes, a transactional folder-import journal and additive migrations.
 - Backup schema v5; restoration remains compatible with schemas 1–4.
 - Static normalization: 512px WebP <=100KB. Valid animated WebP <=500KB / 10s.
 - Categorized pack/sticker search, static/animated filtering, global sticker
   search, copy/move/remove, metadata editing and content-hash deduplication.
-- FolderStickerImporter uses bounded SAF traversal, app-private processed-URI
-  checkpoints and explicit Resume/Discard. It persists selected read URIs where
-  Android permits. Global SHA-256 dedup makes a small unflushed tail safe to
-  retry. Real process-death/provider-permission QA is still pending.
+- FolderStickerImporter uses bounded SAF traversal, SQLite-journaled processed
+  URIs/outcomes and explicit Pause/Resume/Discard. It persists selected read URIs
+  where Android permits and reports folders omitted at the depth bound. Real
+  process-death/provider-permission QA is still pending.
+- Backup restore stages bounded entries on disk and preserves validated WebP bytes
+  instead of recompressing static stickers. Full exports preflight against the
+  same 500-pack/15,000-sticker/1.5 GB restore bounds.
 - PackZipImporter supports bounded ZIP/.wastickers/StickerDock archives and bulk
   selection via `OpenMultipleDocuments`.
 - `tools/adb_sticker_export.py` is an optional no-root desktop helper for a user's
@@ -89,6 +97,11 @@ Validated GitHub Actions secrets:
 - `GROQ_API_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+New source support expects one additional Actions secret:
+
+- `GROQ_TRENDS_API_KEY` for the once-daily browser-search content brief. It is
+  separate from generation so the owner may use a second Groq account/quota.
+
 Do not print, copy into source, or expose either value. The Supabase project URL
 is non-secret and is set directly in workflows. Current defaults:
 
@@ -102,6 +115,9 @@ Both models authenticated successfully in a real GitHub Actions smoke test.
 `tools/production_worker.py` + `tools/factory-production.json` provide the private
 persistent Factory. State is saved in Supabase so fresh GitHub runners resume the
 same UTC day. Generated packs remain private/pending until explicit review.
+With the unapplied October 14 admin migration, the first run of the day also
+caches a private content brief, rotates selected categories, exports Android
+category metadata and can auto-migrate complete output to an Admin draft.
 
 Live evidence completed October 13, 2026:
 
@@ -116,7 +132,8 @@ Live evidence completed October 13, 2026:
 - attempts reached 2 and the public bucket remained empty.
 
 Do not force the remaining 30 by bypassing cooldown. The recurring Factory
-schedule remains gated/disabled until a normal-cooldown 40/40 day is reviewed.
+schedule is enabled by default unless `STICKER_FACTORY_ENABLED=false`, but no
+normal-cooldown 40/40 day has been reviewed yet.
 Do not publish the five-sticker smoke pack.
 
 ### Creator Studio / private AI queue
@@ -136,7 +153,7 @@ A real isolated production Creator smoke passed:
 8. request reached `complete` with one attempt;
 9. test request/source/result/provenance were deleted afterward.
 
-The source branch `feat/creator-studio-live-ai` / PR #6 now:
+Merged PR #6 (`feat/creator-studio-live-ai`) added:
 
 - fixes `api/_shared.py` for `sb_secret_...` auth;
 - enables the browser AI prompt/button;
@@ -160,11 +177,10 @@ Validation for that source:
 - restored/preserved Studio API regression module passed after checking no older
   coverage had been deleted.
 
-PR #6 is open and has been reported mergeable. Recheck its latest Android CI
-before merging because documentation/source commits can move the head.
+PR #6 is merged at `d22a5ce6dfa37a02c4bb9596b7c7bbb5c994b2cb`.
 
 Hosted Vercel is **not yet verified**. No public deployment URL was discoverable.
-After PR #6 merges, configure Vercel/server environment:
+To deploy the merged source, configure the Vercel/server environment:
 
 - `STUDIO_ACCESS_TOKEN`
 - `SUPABASE_URL`
@@ -214,8 +230,8 @@ first storage report unless a later change specifically invalidates them.
    metrics and the completed private pack.
 2. Publish one reviewed GENERAL completed-day pack, confirm public catalog/object,
    then import that exact pack into Android.
-3. Merge/deploy PR #6 to Vercel, configure its three server environment values,
-   and run the hosted authenticated browser/API smoke.
+3. Deploy the merged Creator Studio source to Vercel, configure its three server
+   environment values, and run the hosted authenticated browser/API smoke.
 4. Configure the actual Supabase storage quota/thresholds, then optionally enable
    daily storage monitoring.
 5. Connect an approved Pinterest app/token/board IDs and run one official-board

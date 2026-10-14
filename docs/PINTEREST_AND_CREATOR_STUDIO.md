@@ -32,7 +32,7 @@ and refuses any pack made with `REFERENCE_ONLY` pixels.
 | Type | Name | Example/purpose |
 | --- | --- | --- |
 | Secret | `PINTEREST_ACCESS_TOKEN` | Approved OAuth token |
-| Variable | `PINTEREST_BOARD_IDS` | Comma-separated numeric IDs |
+| Variable | `PINTEREST_BOARD_IDS` | Optional comma-separated numeric IDs; omit to discover all boards authorized for the account |
 | Variable | `PINTEREST_DAILY_TARGET` | `90` (maximum `100`) |
 | Variable | `PINTEREST_PER_RUN` | `30` maximum |
 | Variable | `PINTEREST_SYNC_ENABLED` | `true` after the smoke test |

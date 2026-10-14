@@ -11,7 +11,10 @@ import uuid
 import zipfile
 from PIL import Image
 
-from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base
+try:
+    from .supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base, catalog_lease
+except ImportError:
+    from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base, catalog_lease
 
 PUBLIC_MEDIA_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
 MAX_PUBLIC_PACK_BYTES = 25_000_000  # Matches Android CommunityCatalog download limit.
@@ -36,7 +39,7 @@ def validate_animation(asset):
         raise ValueError("Animation must contain motion and last at most 10 seconds")
 
 
-def validate_pack(data):
+def validate_pack(data, public=True):
     if not 12 <= len(data) <= MAX_PUBLIC_PACK_BYTES:
         raise ValueError("Invalid pack size")
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -47,13 +50,14 @@ def validate_pack(data):
                 sum(item.file_size for item in archive.infolist()) > 75_000_000):
             raise ValueError("Factory archive exceeds size limits")
         manifest = json.loads(archive.read("manifest.json"))
-        if manifest.get("schema") not in (3, 4) or not isinstance(manifest.get("packs"), list) or not manifest["packs"]:
+        if manifest.get("schema") not in (3, 4, 5) or not isinstance(manifest.get("packs"), list) or not manifest["packs"]:
             raise ValueError("Unsupported factory pack")
-        if any(pack.get("rating") != "GENERAL" for pack in manifest["packs"]):
+        if any(pack.get("rating") not in (("GENERAL",) if public else ("GENERAL", "MATURE")) for pack in manifest["packs"]):
             raise ValueError("Only reviewed GENERAL packs can be public")
-        if any(not 3 <= len(pack.get("stickers", [])) <= 30 for pack in manifest["packs"]):
+        minimum = 3 if public else 1
+        if any(not minimum <= len(pack.get("stickers", [])) <= 30 for pack in manifest["packs"]):
             raise ValueError("Public pack has an invalid sticker count")
-        if not 3 <= sum(len(pack["stickers"]) for pack in manifest["packs"]) <= 100:
+        if not minimum <= sum(len(pack["stickers"]) for pack in manifest["packs"]) <= 100:
             raise ValueError("Daily public output must contain 3–100 stickers")
         expected = {"manifest.json"}
         for pack in manifest["packs"]:
@@ -62,7 +66,7 @@ def validate_pack(data):
                 raise ValueError("Invalid pack metadata")
             if not isinstance(pack.get("name"), str) or not 1 <= len(pack["name"].strip()) <= 60:
                 raise ValueError("Invalid pack name")
-            if manifest["schema"] == 4 and pack.get("category") not in (
+            if manifest["schema"] >= 4 and pack.get("category") not in (
                     "GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS",
                     "LOVE", "WORK", "FESTIVALS", "OTHER"):
                 raise ValueError("Invalid pack category")
@@ -81,6 +85,8 @@ def validate_pack(data):
                 asset = archive.read(path)
                 if hashlib.sha256(asset).hexdigest() != sticker.get("sha256"):
                     raise ValueError("Sticker checksum mismatch")
+                if manifest["schema"] >= 5 and (len(str(sticker.get("label", ""))) > 80 or len(str(sticker.get("tags", ""))) > 400):
+                    raise ValueError("Invalid sticker metadata")
                 with Image.open(io.BytesIO(asset)) as image:
                     if (image.format != "WEBP" or image.size != (512, 512) or
                             bool(getattr(image, "is_animated", False)) != animated):
@@ -109,7 +115,18 @@ def validate_references(data, count=None):
     return references
 
 
+def manifest_categories(manifest):
+    """Expose the archive's validated categories without changing catalog v1 compatibility."""
+    return list(dict.fromkeys(pack.get("category", "GENERAL") for pack in manifest["packs"]))
+
+
 def publish_day(client, day):
+    # Both the admin API and CLI publisher serialize the shared catalog write.
+    with catalog_lease(client):
+        return _publish_day(client, day)
+
+
+def _publish_day(client, day):
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
         raise ValueError("Day must be YYYY-MM-DD")
     private_path = "generated/" + day + "/daily-complete.zip"
@@ -122,10 +139,11 @@ def publish_day(client, day):
     slug = "daily-" + day
     filename = slug + ".zip"
     client.upload(PUBLIC_BUCKET, "catalog/packs/" + filename, data, "application/zip")
-    current = client.download_public("catalog/packs.json", missing_ok=True)
+    current = client.download(PUBLIC_BUCKET, "catalog/packs.json", missing_ok=True)
     catalog = json.loads(current) if current else {"version": 1, "packs": []}
     entry = {"id": slug, "name": "Daily " + day, "creator": "StickerDock AI Factory",
-             "rating": "GENERAL", "file": filename, "sha256": digest}
+             "rating": "GENERAL", "file": filename, "sha256": digest,
+             "categories": manifest_categories(manifest)}
     catalog["packs"] = [item for item in catalog.get("packs", []) if item.get("id") != slug]
     catalog["packs"].insert(0, entry)
     catalog["packs"] = catalog["packs"][:100]

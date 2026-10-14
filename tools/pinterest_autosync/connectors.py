@@ -57,6 +57,49 @@ class OfficialBoards:
             raise ValueError("Unexpected Pinterest boards response")
         return data
 
+    def fetch_boards_page(self, bookmark: str | None) -> dict:
+        """List boards visible to the authorized account when no IDs were configured."""
+        if not self.db.consume_api_request(int(self.cfg["_api_cap"])):
+            raise APIBudgetExceeded("Local Pinterest rolling request budget reached")
+        params = {"page_size": min(250, int(self.cfg["page_size"]))}
+        if bookmark:
+            params["bookmark"] = bookmark
+        response = self.http.get(
+            f"{self.API_BASE}/boards",
+            headers={"Authorization": f"Bearer {self.token}", "Accept": "application/json"},
+            params=params,
+            timeout=float(self.cfg["request_timeout_seconds"]),
+        )
+        if response.status_code == 403:
+            raise PinterestAccessDenied("Pinterest denied access to the authorized account's boards")
+        if response.status_code == 401:
+            raise PinterestAccessDenied("Pinterest OAuth token is expired or invalid")
+        if response.status_code == 429:
+            raise APIBudgetExceeded("Pinterest provider rate limit reached")
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+            raise ValueError("Unexpected Pinterest board-list response")
+        return data
+
+    def authorized_boards(self) -> list[dict]:
+        configured = [board for board in self.cfg["boards"] if board.get("enabled", True)]
+        if configured:
+            return configured
+        boards, bookmark, seen = [], None, set()
+        # Board discovery is bounded independently of the number of user boards.
+        for _ in range(3):
+            page = self.fetch_boards_page(bookmark)
+            for board in page["items"]:
+                board_id = str(board.get("id", "")) if isinstance(board, dict) else ""
+                if re.fullmatch(r"[0-9]{5,25}", board_id):
+                    boards.append({"id": board_id, "enabled": True})
+            bookmark = page.get("bookmark")
+            if not bookmark or bookmark in seen:
+                break
+            seen.add(bookmark)
+        return boards
+
     def discover(self, api_cap: int) -> list[Candidate]:
         if not self.cfg.get("enabled", False):
             return []
@@ -65,9 +108,7 @@ class OfficialBoards:
             return []
         self.cfg["_api_cap"] = api_cap
         found = []
-        for board in self.cfg["boards"]:
-            if not board.get("enabled", True):
-                continue
+        for board in self.authorized_boards():
             board_id = str(board["id"])
             if not re.fullmatch(r"[0-9]{5,25}", board_id):
                 LOG.warning("Skipping invalid Pinterest board ID")

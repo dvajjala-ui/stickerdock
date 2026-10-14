@@ -27,6 +27,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+from file_lock import acquire
+from sticker_fonts import default_font
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 MAX_RESPONSE = 1_000_000
@@ -44,17 +46,13 @@ def atomic_json(path, value):
 @contextmanager
 def locked(directory):
     """OS lock is released on crash; overlapping scheduler invocations skip."""
-    import fcntl
     directory.mkdir(parents=True, exist_ok=True)
-    with (directory / "generator.lock").open("a") as handle:
+    with (directory / "generator.lock").open("a+b") as handle:
         try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquire(handle)
         except BlockingIOError:
             raise ValueError("Another generator is running") from None
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+        yield
 
 
 def fetch_bytes(url, payload=None, headers=None):
@@ -287,19 +285,22 @@ def render(idea, font_path, image_path=None, animated=False):
 
 
 def export_zip(path, records, day):
-    """Native schema-3 archive, <=30 assets/pack; 40 becomes two packs of 20."""
+    """Native schema-4 archive grouped by media kind, audience and category."""
     packs, assets = [], {}
     groups = {}
     for record in records:
-        groups.setdefault((record.get("kind", "STATIC"), record.get("rating", "GENERAL")), []).append(record)
+        groups.setdefault((record.get("kind", "STATIC"), record.get("rating", "GENERAL"),
+                           record.get("category", "GENERAL")), []).append(record)
     chunks = []
-    for (kind, rating), group in groups.items():
+    for (kind, rating, category), group in groups.items():
         chunk_size = math.ceil(len(group) / math.ceil(len(group) / 30))
-        chunks.extend((kind, rating, group[i:i + chunk_size]) for i in range(0, len(group), chunk_size))
-    for index, (kind, rating, chunk) in enumerate(chunks):
+        chunks.extend((kind, rating, category, group[i:i + chunk_size])
+                      for i in range(0, len(group), chunk_size))
+    for index, (kind, rating, category, chunk) in enumerate(chunks):
         pack_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"stickerdock:{day}:{path.stem}:{index}"))
-        pack = {"id": pack_id, "name": f"Daily {day} {index + 1}",
-                "kind": kind, "rating": rating, "stickers": []}
+        label = category.replace("_", " ").title()
+        pack = {"id": pack_id, "name": f"Daily {day} · {label}"[:60],
+                "kind": kind, "rating": rating, "category": category, "stickers": []}
         for record in chunk:
             data = Path(record["file"]).read_bytes()
             filename = record["id"] + ".webp"
@@ -312,7 +313,7 @@ def export_zip(path, records, day):
             entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             entry.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(entry, content)
-        write("manifest.json", json.dumps({"schema": 3, "packs": packs}))
+        write("manifest.json", json.dumps({"schema": 4, "packs": packs}))
         for name, data in assets.items():
             write(name, data)
     temporary.replace(path)
@@ -337,11 +338,19 @@ def run(config, root, font_path, now=None):
     max_attempts = config.get("max_requests_per_day", 16)
     modes = config.get("modes", ["illustration"])
     topics = config.get("topics", [config.get("topic", "technology, light news, everyday reactions")])
+    topic_plans = config.get("topic_plans")
     rating = config.get("rating", "GENERAL")
     if (not isinstance(modes, list) or not modes or any(m not in ("illustration", "photo", "animated", "clip") for m in modes)
             or not isinstance(topics, list) or not topics or any(not isinstance(t, str) for t in topics)
             or rating not in ("GENERAL", "MATURE")):
         raise ValueError("Invalid modes, topics or rating")
+    valid_categories = {"GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS",
+                        "LOVE", "WORK", "FESTIVALS", "OTHER"}
+    if topic_plans is not None and (not isinstance(topic_plans, list) or not topic_plans or
+            len(topic_plans) > 40 or any(not isinstance(plan, dict) or
+            not isinstance(plan.get("topic"), str) or not 1 <= len(plan["topic"].strip()) <= 500 or
+            plan.get("pack_category") not in valid_categories for plan in topic_plans)):
+        raise ValueError("Invalid categorized content plan")
     if (type(target) is not int or not 3 <= target <= 100
             or type(batch) is not int or not 3 <= batch <= 10
             or not isinstance(interval, (int, float)) or interval < 60
@@ -378,7 +387,10 @@ def run(config, root, font_path, now=None):
             excluded = [item["caption"] for item in history][-320:]
             batch_index = len(state["records"]) // batch
             mode = modes[batch_index % len(modes)]
-            topic = topics[batch_index % len(topics)]
+            plan = topic_plans[batch_index % len(topic_plans)] if topic_plans else {
+                "topic": topics[batch_index % len(topics)], "pack_category": "GENERAL"}
+            topic = plan["topic"]
+            category = plan["pack_category"]
             image_path = None
             model = config.get("model", "openai/gpt-oss-20b")
             if mode in ("photo", "clip"):
@@ -391,7 +403,15 @@ def run(config, root, font_path, now=None):
                 image_path = str(images[batch_index % len(images)].resolve())
                 model = config["vision_model"]
                 reference_image(Path(image_path))
-            sources, warnings = references(config.get("feeds", []), config.get("references", []), now)
+            if topic_plans:
+                # A categorized brief binds each current-event batch to its own
+                # source instead of leaking unrelated headlines across topics.
+                plan_source = plan.get("source", "")
+                supplied = [item for item in config.get("references", [])
+                            if item.get("url") == plan_source]
+                sources, warnings = references([], supplied, now)
+            else:
+                sources, warnings = references(config.get("feeds", []), config.get("references", []), now)
             state["requests"] += 1
             # Reserve before the call; a crash still consumes budget and cooldown.
             state["next_request_at"] = now + interval
@@ -414,7 +434,8 @@ def run(config, root, font_path, now=None):
                 raise ValueError(f"Groq HTTP {error.code}; cooldown saved; response body omitted") from None
             state["pending"] = {"ideas": ideas, "sources": sources, "warnings": warnings,
                                  "mode": mode, "topic": topic, "image_path": image_path,
-                                 "rating": rating, "reference_mode": "references" if sources else "everyday reactions"}
+                                 "rating": rating, "category": category,
+                                 "reference_mode": "references" if sources else "everyday reactions"}
             state["last_groq_metrics"] = dict(LAST_GROQ_METRICS)
             atomic_json(state_path, state)
         # Saved ideas survive crashes without another chargeable API request.
@@ -443,6 +464,7 @@ def run(config, root, font_path, now=None):
                             "sources": pending["sources"], "mode": pending["mode"],
                             "reference_mode": pending.get("reference_mode", "everyday reactions"),
                             "kind": kind, "rating": pending.get("rating", "GENERAL"),
+                            "category": pending.get("category", "GENERAL"),
                             "image_path": pending.get("image_path"), "topic": pending.get("topic"),
                             "media_credit": media_credit})
         archive = directory / f"batch-{start + 1:02d}-{start + len(records):02d}.zip"
@@ -453,6 +475,7 @@ def run(config, root, font_path, now=None):
         atomic_json(directory / "references.json", [{"caption": r["caption"],
                     "source": r["source"], "sources": r["sources"], "mode": r["mode"],
                     "image_path": r.get("image_path"), "topic": r.get("topic"),
+                    "category": r.get("category", "GENERAL"),
                     "reference_mode": r.get("reference_mode"), "media_credit": r.get("media_credit")}
                     for r in state["records"]])
         if len(state["records"]) >= target:
@@ -464,7 +487,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("generated-stickers"))
-    parser.add_argument("--font", type=Path, default=Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"))
+    parser.add_argument("--font", type=Path, default=default_font())
     args = parser.parse_args()
     try:
         if not args.font.is_file():

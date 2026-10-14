@@ -39,26 +39,27 @@ class WhatsAppStickerProvider : ContentProvider() {
     ): Cursor {
         val segments = uri.pathSegments
         val ctx = requireNotNull(context)
-        val store = StickerStore(ctx)
-        return when {
-            segments.size == 1 && segments[0] == "metadata" -> {
-                val counts = store.stickerCounts()
-                packCursor(uri, store.listPacks().filter { (counts[it.id] ?: 0) in 3..30 })
-            }
-            segments.size == 2 && segments[0] == "metadata" -> {
-                val pack = store.getPack(segments[1])
-                val eligible = pack?.takeIf { store.listStickers(it.id).size in 3..30 }
-                packCursor(uri, listOfNotNull(eligible))
-            }
-            segments.size == 2 && segments[0] == "stickers" -> {
-                val cursor = MatrixCursor(STICKER_COLUMNS)
-                if (store.getPack(segments[1]) != null) store.listStickers(segments[1]).forEach {
-                    cursor.addRow(arrayOf(it.fileName, "😀", "Custom sticker"))
+        return StickerStore(ctx).use { store ->
+            when {
+                segments.size == 1 && segments[0] == "metadata" -> {
+                    val counts = store.stickerCounts()
+                    packCursor(uri, store.listPacks().filter { (counts[it.id] ?: 0) in 3..30 })
                 }
-                cursor.setNotificationUri(ctx.contentResolver, uri)
-                cursor
+                segments.size == 2 && segments[0] == "metadata" -> {
+                    val pack = store.getPack(segments[1])
+                    val eligible = pack?.takeIf { store.stickerCount(it.id) in 3..30 }
+                    packCursor(uri, listOfNotNull(eligible))
+                }
+                segments.size == 2 && segments[0] == "stickers" -> {
+                    val cursor = MatrixCursor(STICKER_COLUMNS)
+                    if (store.getPack(segments[1]) != null) store.listStickers(segments[1]).forEach {
+                        cursor.addRow(arrayOf(it.fileName, "😀", it.displayName))
+                    }
+                    cursor.setNotificationUri(ctx.contentResolver, uri)
+                    cursor
+                }
+                else -> throw IllegalArgumentException("Unknown provider URI: $uri")
             }
-            else -> throw IllegalArgumentException("Unknown provider URI: $uri")
         }
     }
 
@@ -92,15 +93,18 @@ class WhatsAppStickerProvider : ContentProvider() {
         val parts = uri.pathSegments
         if (parts.size != 3 || parts[0] != "stickers_asset") throw FileNotFoundException("Invalid URI")
         val ctx = requireNotNull(context)
-        val store = StickerStore(ctx)
         val packId = parts[1]
         val name = parts[2]
-        if (store.getPack(packId) == null) throw FileNotFoundException("Unknown pack")
-        val files = StickerFiles(ctx, store)
-        val file = when {
-            name == "tray.png" -> files.trayFile(packId)
-            store.getSticker(packId, name) != null -> files.stickerFile(packId, name)
-            else -> throw FileNotFoundException("Unknown sticker")
+        val file = StickerStore(ctx).use { store ->
+            if (store.getPack(packId) == null) throw FileNotFoundException("Unknown pack")
+            val files = StickerFiles(ctx, store)
+            when {
+                name == "tray.png" -> files.trayFile(packId).also { tray ->
+                    if (!tray.isFile) files.refreshTray(packId)
+                }
+                store.getSticker(packId, name) != null -> files.stickerFile(packId, name)
+                else -> throw FileNotFoundException("Unknown sticker")
+            }
         }
         if (!file.isFile) throw FileNotFoundException("Missing sticker")
         return AssetFileDescriptor(

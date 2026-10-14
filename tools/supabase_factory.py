@@ -9,6 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from contextlib import contextmanager
 
 
 PRIVATE_BUCKET = "sticker-factory-private"
@@ -116,6 +117,25 @@ class SupabaseFactory:
             raise SupabaseError("Invalid database response")
         return rows[0] if rows else None
 
+    def list_rows(self, table, order="updated_at.desc", limit=100):
+        if table not in {"factory_runs", "sticker_packs", "creator_requests", "admin_packs", "admin_events", "content_briefs"}:
+            raise ValueError("Unsupported table")
+        path = "/rest/v1/" + table + "?select=*&order=" + urllib.parse.quote(order) + "&limit=" + str(min(limit, 200))
+        rows = json.loads(self._request("GET", path) or b"[]")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise SupabaseError("Invalid database list")
+        return rows
+
+    def update_versioned(self, table, values, row_id, version):
+        if table != "admin_packs":
+            raise ValueError("Unsupported versioned table")
+        path = "/rest/v1/admin_packs?id=eq." + self._uuid(row_id) + "&version=eq." + str(int(version))
+        rows = json.loads(self._request("PATCH", path, data=json.dumps(values).encode(), headers={
+            "Content-Type": "application/json", "Prefer": "return=representation"}) or b"[]")
+        if not rows:
+            raise ValueError("Pack changed in another session; refresh before editing")
+        return rows[0]
+
     def rpc(self, function, payload):
         if not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", str(function or "")):
             raise ValueError("Invalid RPC name")
@@ -148,6 +168,18 @@ class SupabaseFactory:
 
 def public_catalog_base(url):
     return url.rstrip("/") + "/storage/v1/object/public/" + PUBLIC_BUCKET + "/catalog/"
+
+
+@contextmanager
+def catalog_lease(client):
+    owner = str(uuid.uuid4())
+    claimed = client.rpc("acquire_catalog_lease", {"p_owner": owner})
+    if not claimed or claimed[0].get("acquired") is not True:
+        raise ValueError("Another publication is active; retry shortly")
+    try:
+        yield
+    finally:
+        client.rpc("release_catalog_lease", {"p_owner": owner})
 
 
 def require_production_environment():

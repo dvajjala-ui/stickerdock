@@ -11,7 +11,7 @@ import zipfile
 from PIL import Image
 import daily_stickers as generator
 
-FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+FONT = generator.default_font()
 NOW = 1791763200  # 2026-10-12 00:00 UTC
 
 
@@ -41,11 +41,12 @@ class DailyStickersTest(unittest.TestCase):
             generator.export_zip(archive_path, records, "2026-10-12")
             with zipfile.ZipFile(archive_path) as archive:
                 manifest = json.loads(archive.read("manifest.json"))
-                self.assertEqual(manifest["schema"], 3)
+                self.assertEqual(manifest["schema"], 4)
                 self.assertEqual([len(p["stickers"]) for p in manifest["packs"]], [20, 20])
                 self.assertEqual(len(archive.namelist()), 41)
                 for pack in manifest["packs"]:
                     self.assertEqual(pack["kind"], "STATIC")
+                    self.assertEqual(pack["category"], "GENERAL")
                     for sticker in pack["stickers"]:
                         path = f"packs/{pack['id']}/{sticker['name']}"
                         data = archive.read(path)
@@ -166,7 +167,7 @@ class DailyStickersTest(unittest.TestCase):
             with patch.object(generator, "groq_ideas", return_value=ideas(5)) as call:
                 generator.run(config, root / "outputs", FONT, NOW)
                 self.assertEqual(call.call_args.args[1], "test-vision")
-                self.assertEqual(call.call_args.args[-1], str(photo))
+            self.assertEqual(Path(call.call_args.args[-1]).resolve(), photo.resolve())
             records = json.loads((root / "outputs/2026-10-12/state.json").read_text())["records"]
             with Image.open(records[0]["file"]) as sticker:
                 r, g, b, _ = sticker.convert("RGBA").getpixel((256, 150))
@@ -186,6 +187,31 @@ class DailyStickersTest(unittest.TestCase):
             self.assertEqual([p["kind"] for p in packs], ["STATIC", "ANIMATED"])
             self.assertEqual([len(p["stickers"]) for p in packs], [5, 5])
             self.assertTrue(all(p["rating"] == "MATURE" for p in packs))
+
+    def test_content_plan_exports_category_separated_packs(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            config = {"daily_target": 6, "batch_size": 3, "interval_seconds": 60,
+                      "modes": ["illustration"], "topic_plans": [
+                          {"topic": "A current event reaction", "pack_category": "NEWS"},
+                          {"topic": "An original series reaction", "pack_category": "MOVIES"}]}
+            with patch.object(generator, "groq_ideas", side_effect=[ideas(3), ideas(3, 3)]):
+                generator.run(config, root, FONT, NOW)
+                generator.run(config, root, FONT, NOW + 61)
+            with zipfile.ZipFile(root / "2026-10-12/daily-complete.zip") as archive:
+                packs = json.loads(archive.read("manifest.json"))["packs"]
+            self.assertEqual([p["category"] for p in packs], ["NEWS", "MOVIES"])
+
+    def test_categorized_batch_receives_only_its_bound_source(self):
+        source = "https://example.org/current"
+        config = {"daily_target": 3, "batch_size": 3, "topic_plans": [{
+            "topic": "A current reaction", "pack_category": "NEWS", "source": source}],
+            "references": [{"title": "Current", "url": source},
+                           {"title": "Unrelated", "url": "https://example.org/other"}]}
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}), \
+                patch.object(generator, "groq_ideas", return_value=ideas(3)) as call:
+            generator.run(config, Path(temporary), FONT, NOW)
+        self.assertEqual(call.call_args.args[4], [{"title": "Current", "url": source}])
 
     def test_remaining_stickers_do_not_make_ineligible_tiny_batch(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):

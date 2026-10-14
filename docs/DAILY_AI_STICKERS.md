@@ -51,12 +51,14 @@ references:
 "references": [{"title": "My reference topic", "url": "https://example.org/reference"}]
 ```
 
-Only configured public RSS feeds are fetched; no arbitrary search or article
-scraping occurs. Links supplied under `references` are saved as provenance but
-their pages are not downloaded. Feed titles need a publication date within the
-last 48 hours. When all feeds fail, generation explicitly records its mode as
-everyday reactions rather than claiming fresh news. Feed contents are untrusted
-prompt data. Artwork is locally drawn, never downloaded or executed from a model.
+Production can create one private daily brief with Groq's browser-search tool
+when `GROQ_TRENDS_API_KEY` is configured. It uses a separate structuring pass,
+accepts only HTTPS URLs present in the research memo and stores the resulting
+sources. Recent configured RSS titles and owner topics are the explicit fallback.
+No full article or search-result artwork is copied. Feed titles need a publication
+date within the last 48 hours. All web/feed content is untrusted prompt data.
+Artwork is locally drawn or comes from the separately licensed private media
+library; it is never downloaded from a research result or executed from a model.
 GENERAL is an intended local pack label, not proof of automated moderation;
 review results before sharing them.
 

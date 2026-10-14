@@ -72,6 +72,38 @@ class StickerMetadataSearchTest {
         assertEquals(before + 1, store.getPack(pack.id)!!.version)
     }
 
+    @Test
+    fun indexedCountsAndHashesStayScopedToPack() {
+        val first = store.createPack("First")
+        val second = store.createPack("Second")
+        assertEquals(0, store.stickerCount(first.id))
+        assertTrue(store.addSticker(StickerItem("one", first.id, "one.webp", "shared", 1)))
+        assertEquals(1, store.stickerCount(first.id))
+        assertEquals(0, store.stickerCount(second.id))
+        assertTrue(store.hasStickerHash("shared"))
+        assertTrue(store.hasStickerHash("shared", first.id))
+        assertTrue(!store.hasStickerHash("shared", second.id))
+        store.deleteSticker(first.id, "one")
+        assertEquals(0, store.stickerCount(first.id))
+        assertTrue(!store.hasStickerHash("shared"))
+    }
+
+    @Test
+    fun transferRecognizesDuplicateEvenWhenTargetIsFull() {
+        val source = store.createPack("Source")
+        val target = store.createPack("Full")
+        val original = StickerItem("source", source.id, "source.webp", "hash-0", 1)
+        assertTrue(store.addSticker(original))
+        repeat(30) { index ->
+            assertTrue(store.addSticker(StickerItem("target-$index", target.id,
+                "$index.webp", "hash-$index", index.toLong())))
+        }
+        assertEquals(ImportResult.Duplicate,
+            StickerFiles(context, store).transferSticker(original, target.id, move = true))
+        assertEquals(1, store.stickerCount(source.id))
+        assertEquals(30, store.stickerCount(target.id))
+    }
+
     companion object {
         private const val DB_NAME = "stickerdock.db"
     }

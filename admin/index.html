@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>StickerDock — Factory Admin</title>
+  <meta name="description" content="Private StickerDock Factory control, pack review and publication.">
+  <link rel="stylesheet" href="/admin/styles.css">
+  <script src="/admin/app.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="/admin"><span class="brand-icon">S<span>✦</span></span><span>StickerDock<small>FACTORY ADMIN</small></span></a>
+    <p class="nav-label">WORKSPACE</p>
+    <nav aria-label="Admin navigation">
+      <button data-page="overview" class="active"><span>◫</span> Overview</button>
+      <button data-page="packs"><span>▧</span> Sticker packs <b id="pack-count">0</b></button>
+      <button data-page="media"><span>▨</span> Media library</button>
+      <button data-page="generate"><span>✦</span> AI workbench</button>
+      <button data-page="content"><span>◎</span> Content planner</button>
+      <p class="nav-label">OPERATIONS</p>
+      <button data-page="factory"><span>◷</span> Factory & queue</button>
+      <button data-page="catalog"><span>↗</span> Public catalog</button>
+      <button data-page="activity"><span>≋</span> Activity log</button>
+      <button data-page="settings"><span>⚙</span> Settings</button>
+    </nav>
+    <div class="sidebar-bottom"><div class="flow-note"><span>☏</span><strong>Made for your phone</strong><p>Reviewed packs go straight to the app’s Factory feed.</p></div><button id="connection-button" class="account"><span class="avatar">D</span><span>Owner workspace<small id="connection-label">Preview mode</small></span><span>↗</span></button></div>
+  </aside>
+  <div class="main-shell">
+    <header class="topbar"><div><button id="menu-button" class="icon-button" aria-label="Toggle navigation">☰</button><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Overview</strong></span></div><div class="top-actions"><span class="connection-pill" id="mode-pill"><i></i> Preview data</span><button id="refresh-button" class="icon-button" aria-label="Refresh data">↻</button><button id="connect-button" class="secondary compact">Connect backend</button></div></header>
+    <div id="preview-banner" class="preview-banner">You’re exploring a local preview. Connect your owner token to manage real Factory data. <button id="banner-connect">Connect →</button></div>
+    <main id="content" tabindex="-1"></main>
+    <footer>StickerDock Factory <span>Private workspace · Reviewed publishing</span></footer>
+  </div>
+  <dialog id="connect-dialog"><form id="connect-form"><div class="dialog-heading"><h2>Connect your Factory</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Use the owner token configured for this Vercel deployment. It stays in this browser tab’s memory.</p><label>Owner access token<input id="owner-token" type="password" minlength="32" maxlength="256" autocomplete="off" required placeholder="Enter your private access token"></label><p class="hint">Supabase service keys and AI keys belong only in server secrets.</p><p id="connect-error" class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="disconnect-button" class="secondary">Use preview</button><button type="submit" class="primary">Connect securely →</button></div></form></dialog>
+  <dialog id="pack-dialog"><div id="pack-editor"></div></dialog>
+  <dialog id="create-dialog"><form id="create-form"><div class="dialog-heading"><h2>Create a sticker pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Choose source images from the private library. Static images become 512 × 512 WebP stickers.</p><div class="form-grid"><label>Pack name<input name="name" maxlength="60" required placeholder="e.g. Everyday reactions"></label><label>Creator<input name="creator" maxlength="60" required value="StickerDock"></label></div><label>Category<select name="category" id="create-category"></select></label><div id="create-sources" class="source-choices"></div><p class="hint">Keep 3–30 unique stickers for WhatsApp publication. Source rights travel with the pack.</p><div class="dialog-actions"><button type="button" class="secondary" data-close>Cancel</button><button class="primary" type="submit">Create private draft</button></div></form></dialog>
+  <dialog id="confirm-dialog"><form id="confirm-form"><div class="dialog-heading"><h2 id="confirm-title">Confirm action</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary" type="button" data-close>Cancel</button><button class="primary" type="submit" id="confirm-submit">Confirm</button></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

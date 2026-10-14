@@ -22,9 +22,11 @@ jobs:
     timeout-minutes: 25
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_TRENDS_API_KEY: ${{ secrets.GROQ_TRENDS_API_KEY }}
       SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GROQ_TEXT_MODEL: ${{ vars.GROQ_TEXT_MODEL || 'openai/gpt-oss-20b' }}
+      GROQ_TRENDS_MODEL: ${{ vars.GROQ_TRENDS_MODEL || 'openai/gpt-oss-20b' }}
       GROQ_VISION_MODEL: qwen/qwen3.8-27b
       FACTORY_DAILY_TARGET: ${{ vars.FACTORY_DAILY_TARGET || '40' }}
       FACTORY_RATING: GENERAL

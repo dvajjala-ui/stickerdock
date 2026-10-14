@@ -10,8 +10,9 @@ from unittest.mock import patch
 from PIL import Image
 from daily_stickers import reference_image, run
 from video_stickers import clip_frames, render_clip
+from sticker_fonts import default_font
 
-FONT = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
+FONT = default_font()
 
 
 @unittest.skipUnless(shutil.which("ffmpeg") and FONT.exists(), "Requires FFmpeg and DejaVu Sans")
@@ -68,7 +69,7 @@ class VideoStickerTest(unittest.TestCase):
             with patch("daily_stickers.groq_ideas", return_value=ideas) as call, \
                     patch("video_stickers.clip_frames", wraps=clip_frames) as decode:
                 run(config, root / "outputs", FONT, now=1791763200)
-                self.assertEqual(call.call_args.args[-1], str(clip))
+                self.assertEqual(Path(call.call_args.args[-1]).resolve(), clip.resolve())
                 self.assertEqual(decode.call_count, 2)  # one preview, one shared render input
             records = json.loads((root / "outputs/2026-10-12/state.json").read_text())["records"]
             self.assertTrue(all(record["kind"] == "ANIMATED" for record in records))

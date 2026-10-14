@@ -1,11 +1,15 @@
 package app.stickerdock.duo
 
 import android.net.Uri
+import java.io.File
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -55,5 +59,45 @@ class WhatsAppStickerProviderContractTest {
         assertEquals("pack-id", intent.getStringExtra("sticker_pack_id"))
         assertEquals(WhatsAppStickerProvider.AUTHORITY, intent.getStringExtra("sticker_pack_authority"))
         assertEquals("Test pack", intent.getStringExtra("sticker_pack_name"))
+    }
+
+    @Test
+    fun repeatedQueriesAndAssetOpensRemainUsableAfterScopedDatabaseClose() {
+        val context = RuntimeEnvironment.getApplication()
+        context.deleteDatabase("stickerdock.db")
+        File(context.filesDir, "stickers").deleteRecursively()
+        val store = StickerStore(context)
+        val pack = store.createPack("Provider pack")
+        repeat(3) { index ->
+            assertTrue(store.addSticker(StickerItem("id-$index", pack.id, "$index.webp",
+                "hash-$index", index.toLong())))
+        }
+        val asset = StickerFiles(context, store).stickerFile(pack.id, "0.webp")
+        asset.parentFile?.mkdirs()
+        asset.writeBytes("test-provider-asset".toByteArray())
+        store.close()
+        val provider = Robolectric.buildContentProvider(WhatsAppStickerProvider::class.java).create().get()
+        val authority = WhatsAppStickerProvider.AUTHORITY
+
+        repeat(25) {
+            provider.query(Uri.parse("content://$authority/metadata/${pack.id}"),
+                null, null, null, null).use { cursor ->
+                assertArrayEquals(WhatsAppStickerProvider.PACK_COLUMNS, cursor.columnNames)
+                assertEquals(1, cursor.count)
+            }
+            provider.query(Uri.parse("content://$authority/stickers/${pack.id}"),
+                null, null, null, null).use { cursor ->
+                assertArrayEquals(WhatsAppStickerProvider.STICKER_COLUMNS, cursor.columnNames)
+                assertEquals(3, cursor.count)
+                assertTrue(cursor.moveToFirst())
+                assertEquals("0.webp", cursor.getString(2))
+            }
+            provider.openAssetFile(
+                Uri.parse("content://$authority/stickers_asset/${pack.id}/0.webp"), "r"
+            ).use { descriptor -> assertTrue(descriptor.length > 0 || descriptor.declaredLength < 0) }
+        }
+
+        context.deleteDatabase("stickerdock.db")
+        File(context.filesDir, "stickers").deleteRecursively()
     }
 }

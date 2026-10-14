@@ -69,6 +69,13 @@ class PinterestWorkerTest(unittest.TestCase):
             with Database(root / "pinterest.sqlite3") as database:
                 self.assertEqual(database.recorded_storage_bytes(), 0)
 
+    def test_access_token_can_discover_boards_without_ids(self):
+        config = json.loads((Path(__file__).parent / "pinterest-production.json").read_text())
+        with patch.dict(os.environ, {"PINTEREST_ACCESS_TOKEN": "test"}, clear=True):
+            result, _ = pinterest_worker.configure(config)
+        self.assertTrue(result["official"]["enabled"])
+        self.assertEqual(result["official"]["boards"], [])
+
     def test_per_pin_rights_are_validated(self):
         self.assertEqual(pinterest_worker.rights_map('{"12345":"USER_OWNED"}'),
                          {"12345": "USER_OWNED"})

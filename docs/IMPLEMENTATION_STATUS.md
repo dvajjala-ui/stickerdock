@@ -1,6 +1,6 @@
 # StickerDock implementation status
 
-Updated October 13, 2026. “Complete” means implemented and covered by automated
+Updated October 14, 2026. “Complete” means implemented and covered by automated
 tests/builds; live-provider items are called out separately. It does not replace
 real-device acceptance or store-release testing.
 
@@ -12,8 +12,9 @@ real-device acceptance or store-release testing.
    WhatsApp/WhatsApp Business and reads approved public packs.
 2. **Sticker Factory service** — a separate private GitHub Actions scheduler. It
    is the only component that calls Groq for the daily Factory. It combines
-   news-title references, Commons media, manual uploads and Pinterest inputs,
-   renders batches, and stores state/pending packs in Supabase.
+   a once-daily source-linked content brief, recent RSS titles, Commons media,
+   manual uploads and Pinterest inputs, renders categorized batches, and stores
+   state/pending packs in Supabase.
 3. **Creator Studio AI editor** — still shown as **Coming soon** in Android. The
    private browser Studio supports manual editing plus an asynchronous
    Studio → Factory request/result queue. The real Supabase/Groq vision path has
@@ -24,11 +25,12 @@ real-device acceptance or store-release testing.
 
 ### Android library
 
-- Category model plus non-destructive SQLite v6 migration. Existing packs become
+- Category model plus non-destructive SQLite v7 migration. Existing packs become
   `General`; new packs can use General, Reactions, Hinglish, Movies, News,
   Animals, Love, Work, Festivals or Other. Sticker rows now also have optional
-  user-visible labels and normalized tags. Robolectric covers upgrades from
-  database versions 1 through 5 without losing packs or stickers.
+  user-visible labels and normalized tags. Schema v7 adds the folder-import
+  journal. Robolectric covers upgrades from database versions 1 through 6
+  without losing packs or stickers.
 - Category/topic filters, static/animated filters, pack search, global
   sticker-level search, per-sticker label/tag editing, category editing and
   metadata-preserving backup schema v5. Older backup schemas 1–4 remain readable.
@@ -39,10 +41,12 @@ real-device acceptance or store-release testing.
   multi-ZIP import and local backup/restore. User-visible source filenames are
   retained as sticker labels when available from the picker, ZIP or folder scan.
 - User-accessible WhatsApp and WhatsApp Business media-folder migration.
-- Large folder scans expose live counts, save an app-private checkpoint every 25
-  recognized files, persist the selected SAF read URI where Android permits it,
-  and expose Resume/Discard controls after interruption. Re-scans skip recorded
-  source URIs and global SHA-256 deduplication makes a small unflushed tail safe.
+- Large folder scans expose live counts, journal processed sources and outcomes
+  in SQLite, persist the selected SAF read URI where Android permits it, and
+  expose Pause/Resume/Discard controls. Re-scans skip journaled source URIs and
+  report folders omitted at the traversal depth bound.
+- Backup restore stages bounded entries on disk and preserves the exact validated
+  WebP bytes and hashes. Export preflight and restore share the same limits.
 - Sticker.ly public link bookmarks and import of user-supplied exports/ZIPs.
   There is no automatic Sticker.ly account/catalog download.
 - Read-only approved public catalog and GENERAL/MATURE local labels. A missing
@@ -54,7 +58,7 @@ real-device acceptance or store-release testing.
   only. App backup remains disabled and no broad storage/camera/location/account
   permission is requested.
 - Android now compiles and targets API 36 with AGP 8.9.1 and Gradle 8.11.1. The
-  normal CI path passes the 89-test production Python helper suite, Android unit
+  current local path passes the 115-test production Python helper suite, Android unit
   tests, `lintRelease`, debug/release APK assembly and release AAB construction.
   Production workflows use the current Node-24 GitHub Action lines validated in
   CI (`checkout@v7`, `setup-python@v7`, `setup-java@v6`, `setup-gradle@v6` and
@@ -65,6 +69,11 @@ real-device acceptance or store-release testing.
 
 - Forty-sticker daily target, five per Groq request, three-hour scheduling,
   saved cooldowns, request caps, deduplication and crash-safe persistent state.
+- Separate `GROQ_TRENDS_API_KEY` support for one cached browser-search brief per
+  UTC day, with validated source URLs, RSS/owner fallback, Admin-selected content
+  categories, private-MATURE adult-humor gating and category-specific ZIP packs.
+- Completed daily output can enter the Admin library automatically as an
+  immutable-source private draft. Publication remains review-gated.
   Normal private scheduled generation is now active; setting
   `STICKER_FACTORY_ENABLED=false` is the explicit emergency pause. Public
   publication remains a separate manual/review-gated workflow.
@@ -229,11 +238,18 @@ real-device acceptance or store-release testing.
   and fails fast with the exact missing secret name before decoding the keystore.
 - **WhatsApp integration:** provider code exists and compiles; acceptance in
   current WhatsApp and WhatsApp Business builds needs a real-device test.
-- **Large folder migration:** progress/checkpoint/resume logic compiles and the
-  automated build is green, but Android process-kill recovery, provider URI
+- **Large folder migration:** pause/journal/resume source exists, but this latest
+  change does not yet have an Android CI result. Process-kill recovery, provider URI
   persistence and 10k+ file behavior still need real Galaxy S24 Ultra testing.
 
 ## Still pending
+
+- Owner admin source is implemented at `/admin`; see `ADMIN_PORTAL.md`. The
+  additive `202610140001` database migration is not applied, and Vercel hosting
+  is not verified. Apply it before this revision's manual publisher; catalog
+  writes now use a shared database lease. No production packs were migrated or
+  published during local implementation. The October 14 read-only public-index
+  check returned Supabase NoSuchKey.
 
 - Deploy/configure the already-merged Creator Studio live-AI source on Vercel and
   perform one authenticated hosted-browser queue/result smoke. Android can remain

@@ -19,7 +19,7 @@ android {
         targetSdk = 36
         versionCode = 3
         versionName = "0.3.0"
-        val defaultCatalog = "https://raw.githubusercontent.com/dvajjala-ui/stickerdock/main/catalog/"
+        val defaultCatalog = "https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/"
         val catalogBase = providers.gradleProperty("catalogBaseUrl").orElse(defaultCatalog).get()
         require(catalogBase.startsWith("https://") && catalogBase.endsWith("/"))
         buildConfigField("String", "COMMUNITY_CATALOG_BASE_URL",
