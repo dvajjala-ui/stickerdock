@@ -175,6 +175,9 @@ def run_scan(config: dict, root: Path, official=None, public=None, db=None) -> d
                 time.sleep(float(limits["delay_between_downloads_seconds"]))
         stats["daily_used"] = db.completed_today(config["timezone"])
         stats["official_api_used_24h"] = db.api_used_24h()
+        if (stats["download_attempts"] and stats["failed"] == stats["download_attempts"] and
+                not stats["new_downloads"] and not stats["content_duplicates"]):
+            raise RuntimeError("Every Pinterest download attempt failed")
         return stats
     finally:
         if owns_db:

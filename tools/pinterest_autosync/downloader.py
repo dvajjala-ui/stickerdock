@@ -81,24 +81,6 @@ def official_download(url: str, staging: Path, kind: str, max_bytes: int, sessio
     raise ValueError("Too many media redirects")
 
 
-def unofficial_download(native, staging: Path, max_bytes: int) -> tuple[Path, str]:
-    if native is None:
-        raise UnsupportedMedia("Pinterest item must be rediscovered")
-    from pinterest_dl import PinterestDL
-    PinterestDL.download_media(media=[native], output_dir=str(staging), download_streams=True)
-    files = [path for path in staging.rglob("*")
-             if path.is_file() and path.suffix.lower() in IMAGE_EXT | VIDEO_EXT]
-    videos = [path for path in files if path.suffix.lower() in VIDEO_EXT]
-    pictures = [path for path in files if path.suffix.lower() in IMAGE_EXT]
-    chosen = (max(videos, key=lambda path: path.stat().st_size) if videos else
-              max(pictures, key=lambda path: path.stat().st_size) if pictures else None)
-    if not chosen:
-        raise UnsupportedMedia("Pinterest downloader returned no supported media")
-    if chosen.stat().st_size > max_bytes:
-        raise StorageLimitReached("Unofficial download exceeded configured size")
-    return chosen, "video" if chosen in videos else "image"
-
-
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -116,13 +98,11 @@ def save_candidate(candidate: Candidate, db, base_dir: Path, limits: dict, http=
     staging_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="pin_", dir=staging_root) as temporary:
         staging = Path(temporary)
-        if candidate.source == "official":
-            if not candidate.media_url:
-                raise UnsupportedMedia("Pinterest API supplied no downloadable media URL")
+        if candidate.media_url:
             original = official_download(candidate.media_url, staging, candidate.kind, max_bytes, http)
             kind = candidate.kind
         else:
-            original, kind = unofficial_download(candidate.native, staging, max_bytes)
+            raise UnsupportedMedia("Pinterest source supplied no downloadable media URL")
         if original.stat().st_size == 0:
             raise UnsupportedMedia("Empty Pinterest media")
         if db.recorded_storage_bytes() + original.stat().st_size > storage_cap:

@@ -96,10 +96,9 @@ class PinterestAutoSyncTest(unittest.TestCase):
     def test_failures_are_bounded_by_attempt_budget(self):
         self.config["limits"]["max_attempts_per_scan"] = 4
         with patch("pinterest_autosync.runner.save_candidate", side_effect=OSError("unavailable")) as save:
-            result = run_scan(self.config, self.root, official=FakeOfficial(), public=FakePublic(100))
+            with self.assertRaisesRegex(RuntimeError, "Every Pinterest download attempt failed"):
+                run_scan(self.config, self.root, official=FakeOfficial(), public=FakePublic(100))
         self.assertEqual(save.call_count, 4)
-        self.assertEqual(result["download_attempts"], 4)
-        self.assertEqual(result["failed"], 4)
 
     def test_official_auth_failure_fails_the_run(self):
         self.config["official"]["enabled"] = True
@@ -119,6 +118,18 @@ class PinterestAutoSyncTest(unittest.TestCase):
         found = PublicTopics(config, client=client).discover()
         self.assertEqual([item.pin_id for item in found], ["123456789"])
         self.assertEqual(client.kwargs["min_resolution"], (256, 256))
+        self.assertIsNone(found[0].media_url)
+
+    def test_real_public_payload_exposes_bounded_cdn_download_url(self):
+        class PublicMedia:
+            def to_dict(self):
+                return {"id": "123456789", "src": "https://i.pinimg.com/originals/a.jpg",
+                        "origin": "https://www.pinterest.com/pin/123456789/",
+                        "resolution": {"x": 512, "y": 512}}
+
+        candidate = PublicTopics.from_native(PublicMedia(), "reaction memes")
+        self.assertEqual(candidate.kind, "image")
+        self.assertEqual(candidate.media_url, "https://i.pinimg.com/originals/a.jpg")
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

@@ -189,7 +189,10 @@ class PublicTopics:
             match = re.search(r"/pin/(\d+)", pin_url)
             pin_id = match.group(1) if match else None
         label = str(payload.get("media_type") or payload.get("type") or "").lower()
-        has_streams = bool(payload.get("streams") or payload.get("videos") or
+        stream = payload.get("media_stream") if isinstance(payload.get("media_stream"), dict) else {}
+        video = stream.get("video") if isinstance(stream.get("video"), dict) else {}
+        video_url = video.get("url") if isinstance(video.get("url"), str) else None
+        has_streams = bool(video_url or payload.get("streams") or payload.get("videos") or
                            payload.get("video_url"))
         kind = "video" if label in ("video", "video_pin") or has_streams else "image"
         fallback = next((str(payload[key]) for key in ("image_url", "src", "url", "link")
@@ -197,9 +200,15 @@ class PublicTopics:
         identity = (f"pin:{pin_id}" if pin_id else "public:" + hashlib.sha256(
             str(fallback or json.dumps(payload, sort_keys=True, default=str)).encode()
         ).hexdigest()[:32])
+        media_url = video_url if kind == "video" else fallback
+        parsed_media = urlparse(media_url) if media_url else None
+        host = (parsed_media.hostname or "").lower() if parsed_media else ""
+        if (not parsed_media or parsed_media.scheme != "https" or
+                not (host == "pinimg.com" or host.endswith(".pinimg.com"))):
+            media_url = None
         return Candidate(key=identity, source="unofficial", source_ref=f"topic:{topic}",
                          pin_id=pin_id, pin_url=pin_url, kind=kind,
-                         media_url=None, raw=payload, native=media)
+                         media_url=media_url, raw=payload, native=media)
 
     def discover(self) -> list[Candidate]:
         if not self.cfg.get("enabled", False):
