@@ -20,6 +20,7 @@ CONNECTION_PATH = "integrations/pinterest-connection.json"
 CALLBACK = "https://stickerdock.vercel.app/api/pinterest_callback"
 SCOPES = "boards:read,pins:read"
 COOKIE = "__Host-stickerdock-pinterest"
+DEFAULT_APP_ID = "1624615"
 
 
 def provider(path, token=None, form=None):
@@ -29,7 +30,7 @@ def provider(path, token=None, form=None):
     if token:
         headers["Authorization"] = "Bearer " + token
     if form is not None:
-        app_id, secret = os.environ.get("PINTEREST_APP_ID", ""), os.environ.get("PINTEREST_APP_SECRET", "")
+        app_id, secret = os.environ.get("PINTEREST_APP_ID", DEFAULT_APP_ID), os.environ.get("PINTEREST_APP_SECRET", "")
         if not app_id.isdigit() or not secret:
             raise ValueError("Pinterest app credentials are not configured")
         headers.update({"Authorization": "Basic " + base64.b64encode((app_id + ":" + secret).encode()).decode(),
@@ -93,8 +94,8 @@ def access_token(client):
 def connection_status(client, check=False):
     row = load_connection(client)
     configured = bool(row.get("access_token") or os.environ.get("PINTEREST_ACCESS_TOKEN")) and not row.get("disconnected")
-    result = {"configured": configured, "oauth_ready": bool(os.environ.get("PINTEREST_APP_ID") and os.environ.get("PINTEREST_APP_SECRET")),
-              "app_id": os.environ.get("PINTEREST_APP_ID", ""), "status": "configured" if configured else "not_connected",
+    result = {"configured": configured, "oauth_ready": bool(os.environ.get("PINTEREST_APP_ID", DEFAULT_APP_ID) and os.environ.get("PINTEREST_APP_SECRET")),
+              "app_id": os.environ.get("PINTEREST_APP_ID", DEFAULT_APP_ID), "status": "configured" if configured else "not_connected",
               "website": "https://stickerdock.vercel.app/about", "privacy": "https://stickerdock.vercel.app/privacy",
               "callback": CALLBACK, "scopes": SCOPES, "mode": "live_reference_only", "message":
               "Official read-only browsing. Pin content is not stored or used to create stickers."}
@@ -132,7 +133,7 @@ def browse(client, payload):
 
 
 def oauth_start():
-    app_id = os.environ.get("PINTEREST_APP_ID", "")
+    app_id = os.environ.get("PINTEREST_APP_ID", DEFAULT_APP_ID)
     signing_key = os.environ.get("STUDIO_ACCESS_TOKEN", "")
     if not app_id.isdigit() or not os.environ.get("PINTEREST_APP_SECRET") or len(signing_key) < 32:
         raise ValueError("Approve the Pinterest app, then configure PINTEREST_APP_ID and PINTEREST_APP_SECRET on the server")

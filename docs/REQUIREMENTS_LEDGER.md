@@ -25,6 +25,14 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 
 ## History
 
+- 2026-10-15 Pinterest/image follow-up: new app 1624615 is submitted and Trial
+  pending, replacing the old download use case with live reference browsing.
+  Real public website/privacy/support links deployed. Temporary token probe is
+  blocked by Pinterest (HTTP 401 consumer type); approval remains external.
+  R18 clarification: phone import writes local SQLite only; user chose public web
+  examples for this style review because no backend copy exists. Optional cloud
+  library sync remains pending. No requirements removed.
+
 - 2026-10-15 production continuation: Vercel admin/Studio deployed; protected
   Production credentials configured with explicit approval. Hosted owner reads,
   Factory migration, review and publication passed; one five-sticker GENERAL pack

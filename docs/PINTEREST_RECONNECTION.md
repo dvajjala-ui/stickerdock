@@ -3,6 +3,20 @@
 Updated October 15, 2026. Supersedes the archived Pin-download recommendations
 in older Factory/Pinterest documents; it does not remove the user's requirements.
 
+## Latest submitted request
+
+The new StickerDock request has been submitted as app **1624615** and the
+dashboard shows **Trial access pending**. The app secret and redirect settings
+remain unavailable during review. A user-generated 24-hour limited token was
+tested once against `/v5/boards?page_size=1`: HTTP 401, code 3, consumer type not
+supported. Do not claim a working authorized connection or rely on that temporary
+token for daily production. No request for broader write/advertising access.
+
+The public About, Privacy and Support URLs all returned HTTP 200 with the chosen
+contact after deployment. Three independently verified public-domain/CC0 cat
+photos are seeded into the existing bounded Factory media queue; provenance stays
+attached. A discovery outage no longer blocks an explicit licensed media queue.
+
 ## Verified dashboard and policy findings
 
 - App `apphidwarkesh`, ID `1624134`, is **Trial access denied**. Details and

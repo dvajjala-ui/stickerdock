@@ -188,7 +188,12 @@ def sync(config, root, now=None):
             if queries:
                 query = queries[state["query_index"] % len(queries)]
                 state["query_index"] += 1
-                candidates += commons_candidates(query)
+                try:
+                    candidates += commons_candidates(query)
+                except (OSError, ValueError):
+                    if not candidates:
+                        raise
+                    state["last_warning"] = "Discovery unavailable; explicit licensed queue used"
             if config.get("pinterest_board_id"):
                 if state["attempts"] < daily:
                     state["attempts"] += 1
