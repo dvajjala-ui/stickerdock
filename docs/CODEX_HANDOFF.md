@@ -2,6 +2,21 @@
 
 ## Latest production-flow continuation
 
+Hosted owner login, health/overview and private media reads pass at
+https://stickerdock.vercel.app/admin with protected Production secrets. The owner
+token backup is outside Git at
+`%USERPROFILE%/.codex/toolchains/stickerdock/private-web/owner-access-token.txt`;
+Windows ACLs restrict it to the current user and SYSTEM. Never print it in logs.
+Existing Factory draft migration, signed ZIP checksum verification, review and
+publication pass. One five-sticker GENERAL pack is now published. Phone delivery
+and WhatsApp acceptance remain unverified.
+
+Hosted usability review found background reads could block navigation/reset
+forms. Background refresh is now nonblocking, ignores stale responses, leaves
+settings/generation forms alone, and has a request timeout. Overview reads run
+concurrently with four workers. The focused browser regression and 18 admin API
+tests pass locally; deploy this follow-up and verify the hosted behavior.
+
 This section supersedes older pending-signing and admin feature notes below.
 
 - Admin now supports adding inbox/AI result images into an existing static draft,
@@ -25,10 +40,22 @@ This section supersedes older pending-signing and admin feature notes below.
   `%USERPROFILE%/.codex/toolchains/stickerdock/private-release`; credentials are
   protected with Windows DPAPI. Preserve/export a secure backup before changing
   machines. Back up app data before switching from a debug-signed installation.
-- User authorized a new Vercel project for admin/Studio. Saved CLI auth returns
-  403; browser session works. Deployment, current schema/catalog read-back and
-  phone acceptance still need separate evidence. Do not claim public AI delivery
-  or WhatsApp acceptance from local tests.
+- LIVE: current debug CI and signed release CI passed at
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38703559085 and
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38703589173.
+- LIVE: readiness run 38703586594 verified all eight required tables/selected
+  columns are available and zero packs are published. Do not reapply migrations
+  just because older notes below still describe them as pending.
+- LIVE: new Vercel Hobby project https://stickerdock.vercel.app is deployed from
+  `d5e4f6c`; Studio/admin pages return 200, unauthenticated admin API returns 401.
+  User approved adding the Supabase server key and owner token as protected
+  Production secrets. Saved CLI auth returns 403; use the working browser session.
+  Complete secret setup/redeploy and authenticated hosted smoke before claiming
+  remotely usable backend features.
+- LIVE: Factory run 38704185175 generated five stickers, persisted 10/40 for
+  October 15 and used RSS content discovery. Normal-cooldown daily completion,
+  reviewed publication and phone acceptance remain gates. Do not claim public
+  AI delivery or WhatsApp acceptance from local tests.
 
 ## Current Android continuation
 

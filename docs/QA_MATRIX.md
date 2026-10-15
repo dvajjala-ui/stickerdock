@@ -2,6 +2,14 @@
 
 ## Production-flow continuation — October 15
 
+- HOSTED: authenticated owner login, health, overview, private media listing,
+  existing Factory draft migration and signed ZIP checksum read-back pass.
+  One reviewed GENERAL pack with five stickers is published. Phone acceptance
+  is still pending.
+- LOCAL FOLLOW-UP: background refresh regression passes with a held response
+  while navigating/editing settings; stale responses preserve edits. All 18
+  admin API tests pass.
+
 - LOCAL: Python suite ran 129 tests: 125 passed, 4 video tests skipped because
   local FFmpeg/DejaVu dependencies are unavailable. JavaScript syntax checks pass.
 - BROWSER LOCAL: Chromium exercised unsaved-edit protection, metadata/category
@@ -16,9 +24,19 @@
   `B2A0404289CD9029F2DD206130FC62A24B68D98A65734E83D689AE3B455176F4`.
   The signing key is backed up outside Git and four signing secrets are configured
   in the GitHub `android-production` environment. Phone acceptance is still pending.
-- LIVE PENDING: dispatch the read-only production-readiness workflow after push
-  to establish current table/column and catalog availability. A new Vercel
-  project is authorized; hosted authenticated smoke remains a release gate.
+- CI PASS: current Android debug build/tests and signed release build both pass:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38703559085 and
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38703589173.
+- LIVE: read-only readiness confirms all eight required tables and selected
+  columns are available, with zero published packs:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38703586594.
+- LIVE: new Vercel Hobby deployment at https://stickerdock.vercel.app responds
+  200 for Studio/admin and 401 for unauthenticated admin API. Server secret setup
+  and authenticated hosted smoke remain pending.
+- LIVE: updated Factory worker generated five more stickers and persisted 10/40
+  for October 15, using the RSS content fallback. This is a successful batch,
+  not a completed 40/40 day or proof of Groq browser-search availability:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38704185175.
 
 Switching from a debug-signed installation to this release-signed APK requires
 backing up the library before uninstall/reinstall. Future release updates must

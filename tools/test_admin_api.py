@@ -69,6 +69,15 @@ class AdminApiTest(unittest.TestCase):
         result = admin.dispatch({"action": "migrate_factory", "id": self.origin}, self.client)
         return self.client.find("admin_packs", "id", result["id"])
 
+    def test_overview_returns_live_data_and_empty_catalog_without_mutation(self):
+        before = copy.deepcopy(self.client.objects)
+        result = admin.overview(self.client)
+        self.assertEqual(result["factory_packs"][0]["id"], self.origin)
+        self.assertEqual(result["catalog"], {"version": 1, "packs": []})
+        self.assertEqual(result["packs"], [])
+        self.assertEqual(result["access_mode"], "single-owner-token")
+        self.assertEqual(self.client.objects, before)
+
     def test_migration_is_idempotent_and_keeps_original_archive(self):
         before = dict(self.client.objects)
         row = self.migrate()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import io
 import json
@@ -68,18 +69,21 @@ def read_catalog(client):
 
 
 def overview(client):
-    return {
-        "packs": client.list_rows("admin_packs"),
-        "factory_packs": client.list_rows("sticker_packs"),
-        "runs": client.list_rows("factory_runs", "day.desc", 30),
-        "requests": client.list_rows("creator_requests", "created_at.desc", 100),
-        "events": client.list_rows("admin_events", "created_at.desc", 30),
-        "briefs": client.list_rows("content_briefs", "day.desc", 14),
-        "settings": client.find("factory_settings", "id", "default"),
-        "catalog": read_catalog(client),
-        "catalog_base": public_catalog_base(client.url),
-        "access_mode": "single-owner-token",
+    reads = {
+        "packs": lambda: client.list_rows("admin_packs"),
+        "factory_packs": lambda: client.list_rows("sticker_packs"),
+        "runs": lambda: client.list_rows("factory_runs", "day.desc", 30),
+        "requests": lambda: client.list_rows("creator_requests", "created_at.desc", 100),
+        "events": lambda: client.list_rows("admin_events", "created_at.desc", 30),
+        "briefs": lambda: client.list_rows("content_briefs", "day.desc", 14),
+        "settings": lambda: client.find("factory_settings", "id", "default"),
+        "catalog": lambda: read_catalog(client),
     }
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        pending = {key: pool.submit(read) for key, read in reads.items()}
+        result = {key: future.result() for key, future in pending.items()}
+    return {**result, "catalog_base": public_catalog_base(client.url),
+            "access_mode": "single-owner-token"}
 
 
 def pack_detail(client, payload):

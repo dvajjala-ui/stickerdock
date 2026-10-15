@@ -22,6 +22,12 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 
 ## History
 
+- 2026-10-15 production continuation: Vercel admin/Studio deployed; protected
+  Production credentials configured with explicit approval. Hosted owner reads,
+  Factory migration, review and publication passed; one five-sticker GENERAL pack
+  is available. Signed release CI passed. Background refresh form/navigation gap
+  fixed with a focused browser regression. Device acceptance remains pending.
+
 - 2026-10-15 follow-up: user reaffirmed R01–R10 and requested a complete Sticker.ly-like flow with advanced functions. Active work: direct photo-to-pack creation, real static artwork editing (rotate, mirror, zoom/position and captions), safer automatic delivery and faster large-library previews. Background removal, account routing inside WhatsApp and hosted production gates remain explicit pending items; no requirement removed.
 
 - 2026-10-15: R01–R14 consolidated from the user's initial and current requests; no requirements removed. Clarified official WhatsApp constraints in R04/R07 while retaining requested account/sync outcomes.

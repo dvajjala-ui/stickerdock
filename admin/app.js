@@ -9,6 +9,7 @@
   let token = "", page = "overview", data, library = [], detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
   let pendingStickerEdits = new Map(), pendingPackName = null, pendingCreator = null;
   let readiness = null, packBaseline = null, pendingCategory = "", appendPack = null;
+  let backgroundRefreshing = false, interactionVersion = 0, lastRefreshAt = 0;
   function emptyLiveData() {return {packs:[],factory_packs:[],runs:[],requests:[],events:[],briefs:[],settings:null,catalog:{version:1,packs:[]},catalog_base:readiness?.catalog_base||"Server configuration required"};}
   async function refreshHealth() {readiness=await api("/api/admin",{action:"health"});}
   function renderHealth() {
@@ -51,10 +52,16 @@
   }
   async function api(path, body) {
     if (!token) throw new Error("Connect your owner token first.");
-    const response = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json","X-StickerDock-Token":token},body:JSON.stringify(body)});
-    const result = await response.json().catch(()=>({}));
-    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
-    return result;
+    const controller = new AbortController(), timeout = setTimeout(()=>controller.abort(),90000);
+    try {
+      const response = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json","X-StickerDock-Token":token},body:JSON.stringify(body),signal:controller.signal});
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+      return result;
+    } catch(error) {
+      if(controller.signal.aborted)throw new Error("Request timed out. Refresh to check whether it finished before retrying.");
+      throw error;
+    } finally {clearTimeout(timeout);}
   }
   function event(action,entity) {
     data.events.unshift({id:uid(),action,entity_id:entity,created_at:new Date().toISOString()});
@@ -87,10 +94,30 @@
     $("connect-button").textContent=live()?"Connection":"Connect backend";
     $("pack-count").textContent=data.packs.filter(p=>p.status!=="archived").length;
   }
-  async function refresh() {if(live()){if(page==="health"||readiness?.admin_ready===false)await refreshHealth();data=readiness?.admin_ready===false?emptyLiveData():await api("/api/admin",{action:"overview"});if(readiness?.admin_ready===false)page="health";}connectionUi();render();}
+  async function refresh(background=false) {
+    const version=interactionVersion, connection=token;
+    let nextData=data, nextReadiness=readiness;
+    if(live()) {
+      if(page==="health"||nextReadiness?.admin_ready===false)nextReadiness=await api("/api/admin",{action:"health"});
+      nextData=nextReadiness?.admin_ready===false?emptyLiveData():await api("/api/admin",{action:"overview"});
+    }
+    if(background&&(version!==interactionVersion||connection!==token||!canBackgroundRefresh()))return;
+    data=nextData;readiness=nextReadiness;lastRefreshAt=Date.now();
+    if(live()&&readiness?.admin_ready===false)page="health";
+    connectionUi();render();
+  }
+  function canBackgroundRefresh() {
+    return live()&&!document.hidden&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open)
+      &&!["settings","generate"].includes(page)&&!document.activeElement?.matches("input, textarea, select");
+  }
+  async function backgroundRefresh() {
+    if(backgroundRefreshing||!canBackgroundRefresh()||Date.now()-lastRefreshAt<25000)return;
+    backgroundRefreshing=true;
+    try{await refresh(true);}catch(error){if(live())toast(error.message,true);}finally{backgroundRefreshing=false;}
+  }
   async function task(fn) {
     if(working)return;
-    working=true;
+    working=true;interactionVersion++;
     document.querySelectorAll("button[data-action], .dialog-actions button[type=submit]").forEach(b=>b.disabled=true);
     try {await fn();}catch(error){toast(error.message,true);}finally{working=false;document.querySelectorAll("button[data-action], .dialog-actions button[type=submit]").forEach(b=>b.disabled=false);}
   }
@@ -225,7 +252,7 @@
   $("disconnect-button").addEventListener("click",()=>{token="";readiness=null;data=previewData();library=illustrations.map((preview,i)=>({path:"preview/source-"+i+".png",name:"Original reaction "+(i+1),size:18000,preview}));document.querySelectorAll("dialog").forEach(d=>d.close());render();toast("Disconnected. Exploring preview data.");});
   $("refresh-button").addEventListener("click",()=>task(async()=>{if(["media","generate"].includes(page))await loadLibrary();await refresh();toast(live()?"Factory data refreshed.":"Preview refreshed.");}));
   $("menu-button").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&live()&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open))task(refresh);});
-  setInterval(()=>{if(live()&&!document.hidden&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open))task(refresh);},30000);
+  document.addEventListener("visibilitychange",backgroundRefresh);
+  setInterval(backgroundRefresh,30000);
   render();
 })();

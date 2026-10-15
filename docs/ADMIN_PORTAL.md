@@ -65,12 +65,18 @@ The token stays in tab memory and is cleared on reload/disconnect.
 
 ## Vercel and database setup
 
-This change has not been deployed and its migration has not been applied to
-production. Apply `supabase/migrations/202610140001_admin_control_plane.sql` after
-review and a database backup, before running this revision's admin API or manual
-CLI publisher. The new migration adds `admin_packs`, `factory_settings`,
-`content_briefs`, `admin_events` and a shared catalog publication lease. All are service-role-only;
-the existing Factory run/output/request data remains unchanged.
+The October 15 read-only production check confirmed all eight required tables
+and selected columns are available, including the admin/control-plane tables:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38703586594.
+Do not reapply SQL solely because older handoff notes said it was pending.
+For a fresh installation, `db.sql` and the additive migrations remain the setup
+sources. These create service-role-only admin tables and the shared catalog lease.
+
+The new Vercel Hobby project is deployed at https://stickerdock.vercel.app;
+`/admin` and Studio return HTTP 200. Protected API requests without an owner
+token return 401. Authenticated hosted owner login, health/overview, media listing,
+Factory migration, signed ZIP verification and review/publication now pass.
+One five-sticker GENERAL pack is published. Phone acceptance remains pending.
 
 The scheduled generator retains previous configuration when the admin table is
 absent. Once present, owner settings override workflow default targets/batches.
