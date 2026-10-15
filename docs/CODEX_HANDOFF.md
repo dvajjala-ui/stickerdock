@@ -12,8 +12,9 @@ Verified live cloud smoke at code 384a96f:
 https://github.com/dvajjala-ui/stickerdock/actions/runs/38716261393
 covers two disposable confirmed accounts, private images, metadata, idempotent
 commit, checksum restore, isolation, rights gate, submission/withdrawal, deletion
-and cleanup. No personal files or public test publication. Later retry/UI fixes
-require the latest candidate CI checks; do not confuse them with phone acceptance.
+and cleanup. No personal files or public test publication. Final retry/UI/metadata changes pass code CI at d9cba2b:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38717657942.
+Do not confuse this with phone acceptance.
 
 Admin is live-only and now asks for normal owner email/password, not a pasted
 owner token. Secure HttpOnly cookies support refresh/logout; legacy token remains
@@ -27,7 +28,9 @@ password was created or changed by the agent.
 Local validation: 52 Android unit tests and release lint passed; full Python
 suite 151 run / 147 passed / 4 local video skips, plus 4 owner-session tests.
 Hosted admin sign-in and account recovery page pass at 390px without page errors
-or horizontal overflow. Signed 0.6.0 APK/AAB use existing release certificate.
+or horizontal overflow. Signed 0.6.0 APK/AAB use existing release certificate. Final APK SHA-256:
+16AA3FCEC9795F245A651845692630E132633842B421A08F6102A9642818FEBE.
+Root opens Admin; Studio at /studio shares the same owner browser session.
 No ADB device connected; WhatsApp, large-library sync, and physical-phone
 acceptance remain pending. Pinterest approval and full daily Factory capacity
 also retain their existing external/operational gates.

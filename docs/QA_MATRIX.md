@@ -1,5 +1,21 @@
 # StickerDock verification checklist
 
+## Final 0.6.0 candidate evidence
+
+- CODE CI SUCCESS at d9cba2b89d082482bb4e66aa57714248ee0d5ab6:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38717657942.
+  Python regressions, Android unit tests, lint/build and native alignment checks
+  completed successfully. Vercel deployment for this code also succeeded.
+- Signed local 0.6.0 APK SHA-256:
+  16AA3FCEC9795F245A651845692630E132633842B421A08F6102A9642818FEBE.
+  Existing signing certificate verified; local APK and AAB built successfully.
+- Final hosted root opens Admin; Admin and Studio have no manual token input.
+  Both pass 390px no-overflow/no-page-error checks. Account recovery route works.
+- Public-copy metadata regression preserves decoded pixels/animation while
+  removing EXIF/XMP/custom outer chunks. Private draft/provenance regression
+  confirms submission conversion validates and does not publish automatically.
+- SMTP delivery and physical-phone acceptance remain pending as described below.
+
 ## Private cloud library / owner sessions — October 15
 
 - LIVE: migration applied; cloud_packs, cloud_assets, community_submissions,
