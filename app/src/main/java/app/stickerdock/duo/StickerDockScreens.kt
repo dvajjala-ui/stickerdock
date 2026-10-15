@@ -799,10 +799,10 @@ fun SavedLinksDialog(
 }
 
 @Composable
-fun AnimatedScreenSwap(key: String, content: @Composable () -> Unit) {
+fun AnimatedScreenSwap(key: String, content: @Composable (String) -> Unit) {
     AnimatedContent(
         targetState = key,
         transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(140)) },
         label = "screen-swap"
-    ) { content() }
+    ) { targetKey -> content(targetKey) }
 }
