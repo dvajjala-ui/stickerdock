@@ -3,10 +3,13 @@
     {"source": "/admin", "destination": "/admin/index.html"},
     {"source": "/admin/", "destination": "/admin/index.html"},
     {"source": "/privacy", "destination": "/studio/privacy.html"},
+    {"source": "/about", "destination": "/site/about.html"},
+    {"source": "/support", "destination": "/site/support.html"},
     {"source": "/", "destination": "/studio/index.html"}
   ],
   "functions": {
-    "api/admin.py": {"includeFiles": "tools/**"}
+    "api/admin.py": {"includeFiles": "tools/**"},
+    "api/pinterest_callback.py": {"includeFiles": "tools/**"}
   },
   "headers": [
     {

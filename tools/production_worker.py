@@ -271,6 +271,8 @@ def sync_inbox(client, runtime, max_files=30):
         if digest not in known_hashes:
             try:
                 metadata = inbox_metadata(client, digest, remote_path)
+                if str(metadata.get("source", "")).startswith("pinterest"):
+                    raise ValueError("Pinterest content is not a Factory input")
                 local.write_bytes(data)
                 if suffix in CLIP_EXTENSIONS:
                     from video_stickers import clip_frames
@@ -321,10 +323,24 @@ def configure(config, runtime, now):
     has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
     has_clips = any(path.suffix.lower() in CLIP_EXTENSIONS for path in files)
     modes = list(config.get("modes", ["illustration", "animated"]))
+    if config.get("require_real_media"):
+        manifest_path = references / "library.json"
+        assets = json.loads(manifest_path.read_text()).get("assets", []) if manifest_path.exists() else []
+        allowed = [item["file"] for item in assets if item.get("license") in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
+                   and not str(item.get("source", "")).startswith("pinterest")
+                   and "pinterest.com" not in str(item.get("source_url", ""))]
+        config["allowed_media_files"] = allowed
+        files = [path for path in files if path.name in allowed]
+        has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
+        has_clips = any(path.suffix.lower() in CLIP_EXTENSIONS for path in files)
     if not vision or not has_images:
         modes = [mode for mode in modes if mode != "photo"]
     if not vision or not has_clips:
         modes = [mode for mode in modes if mode != "clip"]
+    if config.get("require_real_media"):
+        modes = [mode for mode in modes if mode in {"photo", "clip"}]
+        if not modes:
+            raise ValueError("Real-image generation needs licensed photos/clips and a vision model; template faces were not substituted")
     config["modes"] = modes or ["illustration", "animated"]
     rating = os.environ.get("FACTORY_RATING", config.get("rating", "GENERAL")).upper()
     if rating not in ("GENERAL", "MATURE"):

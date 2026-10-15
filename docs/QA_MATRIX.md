@@ -1,5 +1,19 @@
 # StickerDock verification checklist
 
+## Pinterest and real images — October 15
+
+- LOCAL: 138 Python tests run, 134 passed, four local video dependency skips.
+  New checks cover signed OAuth state/cookie validation, expiration/tampering,
+  token refresh, no credential leakage or Pin-response persistence, legacy Pin
+  conversion rejection, and real-media requirement without template fallback.
+- BROWSER LOCAL: About/privacy/support pages, chosen contact, 390px layout,
+  Pinterest navigation and preview-mode connection guard pass. Existing admin
+  flow and background-refresh regressions pass.
+- LIVE DASHBOARD: app 1624134 Trial access denied; old fields are locked.
+  Corrected request is prepared, not yet approved. No API connection claim.
+- DEVICE: phone import stays local; no ADB device connected. No backend copy of
+  the user's imported WhatsApp collection is implied.
+
 ## Production-flow continuation — October 15
 
 - HOSTED: authenticated owner login, health, overview, private media listing,

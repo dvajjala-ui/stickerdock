@@ -96,6 +96,8 @@ def process_one(client, worker_id="github-actions", key=None, model=None,
             raise ValueError("Sticker font is unavailable")
 
         source_rights = creator_source_metadata(client, actual_digest, source_path)
+        if str(source_rights.get("source", "")).startswith("pinterest"):
+            raise ValueError("Pinterest references cannot be converted; use an independent source")
         with tempfile.TemporaryDirectory(prefix="stickerdock-creator-") as directory:
             source = Path(directory) / (actual_digest + suffix)
             source.write_bytes(data)

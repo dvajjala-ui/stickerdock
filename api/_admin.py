@@ -15,6 +15,7 @@ from api import _shared
 from tools.publish_factory_pack import manifest_categories, validate_pack, validate_references
 from tools.supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, catalog_lease, public_catalog_base
 from tools.production_readiness import readiness
+from tools import pinterest_connection
 
 CATEGORIES = {"GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS", "LOVE", "WORK", "FESTIVALS", "OTHER"}
 CONTENT_CATEGORIES = {"TRENDING", "POLITICS", "CREATIVE", "MOVIES", "SERIES", "INDIA", "SPORTS", "TECHNOLOGY", "EVERYDAY", "ADULT_HUMOR"}
@@ -419,6 +420,15 @@ def dispatch(payload, client=None):
         return readiness(client)
     client = client or SupabaseFactory()
     action = payload.get("action")
+    if action == "pinterest_status":
+        return pinterest_connection.connection_status(client, check=payload.get("check") is True)
+    if action == "pinterest_browse":
+        return pinterest_connection.browse(client, payload)
+    if action == "pinterest_disconnect":
+        with catalog_lease(client):
+            client.upload(PRIVATE_BUCKET, pinterest_connection.CONNECTION_PATH, b'{"disconnected":true}', "application/json")
+        audit(client, "pinterest.disconnected")
+        return {"disconnected": True}
     if action == "overview":
         return overview(client)
     if action == "pack_detail":
@@ -433,6 +443,9 @@ def dispatch(payload, client=None):
         result = _shared.upload_user_image(payload.get("image"), payload.get("title", "Admin upload"))
         audit(client, "source.uploaded", result["path"])
         return result
+    if action == "source_info":
+        metadata = _shared.source_metadata(payload.get("source_path"))
+        return {"metadata": metadata, "ai_allowed": not str(metadata.get("source", "")).startswith("pinterest")}
     if action == "queue_create":
         result = _shared.queue_creator_request(payload.get("prompt"), payload.get("source_path"))
         audit(client, "request.queued", result["id"])

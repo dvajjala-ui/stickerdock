@@ -31,6 +31,13 @@ Then transfer files from `StickerDock-Phone-Export/sticker_zips/` to the phone a
 
 ## Daily AI stickers
 
+October 15 update: production generation now requires real independent photos or
+clips and a vision model, rather than silently substituting emoji-face templates.
+Legacy illustration packs remain historical samples. Pinterest integration is
+being replaced with official live reference browsing, not Pin downloading or
+conversion. See [current integration status](docs/PINTEREST_RECONNECTION.md).
+Phone imports stay on-device; automatic cloud upload is not implemented.
+
 The optional [Groq daily generator](docs/DAILY_AI_STICKERS.md) targets **40 stickers
 per day in batches of five**, spaced three hours apart. It turns recent public
 RSS titles or supplied references into original Hinglish caption stickers, draws

@@ -3,6 +3,7 @@ import logging
 from api._shared import StudioError, authorized, options, read_json, send_json
 from api._admin import dispatch
 from tools.supabase_factory import SupabaseError
+from tools.pinterest_connection import oauth_start
 
 
 class handler(BaseHTTPRequestHandler):
@@ -14,7 +15,12 @@ class handler(BaseHTTPRequestHandler):
             send_json(self, 401, {"error": "Enter a valid owner access token"})
             return
         try:
-            send_json(self, 200, dispatch(read_json(self)))
+            payload = read_json(self)
+            if payload.get("action") == "pinterest_connect":
+                url, cookie = oauth_start()
+                send_json(self, 200, {"url": url}, {"Set-Cookie": cookie})
+                return
+            send_json(self, 200, dispatch(payload))
         except (StudioError, ValueError) as error:
             send_json(self, 400, {"error": str(error)})
         except SupabaseError:

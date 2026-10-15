@@ -5,7 +5,8 @@
   "max_requests_per_day": 16,
   "model": "openai/gpt-oss-20b",
   "vision_model": "qwen/qwen3.8-27b",
-  "modes": ["illustration", "animated", "photo", "clip"],
+  "modes": ["photo", "clip"],
+  "require_real_media": true,
   "topics": [
     "TECHNOLOGY | Latest technology and light news reactions in Hinglish",
     "EVERYDAY | Everyday desi reactions in Hinglish",

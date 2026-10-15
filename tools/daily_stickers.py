@@ -398,6 +398,8 @@ def run(config, root, font_path, now=None):
                 input_dir = Path(config.get("image_directory", "reference-images"))
                 extensions = CLIP_EXTENSIONS if mode == "clip" else {".png", ".jpg", ".jpeg", ".webp"}
                 images = sorted(p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in extensions)
+                if config.get("require_real_media"):
+                    images = [p for p in images if p.name in config.get("allowed_media_files", [])]
                 if not images or not config.get("vision_model"):
                     raise ValueError("Photo mode requires supplied images and a configured Groq vision model")
                 image_path = str(images[batch_index % len(images)].resolve())

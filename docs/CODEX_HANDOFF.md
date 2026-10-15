@@ -1,5 +1,33 @@
 # StickerDock development handoff — updated October 15, 2026
 
+## Pinterest and real-media continuation
+
+See PINTEREST_RECONNECTION.md; this supersedes older Pinterest-downloader notes.
+App 1624134 is Trial denied and its details are locked; the dashboard does not
+provide a specific reason. Corrected application fields are prepared with real
+`/about`, `/privacy`, `/support` URLs and the owner's chosen contact
+`dvjjala@gmail.com`. Submission/approval must be verified separately.
+
+Admin now includes official read-only OAuth, live boards/Pin links, cursor paging,
+status/check and disconnect. No Pin content is persisted or passed into AI.
+OAuth callback uses signed ten-minute state and a secure cookie; credentials
+stay server-side. Configure PINTEREST_APP_ID/SECRET after approval. The scheduled
+Pinterest workflow now checks health daily; legacy archiving entry is retired.
+Existing remote assets were not silently deleted. Legacy Pinterest sources are
+excluded from new Factory/Creator conversion.
+
+Production config now uses photo/clip modes with `require_real_media=true` and
+licensed-source filtering; no automatic template-face substitution. Existing
+illustration records remain historical output. The user wants real-image meme
+reactions; public Sticker.ly examples were reviewed as references, not imported.
+Phone imports remain local; no ADB phone was connected. Optional private cloud
+library sync remains pending in R18; user chose web references for this pass.
+
+Validation: 138 Python tests run, 134 passed and four local video dependency
+skips. OAuth checks cover cookie/state expiry/tampering, refresh, no credential
+leaks, and no Pin persistence. Admin flow/background regression and public-page/
+Pinterest mobile preview checks pass. Hosted new-flow validation still required.
+
 ## Latest production-flow continuation
 
 Hosted owner login, health/overview and private media reads pass at
