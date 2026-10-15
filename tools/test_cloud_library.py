@@ -7,6 +7,7 @@ import uuid
 from unittest.mock import patch, MagicMock
 from PIL import Image
 from api import _cloud as cloud
+from api._cloud_admin import public_artwork, dispatch as moderate
 from api._shared import StudioError
 
 
@@ -42,6 +43,51 @@ class Client:
 
 
 class CloudLibraryTest(unittest.TestCase):
+    def test_submission_draft_is_private_valid_and_preserves_provenance(self):
+        from test_admin_api import AdminStore
+        from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET
+        from publish_factory_pack import validate_pack
+        client = AdminStore()
+        stickers = []
+        for i in range(3):
+            output = io.BytesIO()
+            Image.new("RGBA", (512, 512), (i*50, 100, 220, 255)).save(output, "WEBP", lossless=True, exif=b"Exif\x00\x00PRIVATE-LOCATION")
+            data = output.getvalue(); digest = hashlib.sha256(data).hexdigest()
+            client.upload(PRIVATE_BUCKET, cloud.asset_path(OWNER, digest), data, "image/webp")
+            stickers.append({"sha256": digest, "label": "Reaction", "tags": ""})
+        manifest = cloud.validate_manifest(self.manifest(stickers=stickers))
+        submission_id = str(uuid.uuid4())
+        client.rows[("community_submissions", submission_id)] = {"id": submission_id, "owner_id": OWNER,
+            "name": manifest["name"], "manifest": manifest, "status": "pending", "admin_pack_id": None,
+            "rights_statement": "Adult; redistribution rights confirmed"}
+        result = moderate(client, {"action": "community_draft", "id": submission_id})
+        row = client.rows[("admin_packs", result["id"])]
+        archive = client.download(PRIVATE_BUCKET, row["private_path"])
+        self.assertEqual(len(validate_pack(archive)["packs"][0]["stickers"]), 3)
+        self.assertEqual(row["references"][0]["source_sha256"], stickers[0]["sha256"])
+        self.assertEqual(row["status"], "draft")
+        self.assertTrue(any(table == "community_submissions" and values.get("status") == "draft" and
+                            values.get("admin_pack_id") == result["id"]
+                            for table, values, _, _ in client.updates))
+        with __import__('zipfile').ZipFile(io.BytesIO(archive)) as contents:
+            for name in contents.namelist():
+                if name.endswith('.webp'): self.assertNotIn(b"PRIVATE-LOCATION", contents.read(name))
+        self.assertFalse(any(bucket == PUBLIC_BUCKET for bucket, _ in client.objects))
+    def test_public_copy_strips_metadata_without_changing_pixels_or_animation(self):
+        frames = [Image.new("RGBA", (512, 512), color) for color in ("red", "blue")]
+        for animated in (False, True):
+            output = io.BytesIO()
+            frames[0].save(output, "WEBP", lossless=True, exif=b"Exif\x00\x00PRIVATE-GPS", xmp=b"PRIVATE-CREATOR",
+                           save_all=animated, append_images=frames[1:] if animated else [], duration=100, loop=0)
+            original = output.getvalue(); clean = public_artwork(original)
+            self.assertNotIn(b"PRIVATE", clean)
+            self.assertIn(b"PRIVATE", original)
+            cloud.check_artwork(clean, "ANIMATED" if animated else "STATIC")
+            with Image.open(io.BytesIO(original)) as before, Image.open(io.BytesIO(clean)) as after:
+                self.assertEqual(before.n_frames, after.n_frames)
+                for i in range(before.n_frames):
+                    before.seek(i); after.seek(i)
+                    self.assertEqual(before.convert("RGBA").tobytes(), after.convert("RGBA").tobytes())
     def manifest(self, **kw):
         return {"id": PACK, "name": "Private reactions", "kind": "STATIC", "rating": "GENERAL",
                 "category": "unknown", "stickers": [{"sha256": hashlib.sha256(art()).hexdigest(), "label": "hello", "tags": "reaction"}], **kw}

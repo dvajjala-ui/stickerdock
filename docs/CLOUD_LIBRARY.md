@@ -27,6 +27,8 @@ an adult/redistribution-rights confirmation. It sends an immutable snapshot to
 Admin → **User submissions**. Moderators preview every sticker, create a draft,
 review content/privacy/rights, then explicitly review and publish through the
 existing catalog flow. Sync alone grants no public or AI-training permission.
+Review drafts strip EXIF/XMP and outer custom metadata without recompressing
+sticker pixels/frames; the private source checksum stays in provenance.
 Changes to shared packs require withdrawal and resubmission. Withdrawal removes
 the pack from future catalog discovery; already downloaded/publicly cached
 copies cannot be recalled. No open unmoderated publishing is enabled.
