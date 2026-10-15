@@ -2,6 +2,14 @@
 
 ## Pinterest and real-media continuation
 
+Final LIVE publication: `Desi photo reactions` is published with four reviewed
+CC0-derived stickers, including the successful Groq request result. The old
+five-emoji demo is unpublished and remains a private draft. Public ZIP checksum
+read-back passed; one pack is in the catalog. Fresh authenticated read-back
+resolved the earlier mismatch. Mutable index uploads now use max-age=0 while
+immutable pack ZIPs retain cacheability. Galaxy import/WhatsApp acceptance is
+still pending. No Android binary/source changes were needed for this catalog.
+
 Final follow-up adds fresh authenticated storage reads (cache nonce + no-cache)
 after a real catalog overwrite/read-back mismatch. This also protects mutable
 worker state and OAuth connection reads. Focused 59 backend regressions pass;

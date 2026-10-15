@@ -2,6 +2,14 @@
 
 ## Pinterest and real images — October 15
 
+- LIVE FINAL: four-sticker `Desi photo reactions` pack published, public ZIP hash
+  verified, old emoji demo unpublished but preserved privately. Fresh catalog
+  read-back now passes. Phone delivery remains a device acceptance gate.
+- FINAL LOCAL: 142 Python tests run, 138 passed, four local video dependency
+  skips. HOSTED: owner login, four real pack previews, public catalog, 390px layout
+  and absence of browser page errors passed. Code CI through c9ae6a2 passed:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38710633232.
+
 - Final local full Python suite before the storage-read follow-up: 140 tests run,
   136 passed, four local dependency skips. Focused storage/OAuth/worker/admin
   regressions after the freshness fix: 59 tests passed. Portrait crop and source

@@ -29,6 +29,13 @@ class _Response:
 
 
 class SupabaseFactoryCreatorQueueTest(unittest.TestCase):
+    def test_catalog_index_is_revalidated_while_pack_files_can_be_cached(self):
+        client=FakeSupabase()
+        client.upload("sticker-factory-public","catalog/packs.json",b"{}","application/json")
+        client.upload("sticker-factory-public","catalog/packs/immutable.zip",b"archive")
+        self.assertEqual(client.calls[0][3]["Cache-Control"],"max-age=0")
+        self.assertEqual(client.calls[1][3]["Cache-Control"],"max-age=3600")
+
     def test_authenticated_mutable_reads_use_distinct_urls_and_no_cache(self):
         client=FakeSupabase([b"old",b"new"])
         self.assertEqual(client.download("sticker-factory-public","catalog/packs.json"),b"old")

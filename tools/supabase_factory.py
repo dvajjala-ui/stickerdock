@@ -87,7 +87,8 @@ class SupabaseFactory:
             raise ValueError("Storage upload exceeds 75MB")
         endpoint = self._object_path(bucket, path)
         self._request("POST", "/storage/v1/object/" + endpoint, data=data, headers={
-            "Content-Type": content_type, "x-upsert": "true"})
+            "Content-Type": content_type, "x-upsert": "true",
+            "Cache-Control": "max-age=0" if path == "catalog/packs.json" else "max-age=3600"})
 
     def list_objects(self, bucket, prefix, limit=100, offset=0):
         payload = json.dumps({"prefix": prefix, "limit": min(limit, 100),
