@@ -2,6 +2,24 @@
 
 ## Pinterest and real images — October 15
 
+- Final local full Python suite before the storage-read follow-up: 140 tests run,
+  136 passed, four local dependency skips. Focused storage/OAuth/worker/admin
+  regressions after the freshness fix: 59 tests passed. Portrait crop and source
+  preservation are covered; source files are not rewritten.
+- Live publication exposed an authenticated storage read-back mismatch after
+  overwriting the catalog. Authenticated private reads now use distinct cache
+  nonce URLs plus no-cache headers; hosted publication must be reverified after
+  this follow-up deployment.
+
+- LIVE: corrected StickerDock app 1624615 is submitted/Trial pending. Its real
+  website/privacy links are verified in Details. Temporary token probe returns
+  HTTP 401/code 3; app credentials/redirects remain locked pending review.
+- HOSTED: real About/Privacy/Support pages and the Pinterest admin screen pass
+  the 390px browser smoke. API status reports not connected, not false success.
+- LIVE: licensed-photo Creator request completed on attempt 1, result retrieved
+  and visually reviewed. Worker run:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38709866164.
+
 - LOCAL: 138 Python tests run, 134 passed, four local video dependency skips.
   New checks cover signed OAuth state/cookie validation, expiration/tampering,
   token refresh, no credential leakage or Pin-response persistence, legacy Pin

@@ -175,6 +175,17 @@ class DailyStickersTest(unittest.TestCase):
                 self.assertLess(g, 30)
                 self.assertLess(b, 30)
 
+    def test_portrait_photo_fills_reaction_area_without_changing_the_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source=Path(temporary)/"portrait.png"
+            Image.new("RGB",(120,800),"red").save(source)
+            original=source.read_bytes()
+            rendered=generator.render(ideas(1)[0],FONT,source)
+            with Image.open(io.BytesIO(rendered)) as image:
+                self.assertGreater(image.convert("RGBA").getpixel((35,150))[0],200)
+                self.assertEqual(image.convert("RGBA").getpixel((0,0))[3],0)
+            self.assertEqual(source.read_bytes(),original)
+
     def test_static_and_animated_packs_stay_separate(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
             root = Path(temporary)

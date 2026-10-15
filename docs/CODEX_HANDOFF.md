@@ -2,6 +2,33 @@
 
 ## Pinterest and real-media continuation
 
+Final follow-up adds fresh authenticated storage reads (cache nonce + no-cache)
+after a real catalog overwrite/read-back mismatch. This also protects mutable
+worker state and OAuth connection reads. Focused 59 backend regressions pass;
+verify hosted publication after deploying this follow-up. A four-sticker real
+photo draft includes three reviewed reactions and one completed Groq vision
+result. Public old-demo removal is being reconciled; no originals were deleted.
+
+Latest live evidence: new Pinterest app **1624615** is submitted and Trial pending;
+its Details show the corrected real About/Privacy URLs and transparent revised
+description. Its temporary limited token was tested once and rejected with
+HTTP 401/code 3 (consumer type unsupported). App secret and redirect settings are
+locked until review. Do not report Pinterest as connected. Daily official health
+check ran at https://github.com/dvajjala-ui/stickerdock/actions/runs/38709208606;
+the job completed but correctly reported blocked credentials. GitHub app ID and
+daily-check enable variable are configured.
+
+Real source pipeline: three verified CC0/public-domain cat photos seeded in the
+bounded queue; manual queue proceeds when discovery fails. The latest Factory
+run respects existing cooldown at 10/40:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38709211736.
+The hosted Creator queue completed a real licensed-photo/Groq vision request on
+its first attempt:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38709866164.
+Portrait photos now crop to a large 460×330 reaction area rather than a narrow
+strip; source bytes remain unchanged. The original local library is still private
+to the phone, not synced to our server.
+
 See PINTEREST_RECONNECTION.md; this supersedes older Pinterest-downloader notes.
 App 1624134 is Trial denied and its details are locked; the dashboard does not
 provide a specific reason. Corrected application fields are prepared with real

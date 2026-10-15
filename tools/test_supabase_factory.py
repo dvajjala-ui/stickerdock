@@ -29,6 +29,14 @@ class _Response:
 
 
 class SupabaseFactoryCreatorQueueTest(unittest.TestCase):
+    def test_authenticated_mutable_reads_use_distinct_urls_and_no_cache(self):
+        client=FakeSupabase([b"old",b"new"])
+        self.assertEqual(client.download("sticker-factory-public","catalog/packs.json"),b"old")
+        self.assertEqual(client.download("sticker-factory-public","catalog/packs.json"),b"new")
+        self.assertNotEqual(client.calls[0][1],client.calls[1][1])
+        self.assertIn("/authenticated/sticker-factory-public/catalog/packs.json?cacheNonce=",client.calls[0][1])
+        self.assertEqual(client.calls[0][3]["Cache-Control"],"no-cache")
+
     def test_new_secret_key_uses_apikey_without_bearer(self):
         captured = {}
 

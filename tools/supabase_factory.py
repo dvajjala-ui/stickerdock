@@ -71,8 +71,11 @@ class SupabaseFactory:
 
     def download(self, bucket, path, missing_ok=False):
         endpoint = self._object_path(bucket, path)
-        return self._request("GET", "/storage/v1/object/authenticated/" + endpoint,
-                             missing_ok=missing_ok)
+        # State, credentials and the catalog are mutable. An authenticated URL
+        # alone is not a freshness guarantee after an overwrite at the edge.
+        return self._request("GET", "/storage/v1/object/authenticated/" + endpoint +
+                             "?cacheNonce=" + uuid.uuid4().hex,
+                             headers={"Cache-Control": "no-cache"}, missing_ok=missing_ok)
 
     def download_public(self, path, missing_ok=False):
         endpoint = self._object_path(PUBLIC_BUCKET, path)

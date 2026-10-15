@@ -254,9 +254,11 @@ def render(idea, font_path, image_path=None, animated=False):
         draw.arc((201, 183, 310, 271), 0, 180, fill="#242424", width=10)
     if image_path:
         photo = reference_image(Path(image_path)).convert("RGBA")
-        photo.thumbnail((430, 310))
+        # Portrait photos should still read at chat size instead of becoming a
+        # narrow strip surrounded by empty space. Caption keeps its own area.
+        photo = ImageOps.fit(photo, (460, 330), method=Image.Resampling.LANCZOS)
         image = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
-        image.alpha_composite(photo, ((512 - photo.width) // 2, 20))
+        image.alpha_composite(photo, (26, 12))
         draw = ImageDraw.Draw(image)
     draw_caption(image, idea["caption"], font_path)
     output = io.BytesIO()
