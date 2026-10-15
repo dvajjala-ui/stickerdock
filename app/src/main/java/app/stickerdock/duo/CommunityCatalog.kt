@@ -22,7 +22,8 @@ class CommunityCatalog(
         val creator: String,
         val downloadUrl: String,
         val sha256: String,
-        val categories: List<PackCategory> = emptyList()
+        val categories: List<PackCategory> = emptyList(),
+        val publisherId: String = ""
     )
     private val base = CatalogUrls.normalizeBase(BuildConfig.COMMUNITY_CATALOG_BASE_URL)
 
@@ -32,8 +33,17 @@ class CommunityCatalog(
         // a broken app. All other HTTP errors and all pack downloads remain strict.
         val bytes = fetchOrNull(CatalogUrls.index(base), 512_000, allowMissing = true)
             ?: return emptyList()
-        return parseCatalog(bytes, base)
+        val blocked = context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE).getStringSet("blocked", emptySet()).orEmpty()
+        return parseCatalog(bytes, base).filter { (it.publisherId.ifBlank { it.id }) !in blocked }
     }
+
+    fun hide(item: Listing) {
+        val prefs = context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE)
+        val blocked = prefs.getStringSet("blocked", emptySet()).orEmpty() + item.publisherId.ifBlank { item.id }
+        prefs.edit().putStringSet("blocked", blocked).apply()
+    }
+
+    fun clearHidden() { context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE).edit().remove("blocked").apply() }
 
     fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary = synchronized(importLock) {
         StickerStore(context.applicationContext).use { store ->
@@ -137,7 +147,9 @@ class CommunityCatalog(
                 require(seenIds.add(id)) { "Duplicate public pack id" }
                 require(seenFiles.add(file)) { "Duplicate public pack file" }
 
-                Listing(id, name, creator, CatalogUrls.pack(normalizedBase, file), hash, categories)
+                val publisher = item.optString("publisher_id", "")
+                require(publisher.isEmpty() || Regex("[a-z0-9-]{1,64}").matches(publisher)) { "Invalid publisher" }
+                Listing(id, name, creator, CatalogUrls.pack(normalizedBase, file), hash, categories, publisher)
             }
         }
     }

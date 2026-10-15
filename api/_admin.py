@@ -326,6 +326,11 @@ def publish_pack(client, payload, unpublish=False):
     catalog = read_catalog(client)
     catalog["packs"] = [p for p in catalog["packs"] if p.get("id") != slug]
     if not unpublish:
+        from api._cloud import rows
+        community = any(r.get("source") == "user-submission" for r in row.get("references", []))
+        submissions = rows(client, "community_submissions", "admin_pack_id=eq." + row["id"] + "&limit=1") if community else []
+        if community and (not submissions or submissions[0]["status"] != "draft"):
+            raise ValueError("The creator withdrew sharing permission")
         if row["status"] not in {"reviewed", "published"} or row["rating"] != "GENERAL":
             raise ValueError("Review a GENERAL pack before publishing")
         data, _ = pack_archive(client, row)
@@ -336,6 +341,8 @@ def publish_pack(client, payload, unpublish=False):
         catalog["packs"].insert(0, {"id": slug, "name": row["name"], "creator": row["creator"],
                                  "rating": "GENERAL", "file": filename, "sha256": row["sha256"],
                                  "categories": manifest_categories(manifest)})
+        if community:
+            catalog["packs"][0]["publisher_id"] = submissions[0]["owner_id"]
         if len(catalog["packs"]) > 100:
             raise ValueError("Catalog is full; unpublish a pack first")
     audit(client, "catalog.unpublish.intent" if unpublish else "catalog.publish.intent", row["id"], {"sha256": row["sha256"]})
@@ -420,6 +427,9 @@ def dispatch(payload, client=None):
         return readiness(client)
     client = client or SupabaseFactory()
     action = payload.get("action")
+    if action in {"community_list", "community_detail", "community_draft", "community_reject", "report_resolve"}:
+        from api._cloud_admin import dispatch as community_dispatch
+        return community_dispatch(client, payload)
     if action == "pinterest_status":
         return pinterest_connection.connection_status(client, check=payload.get("check") is True)
     if action == "pinterest_browse":

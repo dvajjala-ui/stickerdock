@@ -409,7 +409,10 @@ fun FactoryScreen(
     importedIds: Set<String>,
     busy: Boolean,
     onRefresh: () -> Unit,
-    onPack: (CommunityCatalog.Listing) -> Unit
+    onPack: (CommunityCatalog.Listing) -> Unit,
+    onHide: ((CommunityCatalog.Listing) -> Unit)? = null,
+    onReport: ((CommunityCatalog.Listing) -> Unit)? = null,
+    onShowHidden: (() -> Unit)? = null
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = 960.dp), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -424,6 +427,7 @@ fun FactoryScreen(
                             TextButton(enabled = !loading, onClick = onRefresh) { Text("Refresh") }
                         }
                         Text("New approved packs are added to your library automatically. Your saved stickers keep working offline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        if (onShowHidden != null) TextButton(onClick = onShowHidden) { Text("Reset hidden packs & creators") }
                     }
                 }
             }
@@ -437,6 +441,10 @@ fun FactoryScreen(
                             Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             if (entry.categories.isNotEmpty()) Text(entry.categories.joinToString(" • ") { it.label }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
                             FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }, modifier = Modifier.fillMaxWidth()) { Text(if (entry.id in importedIds) "Open in library" else "Add to library") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                if (onHide != null) TextButton(onClick = { onHide(entry) }) { Text(if (entry.publisherId.isBlank()) "Hide pack" else "Hide creator") }
+                                if (onReport != null) TextButton(onClick = { onReport(entry) }) { Text("Report") }
+                            }
                         }
                     }
                 }

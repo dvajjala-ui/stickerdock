@@ -10,7 +10,7 @@ import java.util.UUID
 enum class StickerKind { STATIC, ANIMATED }
 enum class PackRating { GENERAL, MATURE }
 enum class PackCategory(val label: String) {
-    GENERAL("General"), REACTIONS("Reactions"), HINGLISH("Hinglish"), MOVIES("Movies"),
+    GENERAL("All"), REACTIONS("Reactions"), HINGLISH("Hinglish"), MOVIES("Movies"),
     NEWS("News"), ANIMALS("Animals"), LOVE("Love"), WORK("Work"),
     FESTIVALS("Festivals"), OTHER("Other")
 }

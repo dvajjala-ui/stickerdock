@@ -64,6 +64,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
     @Composable
     private fun StickerDockApp() {
         val scope = rememberCoroutineScope()
+        val cloud = remember { CloudLibrary(applicationContext) }
+        var showCloud by remember { mutableStateOf(false) }
+        var cloudRevision by remember { mutableStateOf(0) }
+        var libraryReady by remember { mutableStateOf(false) }
+        var reportingPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
+        var reportReason by remember { mutableStateOf("") }
         val snackbar = remember { SnackbarHostState() }
         val previewCache = remember { StickerPreviewCache(64) }
         val pausePhoneImport = remember { AtomicBoolean(false) }
@@ -123,6 +129,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var bulkDeletePending by remember { mutableStateOf(false) }
 
         val pack = packs.firstOrNull { it.id == selectedId }
+        val cloudFingerprint = packs.joinToString(";") { "${it.id}:${it.version}" }
+        LaunchedEffect(cloudFingerprint, cloudRevision, libraryReady) {
+            if (cloud.enabled && libraryReady) {
+                delay(3000)
+                runCatching { withContext(Dispatchers.IO) { cloud.sync() } }
+            }
+        }
         val filteredPacks = packs.filter {
             val matchesSearch = searchText.isBlank() ||
                 it.name.contains(searchText, ignoreCase = true) ||
@@ -163,6 +176,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     )
                 }
                 packs = snapshot.packs
+                libraryReady = true
                 if (selectedId == requestedId) stickers = snapshot.stickers
                 counts = snapshot.counts
                 previewItems = snapshot.previews
@@ -474,6 +488,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     navigationIcon = {
                         if (pack != null) TextButton(onClick = { selectedId = null }) { Text("Back") }
                     },
+                    actions = { TextButton(onClick = { showCloud = true }) { Text(if (pack == null) "Cloud" else "Backup") } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                 )
             },
@@ -664,7 +679,14 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                     )
                                 }
                                 else -> AnimatedScreenSwap("factory") {
-                                    FactoryScreen(communityLoading, communityPacks, communityError, catalogImportedIds, busy, ::refreshFactory, ::importFactoryPack)
+                                    FactoryScreen(communityLoading, communityPacks, communityError, catalogImportedIds, busy, ::refreshFactory, ::importFactoryPack,
+                                        onHide = { entry ->
+                                            CommunityCatalog(this@StickerDockPolishedActivity, backup).hide(entry)
+                                            refreshFactory()
+                                            scope.launch { snackbar.showSnackbar("Hidden from new stickers. Saved local packs are kept.") }
+                                        },
+                                        onReport = { entry -> reportingPack = entry; reportReason = "" },
+                                        onShowHidden = { CommunityCatalog(this@StickerDockPolishedActivity, backup).clearHidden(); refreshFactory() })
                                 }
                             }
                         }
@@ -679,6 +701,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 { packFilter = it }, { packSort = it }, { categoryName = it?.name.orEmpty() },
                 ::clearFilters, { showFilters = false }
             )
+        }
+
+        if (showCloud) CloudLibrarySheet(cloud, pack, { cloudRevision++; refresh() }, { showCloud = false })
+        reportingPack?.let { entry ->
+            AlertDialog(onDismissRequest = { reportingPack = null }, title = { Text("Report ${entry.name}") },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Report unsafe content, private information or copyright concerns. You can also contact dvjjala@gmail.com.")
+                    if (cloud.signedIn) OutlinedTextField(reportReason, { reportReason = it.take(1000) }, label = { Text("Reason") })
+                    else Text("Sign in through Cloud to send an in-app report, or use the support email.")
+                } },
+                confirmButton = { TextButton(enabled = cloud.signedIn && reportReason.isNotBlank(), onClick = {
+                    reportingPack = null
+                    operation("Sending report") { cloud.report(entry.id, reportReason) }
+                }) { Text("Send report") } }, dismissButton = { TextButton(onClick = { reportingPack = null }) { Text("Cancel") } })
         }
 
         pack?.takeIf { showPackOptions }?.let { current ->

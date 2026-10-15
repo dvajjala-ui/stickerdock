@@ -25,6 +25,22 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 
 ## History
 
+- 2026-10-15 R21: user requests a live complete Vercel admin portal without
+  manually entering an owner access token or backend key. Replace token entry
+  and preview mode with normal owner sign-in and server-managed sessions;
+  retain authentication for destructive and publishing operations.
+
+- 2026-10-15 new cloud-library request (R19/R20): retain local stickers and add
+  opt-in authenticated private cloud copies with categories (unknown = All).
+  Add per-pack public opt-in, rights confirmation and owner moderation; keep
+  mature packs offline. Provide a new signed testing APK after focused checks.
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
+| R19 | Local library plus private account cloud sync, category metadata and restore | Partial | 0.6.0 adds confirmed-account private backup, checksums/checkpoints, categories/All, periodic retry and non-destructive restore. Migration applied with RLS verified. SMTP setup explicitly deferred by user; new-account email delivery and phone acceptance remain pending. |
+| R20 | User-controlled public sharing so others can use approved packs | Partial | Per-pack opt-in/withdrawal, adult/rights confirmation, immutable submissions, admin previews/review drafts, reports and hide creator/pack controls. Live smoke and phone acceptance tracked separately. |
+| R21 | Live admin portal with no manually pasted owner access token or key | Partial | Normal owner email/password sign-in, secure HttpOnly session/refresh/logout, password recovery and live-only initial view. Operational token fallback retained for scripts. Email setup deferred by user; verified-owner access required. |
+
 - 2026-10-15 Pinterest/image follow-up: new app 1624615 is submitted and Trial
   pending, replacing the old download use case with live reference browsing.
   Real public website/privacy/support links deployed. Temporary token probe is

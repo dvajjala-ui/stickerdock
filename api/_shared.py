@@ -29,6 +29,17 @@ class StudioError(ValueError):
 
 
 def authorized(headers) -> bool:
+    # Browser owners use server-managed sessions. Legacy owner tokens remain
+    # supported only for existing operational scripts and smoke checks.
+    from api.session import cookies, same_origin, owner_user
+    session = cookies(headers).get("sd_owner", "")
+    if session and same_origin(headers):
+        try:
+            from api._cloud import auth_call
+            if owner_user(auth_call("user", token=session)):
+                return True
+        except StudioError:
+            pass
     expected = os.environ.get("STUDIO_ACCESS_TOKEN", "").strip()
     supplied = str(headers.get("X-StickerDock-Token", ""))
     if not (MIN_STUDIO_TOKEN_LENGTH <= len(expected) <= MAX_STUDIO_TOKEN_LENGTH):

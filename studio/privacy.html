@@ -26,7 +26,7 @@
 
     <section class="panel editor">
       <h2>Android app</h2>
-      <p>StickerDock is primarily a local sticker-library application. The current Android source does not include an account system, advertising SDK, analytics SDK, or background telemetry service.</p>
+      <p>StickerDock is primarily a local sticker-library application. Optional email/password accounts support private cloud sync. The app has no advertising SDK, analytics SDK, or background telemetry service.</p>
 
       <h2>Data stored on your device</h2>
       <p>The app can store sticker images, pack names, categories, labels/tags, import progress/checkpoints, bookmarked Sticker.ly share codes or links, and backup/restore metadata on the device. This information supports the local library, search, migration, sharing, and resume features.</p>
@@ -34,19 +34,19 @@
 
       <h2>Files and media access</h2>
       <p>StickerDock uses Android's system document/folder picker for files and folders selected by the user. It does not request broad storage access. Persisted folder access is used only when Android grants it and only to support the selected import/resume flow.</p>
-      <p>The app does not request camera, microphone, location, contacts, account, or advertising permissions. It requests Internet access for the reviewed public sticker catalog.</p>
+      <p>The app does not request camera, microphone, location, contacts, account, or advertising permissions. It requests Internet/network access for the reviewed public catalog and optional private sync. Android can schedule a network-constrained sync retry after reboot.</p>
 
       <h2>Network access</h2>
-      <p>The Android app rejects cleartext HTTP traffic. It checks the reviewed public catalog automatically on open/resume and downloads unseen approved pack revisions in bounded batches; users can also import a pack explicitly. StickerDock does not upload the user's local sticker library, device media, or local database. Optional private library sync is planned and is not currently enabled.</p>
+      <p>The Android app rejects cleartext HTTP traffic. It checks the reviewed public catalog automatically on open/resume and downloads unseen approved pack revisions in bounded batches; users can also import a pack explicitly. Phone imports remain local. If you sign in and enable Private cloud sync, the app uploads general-audience sticker images, pack names, categories, labels/tags and checksums to your isolated Supabase account library. Sync runs after local changes and periodically when Android permits. Mature packs remain offline. Other media and the raw local database are not uploaded. Passwords are handled by Supabase Auth; session credentials are encrypted with Android Keystore.</p>
       <p>Like ordinary HTTPS services, the hosting provider may receive technical network information such as the requesting IP address and normal connection metadata. StickerDock does not add an advertising or analytics identifier to catalog requests.</p>
       <p>The production catalog is hosted in a public Supabase Storage bucket. Only deliberately review-approved GENERAL packs are intended for public publication. The app validates catalog structure and archive checksums before import.</p>
 
-      <h2>Sharing and WhatsApp</h2>
+      <h2>Optional public sharing</h2><p>Private sync does not publish stickers or grant AI-training consent. A general-audience pack can be submitted using Share with everyone after adult and redistribution-rights confirmation. Reviewers can see only opted-in snapshots. Approved packs can be deliberately published to the general-audience catalog; your email is not public. Turning sharing off withdraws the pack from future catalog discovery, but existing downloads and public caches cannot be recalled. In-app reports and hide creator/pack controls support content safety; privacy, rights and removal requests can also be sent to dvjjala@gmail.com.</p><h2>Sharing and WhatsApp</h2>
       <p>Sharing/exporting a pack is user initiated. When a user chooses to share content or install a pack into WhatsApp or WhatsApp Business, the selected sticker content is made available to that receiving application through Android's sharing or sticker-provider mechanisms. The receiving application's privacy practices then apply.</p>
       <p>Sticker.ly links are kept as local bookmarks. Opening an external link is user initiated and is handled by the selected browser or application.</p>
 
       <h2>Deleting Android data</h2>
-      <p>Users can remove packs/stickers inside StickerDock or clear/uninstall the app to remove app-private local data. Files intentionally exported or shared outside StickerDock must be removed from their destination separately.</p>
+      <p>Users can remove packs/stickers inside StickerDock or clear/uninstall the app to remove app-private local data. Deleting a previously synced local pack removes its cloud metadata on the next successful sync. Turning sync off or uninstalling does not erase cloud copies. Request account deletion, full cloud-media erasure or access at dvjjala@gmail.com. Unreferenced images and review audit records require operator cleanup. Files intentionally exported or shared outside StickerDock must be removed from their destination separately.</p>
 
       <h2>Optional private Creator Studio</h2>
       <p>Creator Studio and Admin are separate browser-based private owner features. The current Android app does not expose a hosted AI-creation entry.</p>
