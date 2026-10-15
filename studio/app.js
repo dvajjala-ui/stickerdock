@@ -17,15 +17,18 @@
     $("status").textContent = message;
     $("status").classList.toggle("error", error);
   };
-  const token = () => $("token").value.trim();
-  $("token").value = sessionStorage.getItem("stickerdock-studio-token") || "";
+  let signedIn = false;
+  sessionStorage.removeItem("stickerdock-studio-token");
+  async function checkSession() {
+    const response=await fetch("/api/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status"})});
+    const result=await response.json();signedIn=Boolean(response.ok&&result.signed_in);
+    $("studio-account").textContent=signedIn?"Open owner workspace":"Sign in to owner workspace";
+    updateAiButton();return signedIn;
+  }
   const updateAiButton = () => {
-    $("generate").disabled = aiBusy || !ready || !token() || !$("prompt").value.trim();
+    $("generate").disabled = aiBusy || !ready || !signedIn || !$("prompt").value.trim();
   };
-  $("token").addEventListener("input", () => {
-    sessionStorage.setItem("stickerdock-studio-token", token());
-    updateAiButton();
-  });
+  checkSession().catch(() => status("Sign in through the owner workspace to use cloud and AI features."));
 
   function coverGeometry(width, height, fit) {
     const scale = fit === "contain" ? Math.min(512 / width, 512 / height) : Math.max(512 / width, 512 / height);
@@ -104,13 +107,14 @@
     reader.readAsDataURL(file);
   }
   async function api(path, body) {
-    if (!token()) throw new Error("Enter your creator token first.");
-    sessionStorage.setItem("stickerdock-studio-token", token());
-    const response = await fetch(path, {
+    if (!signedIn && !await checkSession()) throw new Error("Sign in through the owner workspace first. No API key is needed.");
+    const options = {
       method: "POST",
-      headers: {"Content-Type": "application/json", "X-StickerDock-Token": token()},
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
-    });
+    };
+    let response = await fetch(path, options);
+    if(response.status===401&&await checkSession())response=await fetch(path,options);
     const value = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
     return value;

@@ -50,7 +50,7 @@
 
       <h2>Optional private Creator Studio</h2>
       <p>Creator Studio and Admin are separate browser-based private owner features. The current Android app does not expose a hosted AI-creation entry.</p>
-      <p>Creator Studio is protected by a private access token. The browser stores that token only in the current tab's session storage. Supabase service credentials and the Groq API key stay server-side.</p>
+      <p>Creator Studio and Admin use owner sign-in with a secure HttpOnly browser session. API keys are not requested from users. Supabase service credentials and the Groq API key stay server-side.</p>
       <p>When a user intentionally uploads an image or requests an AI-assisted sticker, the selected source image and prompt can be sent to StickerDock's server-side API. Private source/result files and provenance metadata are stored in the StickerDock Supabase project. For an AI request, the configured Groq vision service receives the content required to produce caption/reaction guidance. StickerDock's private worker renders the result and stores it back in private Supabase storage.</p>
       <p>Private Creator/Factory source and provenance data are retained until explicit operator cleanup unless a narrower operational retention rule applies. Supabase and Groq process data under their own terms and privacy practices.</p>
 
