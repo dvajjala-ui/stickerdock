@@ -9,8 +9,8 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 | R03 | AI Factory delivers new stickers automatically into the user's library | Partial | Daily private generation and reviewed public catalog exist. Android now imports up to three unseen approved pack revisions per refresh. Publishing a reviewed public pack and end-to-end phone verification remain pending. |
 | R04 | Send packs to multiple WhatsApp accounts | Partial | Separate personal WhatsApp and Business targets. Selecting an account inside one installation or Samsung cloned apps is unsupported by the documented API; keep as pending research, never promise routing. |
 | R05 | Friendly complete app with fast search, previews and organization | Active | Latest adaptive Compose UI retained; library, import and New tabs, search, filters, categories, selection, copy/move and undo. Ongoing phone usability review. |
-| R06 | Create, rename, edit, update and delete stickers and packs | Partial | Pack CRUD, labels/tags, copy/move/remove and image conversion exist. Full pixel editor, crop/text/background removal in Android remain pending. Web admin/Studio is separate. |
-| R07 | Keep add/update/delete changes synchronized with WhatsApp | Partial | Pack image_data_version increments on changes. WhatsApp reads this to refresh cached content; added status and Sync action use its official API. Timing is controlled by WhatsApp and requires device verification. Removing whole installed packs and two-way private database sync cannot be forced through this API. |
+| R06 | Create, rename, edit, update and delete stickers and packs | Partial | Pack CRUD, labels/tags, copy/move/remove and photo conversion exist. 0.5.0 adds local static artwork rotate/mirror, zoom/crop, position and captions, plus inline destination-pack creation. Background removal and animated artwork editing remain pending. Web admin/Studio is separate. |
+| R07 | Keep add/update/delete changes synchronized with WhatsApp | Partial | Pack image_data_version increments on changes. WhatsApp reads this to refresh cached content; added status and Add/Open actions use its official API. Artwork changes get new filenames. Timing is controlled by WhatsApp and requires device verification. Removing whole installed packs and two-way private database sync cannot be forced through this API. |
 | R08 | Users see stickers without needing source/factory details | Active | New tab uses user-facing wording, hides creator/source implementation details and removes disabled Studio card. Provenance remains internal for review. Required attribution must still be respected. |
 | R09 | Record all new/changed/removed requirements permanently | Active | This ledger is authoritative for status/history alongside the detailed product/admin plans. |
 | R10 | Ship quickly with focused necessary verification | Active | Build and relevant Android regressions required; avoid repeating unrelated Python suites for Android-only changes. Device WhatsApp acceptance and release signing remain launch gates. |
@@ -21,8 +21,11 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 
 ## History
 
+- 2026-10-15 follow-up: user reaffirmed R01–R10 and requested a complete Sticker.ly-like flow with advanced functions. Active work: direct photo-to-pack creation, real static artwork editing (rotate, mirror, zoom/position and captions), safer automatic delivery and faster large-library previews. Background removal, account routing inside WhatsApp and hosted production gates remain explicit pending items; no requirement removed.
+
 - 2026-10-15: R01–R14 consolidated from the user's initial and current requests; no requirements removed. Clarified official WhatsApp constraints in R04/R07 while retaining requested account/sync outcomes.
 - 2026-10-15: R03 updated from manual catalog import to bounded automatic delivery of unseen approved revisions. A user-deleted revision stays deleted until explicitly added again. New published revisions remain eligible.
+- 2026-10-15: R05/R06 advanced with direct photo import, local static artwork editor and inline pack creation. R07 wording updated from Sync to Add/Open to describe the supported WhatsApp behavior. Live public catalog still returns NoSuchKey; delivery remains pending publication. No requirements removed.
 
 ## Fastest remaining production path
 

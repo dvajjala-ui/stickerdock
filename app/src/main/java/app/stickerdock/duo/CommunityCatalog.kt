@@ -35,11 +35,11 @@ class CommunityCatalog(
         return parseCatalog(bytes, base)
     }
 
-    fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary {
+    fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary = synchronized(importLock) {
         StickerStore(context.applicationContext).use { store ->
             val imported = CatalogImports(context, store)
             if (imported.importedPackIds(item.id, item.sha256).isNotEmpty()) {
-                return StickerBackup.RestoreSummary(0, 0, 0)
+                return@synchronized StickerBackup.RestoreSummary(0, 0, 0)
             }
         }
         require(CatalogUrls.isAllowed(base, item.downloadUrl) &&
@@ -48,12 +48,11 @@ class CommunityCatalog(
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         require(hash == item.sha256) { "Public pack checksum mismatch" }
         val tmp = File.createTempFile("catalog-", ".zip", context.cacheDir)
-        return try {
+        try {
             tmp.writeBytes(bytes)
             StickerStore(context.applicationContext).use { store ->
-                val before = store.listPacks().mapTo(mutableSetOf()) { it.id }
                 val summary = backup.restore(Uri.fromFile(tmp))
-                val added = store.listPacks().mapTo(mutableSetOf()) { it.id } - before
+                val added = summary.packIds.toSet()
                 if (added.isNotEmpty()) CatalogImports(context, store).record(item.id, item.sha256, added)
                 summary
             }
@@ -83,6 +82,7 @@ class CommunityCatalog(
     }
 
     companion object {
+        private val importLock = Any()
         internal fun isMissingObjectResponse(bytes: ByteArray): Boolean = runCatching {
             val error = JSONObject(bytes.toString(Charsets.UTF_8))
             error.optString("code") in setOf("NoSuchKey", "not_found") ||

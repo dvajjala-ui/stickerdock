@@ -26,6 +26,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -111,6 +113,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var showPackOptions by remember { mutableStateOf(false) }
         var managingSticker by remember { mutableStateOf<StickerItem?>(null) }
         var editingSticker by remember { mutableStateOf<StickerItem?>(null) }
+        var artworkSticker by remember { mutableStateOf<StickerItem?>(null) }
+        var refreshJob by remember { mutableStateOf<Job?>(null) }
         var stickerLabel by remember { mutableStateOf("") }
         var stickerTags by remember { mutableStateOf("") }
         var transferItems by remember { mutableStateOf<List<StickerItem>?>(null) }
@@ -146,18 +150,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         fun refresh() {
-            scope.launch {
+            val requestedId = selectedId
+            refreshJob?.cancel()
+            refreshJob = scope.launch {
                 val snapshot = withContext(Dispatchers.IO) {
                     val all = store.listPacks()
                     LibrarySnapshot(
                         packs = all,
-                        stickers = selectedId?.let(store::listStickers).orEmpty(),
+                        stickers = requestedId?.let(store::listStickers).orEmpty(),
                         counts = store.stickerCounts(),
-                        previews = all.associate { it.id to store.listStickers(it.id).take(4) }
+                        previews = store.stickerPreviews()
                     )
                 }
                 packs = snapshot.packs
-                stickers = snapshot.stickers
+                if (selectedId == requestedId) stickers = snapshot.stickers
                 counts = snapshot.counts
                 previewItems = snapshot.previews
                 if (selectedId != null && packs.none { it.id == selectedId }) selectedId = null
@@ -169,15 +175,18 @@ class StickerDockPolishedActivity : ComponentActivity() {
             if (busy) return
             busyLabel = label
             scope.launch {
-                try {
+                val message = try {
                     val message = withContext(Dispatchers.IO) { action() }
                     refresh()
-                    snackbar.showSnackbar(message)
+                    message
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    snackbar.showSnackbar(e.message ?: "Operation failed")
+                    e.message ?: "Operation failed"
                 } finally {
                     busyLabel = null
                 }
+                snackbar.showSnackbar(message)
             }
         }
 
@@ -308,6 +317,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
 
+        val photoPackPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+            if (uris.isNotEmpty()) operation("Making stickers") {
+                val result = PhotoPackImporter(this@StickerDockPolishedActivity, store, files).import(uris)
+                runOnUiThread {
+                    selectedId = result.packIds.firstOrNull()
+                    sectionName = PolishedHomeSection.LIBRARY.name
+                }
+                buildString {
+                    append("${result.added} stickers added • ${result.duplicates} duplicates • ${result.failed} skipped")
+                    result.firstError?.let { append(". $it") }
+                }
+            }
+        }
+
         val folderImporter = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             if (uri != null) {
                 try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) {}
@@ -364,23 +387,30 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         fun launchWhatsApp(packToInstall: StickerPack, target: WhatsAppTarget) {
-            try {
-                val status = whatsAppStatus[target]
-                if (status?.installed == false) {
-                    scope.launch { snackbar.showSnackbar("${target.label} is not installed on this phone") }
-                    return
-                }
-                val installIntent = WhatsAppStickerProvider.installIntent(packToInstall, target.packageName)
-                if (installIntent.resolveActivity(packageManager) == null) {
-                    scope.launch { snackbar.showSnackbar("${target.label} cannot receive sticker packs. Update it and try again.") }
-                    return
-                }
-                pendingWhatsAppTarget = target
-                whatsAppInstaller.launch(installIntent)
-            } catch (_: ActivityNotFoundException) {
-                scope.launch { snackbar.showSnackbar("Unable to open ${target.label}") }
-            } catch (e: SecurityException) {
-                scope.launch { snackbar.showSnackbar(e.message ?: "${target.label} refused the request") }
+            if (busy) return
+            busyLabel = "Preparing WhatsApp pack"
+            scope.launch {
+                var failure: String? = null
+                try {
+                    val status = withContext(Dispatchers.IO) {
+                        WhatsAppIntegration.validatePack(packToInstall, store, files)
+                        WhatsAppIntegration.status(this@StickerDockPolishedActivity, packToInstall.id, target)
+                    }
+                    require(status.installed) { "${target.label} is not installed on this phone" }
+                    if (status.added) {
+                        val openIntent = packageManager.getLaunchIntentForPackage(target.packageName)
+                            ?: error("Unable to open ${target.label}")
+                        startActivity(openIntent)
+                    } else {
+                        pendingWhatsAppTarget = target
+                        whatsAppInstaller.launch(WhatsAppStickerProvider.installIntent(packToInstall, target.packageName))
+                    }
+                } catch (_: ActivityNotFoundException) {
+                    failure = "Update ${target.label} to enable sticker packs, then try again."
+                } catch (e: Exception) {
+                    failure = e.message ?: "Unable to add sticker pack"
+                } finally { busyLabel = null }
+                failure?.let { snackbar.showSnackbar(it) }
             }
         }
 
@@ -528,7 +558,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                     newPackCategory = PackCategory.GENERAL; dialog = "create"
                                                 },
                                                 { sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
-                                                { selectedId = it }
+                                                { selectedId = it },
+                                                { photoPackPicker.launch(arrayOf("image/*")) }
                                             )
                                         }
                                         VerticalDivider()
@@ -600,7 +631,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             newPackCategory = PackCategory.GENERAL; dialog = "create"
                                         },
                                         { sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
-                                        { selectedId = it }
+                                        { selectedId = it },
+                                        { photoPackPicker.launch(arrayOf("image/*")) }
                                     )
                                 }
                                 section == PolishedHomeSection.IMPORT -> AnimatedScreenSwap("import") {
@@ -627,7 +659,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                 catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Cannot create backup") }
                                             }
                                         },
-                                        { loadBackup.launch(arrayOf("application/zip")) }
+                                        { loadBackup.launch(arrayOf("application/zip")) },
+                                        { photoPackPicker.launch(arrayOf("image/*")) }
                                     )
                                 }
                                 else -> AnimatedScreenSwap("factory") {
@@ -683,6 +716,10 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     stickerLabel = item.label
                     stickerTags = item.tags
                 },
+                onEditArtwork = {
+                    managingSticker = null
+                    artworkSticker = item
+                },
                 onTransfer = {
                     managingSticker = null
                     transferItems = listOf(item)
@@ -690,6 +727,22 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 },
                 onDelete = { deleteStickerWithUndo(item) },
                 onDismiss = { managingSticker = null }
+            )
+        }
+
+        artworkSticker?.let { item ->
+            StickerArtworkEditor(item, files,
+                onSave = { edit ->
+                    artworkSticker = null
+                    operation("Saving sticker artwork") {
+                        val input = files.stickerFile(item.packId, item.fileName).readBytes()
+                        val bitmap = StickerArtwork.render(input, edit)
+                        val encoded = try { StickerArtwork.encode(bitmap) } finally { bitmap.recycle() }
+                        files.replaceStaticArtwork(item, encoded)
+                        "Sticker updated. Open WhatsApp to refresh your pack."
+                    }
+                },
+                onDismiss = { artworkSticker = null }
             )
         }
 
@@ -732,6 +785,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     transferItems = null
                     selectedStickerIds = emptySet()
                     operation("Moving stickers") { transferBatch(batch, targetId, true) }
+                },
+                onCreatePack = { packName ->
+                    if (sourcePack != null) operation("Creating pack") {
+                        val created = store.createPack(packName, sourcePack.kind, sourcePack.rating, sourcePack.category)
+                        runOnUiThread { transferTarget = created.id }
+                        "Pack created. Tap Copy or Move to finish."
+                    }
                 },
                 onDismiss = { transferItems = null }
             )

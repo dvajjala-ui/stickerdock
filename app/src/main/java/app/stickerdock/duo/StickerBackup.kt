@@ -13,7 +13,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class StickerBackup(private val context: Context, private val store: StickerStore, private val files: StickerFiles) {
-    data class RestoreSummary(val packs: Int, val stickers: Int, val rejected: Int)
+    data class RestoreSummary(val packs: Int, val stickers: Int, val rejected: Int, val packIds: List<String> = emptyList())
     data class ExportEstimate(val packs: Int, val stickers: Int, val bytes: Long)
 
     private data class ExportPack(val pack: StickerPack, val stickers: List<StickerItem>)
@@ -241,7 +241,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
             createdPackIds.forEach(files::deletePack)
             throw error
         }
-        return RestoreSummary(validated.size, added, 0)
+        return RestoreSummary(validated.size, added, 0, createdPackIds.toList())
     }
 
     private fun sha256(file: File): String {

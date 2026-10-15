@@ -43,7 +43,10 @@ requests use HTTPS and fetch only the reviewed StickerDock catalog and selected
 pack archives. The catalog client does not upload the user's local sticker
 library, device media, or StickerDock database to the catalog service.
 The home screen refreshes this public catalog when the app opens or returns to
-the foreground. Pack images are downloaded only when the user chooses Import.
+the foreground. It automatically downloads a bounded batch of new approved pack
+revisions into the local library. The New tab also allows explicit downloads.
+Deleting a downloaded revision prevents that same revision from being recreated
+automatically. These downloads do not upload local stickers or media.
 
 Like ordinary HTTPS requests, the hosting provider may receive technical network
 information such as the requesting IP address and standard connection metadata.
@@ -75,7 +78,7 @@ outside StickerDock must be deleted from their destination separately.
 ## Optional private Creator Studio web feature
 
 Creator Studio is a separate browser-based maintainer/private feature and is not
-currently exposed through the Android **AI meme creator — Coming soon** entry.
+currently exposed through the Android app.
 This section applies if the Creator Studio is deployed and used.
 
 Creator Studio is protected by a private access token. The browser stores that

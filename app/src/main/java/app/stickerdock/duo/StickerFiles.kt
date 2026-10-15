@@ -179,14 +179,15 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         val first = store.listStickers(packId).firstOrNull()
         val tray = trayFile(packId)
         if (first == null) { tray.delete(); return }
-        val bitmap = BitmapFactory.decodeFile(stickerFile(packId, first.fileName).path) ?: return
+        val bytes = stickerFile(packId, first.fileName).readBytes()
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
         val small = Bitmap.createScaledBitmap(bitmap, 96, 96, true)
         traysDir.mkdirs()
         tray.outputStream().use { small.compress(Bitmap.CompressFormat.PNG, 100, it) }
         if (small !== bitmap) small.recycle()
         bitmap.recycle()
     }
-    private fun sourceLabel(uri: Uri): String {
+    internal fun sourceLabel(uri: Uri): String {
         val displayName = try {
             context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                 val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -195,14 +196,35 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         } catch (_: Exception) { null }
         return displayName ?: uri.lastPathSegment?.substringAfterLast('/') ?: ""
     }
+    /** New immutable filename avoids stale WhatsApp/thumbnail caches after editing. */
+    fun replaceStaticArtwork(item: StickerItem, bytes: ByteArray) {
+        require(store.getPack(item.packId)?.kind == StickerKind.STATIC) { "Artwork editing supports static stickers" }
+        require(bytes.size <= 100_000 && WebpSticker.isWebpHeader(bytes) && !WebpSticker.isAnimatedHeader(bytes)) { "Invalid static sticker" }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        require(bounds.outWidth == 512 && bounds.outHeight == 512) { "Sticker must be 512 × 512" }
+        val filename = "${UUID.randomUUID()}.webp"
+        val destination = stickerFile(item.packId, filename)
+        destination.parentFile?.mkdirs()
+        destination.writeBytes(bytes)
+        try {
+            store.replaceStickerArtwork(item, filename, sha256(bytes))
+        } catch (e: Exception) { destination.delete(); throw e }
+        stickerFile(item.packId, item.fileName).delete()
+        runCatching { refreshTray(item.packId) }
+    }
     private fun normalize(bytes: ByteArray): ByteArray {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
         require(opts.outWidth in 1..16000 && opts.outHeight in 1..16000) { "Invalid image dimensions" }
         var sample = 1
         while (opts.outWidth / sample > 2048 || opts.outHeight / sample > 2048) sample *= 2
-        val original = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
-            BitmapFactory.Options().apply { inSampleSize = sample }) ?: error("Cannot decode image")
+        val original = android.graphics.ImageDecoder.decodeBitmap(
+            android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))
+        ) { decoder, _, _ ->
+            decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.setTargetSampleSize(sample)
+        }
         val dest = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
         val scale = 512f / max(original.width, original.height)
         val width = original.width * scale

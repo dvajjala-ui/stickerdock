@@ -2,11 +2,23 @@
 
 ## Current Android continuation
 
+October 15 follow-up — candidate 0.5.0:
+
+- Direct photo-to-pack creation from Library/Import; compatible grouping, global dedup and 30-sticker split. Shared photos use the same path; corrupt shared archives do not stop following files.
+- Native static artwork editor: rotate, mirror, zoom/crop, reposition and top/bottom captions. Safe replacement retains sticker identity/metadata, validates stale saves and uses a new immutable filename/version. Background removal and animated artwork editing remain pending.
+- Copy/Move can create a new compatible destination pack inline. Existing packs use Open WhatsApp/Business; new packs use the official Add flow. Export preflight identifies invalid/missing/damaged media before launch.
+- Bounded single-query pack previews replace full per-pack loads; selection-aware refresh cancels stale loads. Catalog import tracking uses restore's exact IDs and serializes manual/automatic imports. Photo ImageDecoder respects EXIF rotation.
+- Final local Android unit suite: 52 tests, zero failures/errors. Debug APK assembly and release lint passed (lint retains non-blocking dependency/KTX/icon suggestions). APK SHA-256: 1D48391B4F6F25323685662A068184602E3CE07EC9238E856707029C2574DE49.
+- LIVE read-only catalog check: HTTP 400 with NoSuchKey/Object not found on October 15. Approved catalog publication is still pending, so no automatic live delivery is claimed. No ADB device was connected; WhatsApp/Business phone acceptance is still pending. No migrations/publication/signing changes made in this follow-up.
+- CORE_FLOW_REVIEW_2026-10-15.md maps all ten current requirements to source flow, limitations and remaining acceptance. REQUIREMENTS_LEDGER.md retains request/status history. Privacy/network wording now matches automatic catalog downloads.
+
+Previous 0.4.0 continuation (historical):
+
 - Pulled main a9d5883 and retained the polished adaptive launcher UI.
 - Candidate 0.4.0 adds official per-target WhatsApp whitelist status, Add/Sync actions, activity-result validation errors and provider change notifications. Version increments already existed; WhatsApp controls cache refresh timing. Real personal/Business device acceptance remains pending.
 - Approved catalog revisions now import automatically in bounded batches of three on open/resume. Deleted revisions are remembered so automatic delivery does not recreate user-deleted packs. New tab removes internal factory/source language and the disabled Studio card.
 - Requirements and unfinished work are tracked in REQUIREMENTS_LEDGER.md. Preserve IDs/history and add subsequent user requests there.
-- Final local verification: 46 Android unit tests passed, debug APK assembled successfully (0.4.0), and git diff --check passed. APK SHA-256: BD148E3E0FE52D12A4AC20E80BA70B90F1D040E80DDE3BB753B28C5D632BBB49. No new deployment, database apply or public publication is implied.
+- Final local verification: 46 Android unit tests passed, debug APK assembled successfully (0.4.0), and git diff --check passed. APK SHA-256: BD148E3E0FE52D12A4AC20E80BA70B90F1D040E80DDE3BB753B28C5D632BBB49. GitHub build 38697171985 subsequently passed. No new deployment, database apply or public publication is implied.
 
 ## Goal and historical decisions
 

@@ -24,6 +24,30 @@ data class WhatsAppPackStatus(
 object WhatsAppIntegration {
     private const val RESULT_COLUMN = "result"
 
+    /** Fail with an actionable message before handing an incomplete pack to WhatsApp. */
+    fun validatePack(pack: StickerPack, store: StickerStore, files: StickerFiles) {
+        require(store.getPack(pack.id) != null) { "Pack no longer exists" }
+        val stickers = store.listStickers(pack.id)
+        require(stickers.size in 3..30) { "WhatsApp needs 3–30 stickers in each pack." }
+        stickers.forEach { sticker ->
+            val file = files.stickerFile(pack.id, sticker.fileName)
+            val limit = if (pack.kind == StickerKind.ANIMATED) 500_000L else 100_000L
+            require(file.isFile && file.length() in 12..limit) { "${sticker.displayName} is missing or too large. Replace or remove it." }
+            val bytes = file.readBytes()
+            require(StickerFiles.sha256(bytes) == sticker.sha256) { "${sticker.displayName} is damaged. Replace or remove it." }
+            if (pack.kind == StickerKind.ANIMATED) {
+                require(WebpSticker.inspect(bytes)?.let { it.animated && it.frames >= 2 } == true) { "${sticker.displayName} is not a compatible animation" }
+            } else {
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                require(WebpSticker.isWebpHeader(bytes) && !WebpSticker.isAnimatedHeader(bytes) && bounds.outWidth == 512 && bounds.outHeight == 512) { "${sticker.displayName} must be a static 512 × 512 sticker" }
+            }
+        }
+        files.refreshTray(pack.id)
+        val tray = files.trayFile(pack.id)
+        require(tray.isFile && tray.length() in 1..50_000) { "Could not prepare the pack icon. Replace the first sticker and try again." }
+    }
+
     fun status(context: Context, packId: String, target: WhatsAppTarget): WhatsAppPackStatus {
         if (!isInstalled(context.packageManager, target.packageName)) {
             return WhatsAppPackStatus(installed = false, added = false)

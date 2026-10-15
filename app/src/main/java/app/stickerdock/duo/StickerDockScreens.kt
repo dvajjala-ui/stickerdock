@@ -63,7 +63,8 @@ fun LibraryScreen(
     onClearFilters: () -> Unit,
     onCreatePack: () -> Unit,
     onImportPhone: () -> Unit,
-    onOpenPack: (String) -> Unit
+    onOpenPack: (String) -> Unit,
+    onPhotos: () -> Unit
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -72,9 +73,12 @@ fun LibraryScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             if (packs.isEmpty() && searchText.isBlank()) {
-                item { LibraryOnboardingCard(busy, onCreatePack, onImportPhone) }
+                item { LibraryOnboardingCard(busy, onPhotos, onImportPhone) }
             } else {
                 item { LibrarySummaryCard(packs.size, counts.values.sum(), compactPane) }
+                item {
+                    FilledTonalButton(enabled = !busy, onClick = onPhotos, modifier = Modifier.fillMaxWidth()) { Text("Make stickers from photos") }
+                }
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -201,12 +205,12 @@ private fun LibraryOnboardingCard(busy: Boolean, onCreatePack: () -> Unit, onImp
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 if (maxWidth < 420.dp) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onCreatePack, modifier = Modifier.fillMaxWidth()) { Text("Create first pack") }
+                        Button(enabled = !busy, onClick = onCreatePack, modifier = Modifier.fillMaxWidth()) { Text("Choose photos") }
                         FilledTonalButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.fillMaxWidth()) { Text("Import from phone") }
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onCreatePack, modifier = Modifier.weight(1f)) { Text("Create first pack") }
+                        Button(enabled = !busy, onClick = onCreatePack, modifier = Modifier.weight(1f)) { Text("Choose photos") }
                         FilledTonalButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.weight(1f)) { Text("Import from phone") }
                     }
                 }
@@ -351,7 +355,8 @@ fun ImportScreen(
     onZip: () -> Unit,
     onLinks: () -> Unit,
     onBackup: () -> Unit,
-    onRestore: () -> Unit
+    onRestore: () -> Unit,
+    onPhotos: () -> Unit
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = 960.dp), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -369,6 +374,7 @@ fun ImportScreen(
             item { StickerDockSectionHeader("Import sources", "Choose the source that matches what you already have.") }
             item {
                 StickerDockActionGrid(listOf(
+                    StickerDockAction("Make stickers from photos", "Pick images; packs are created and grouped automatically", !busy, true, onPhotos),
                     StickerDockAction("Phone sticker folder", "Scan a WhatsApp or WhatsApp Business media folder", !busy, true, onPhone),
                     StickerDockAction("Sticker ZIPs", "StickerDock backups, .wastickers or generic ZIP batches", !busy, false, onZip),
                     StickerDockAction("Sticker.ly bookmarks", "Save public pack links without scraping creator files", !busy, false, onLinks)
@@ -497,7 +503,7 @@ fun PackDetailScreen(
                         Text(
                             when {
                                 stickers.size < 3 -> "Add at least 3 stickers before sending this pack."
-                                whatsAppStatus.values.any { it.added } -> "StickerDock keeps the pack version current. After an edit, tap Sync if WhatsApp has not refreshed it yet."
+                                whatsAppStatus.values.any { it.added } -> "Added packs update through WhatsApp. After editing, open WhatsApp and its sticker tray to see the latest version."
                                 else -> "Choose the WhatsApp app that should receive this pack."
                             },
                             style = MaterialTheme.typography.bodySmall,
@@ -508,23 +514,23 @@ fun PackDetailScreen(
                             val business = whatsAppStatus[WhatsAppTarget.BUSINESS]
                             val personalLabel = when {
                                 personal?.installed == false -> "WhatsApp not installed"
-                                personal?.added == true -> "Sync WhatsApp"
+                                personal?.added == true -> "Open WhatsApp"
                                 else -> "Add to WhatsApp"
                             }
                             val businessLabel = when {
                                 business?.installed == false -> "Business not installed"
-                                business?.added == true -> "Sync Business"
+                                business?.added == true -> "Open Business"
                                 else -> "Add to Business"
                             }
                             if (maxWidth < 420.dp) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(enabled = stickers.size in 3..30 && personal?.installed != false, onClick = onWhatsApp, modifier = Modifier.fillMaxWidth()) { Text(personalLabel) }
-                                    OutlinedButton(enabled = stickers.size in 3..30 && business?.installed != false, onClick = onBusiness, modifier = Modifier.fillMaxWidth()) { Text(businessLabel) }
+                                    Button(enabled = !busy && stickers.size in 3..30 && personal?.installed != false, onClick = onWhatsApp, modifier = Modifier.fillMaxWidth()) { Text(personalLabel) }
+                                    OutlinedButton(enabled = !busy && stickers.size in 3..30 && business?.installed != false, onClick = onBusiness, modifier = Modifier.fillMaxWidth()) { Text(businessLabel) }
                                 }
                             } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(enabled = stickers.size in 3..30 && personal?.installed != false, onClick = onWhatsApp, modifier = Modifier.weight(1f)) { Text(personalLabel) }
-                                    OutlinedButton(enabled = stickers.size in 3..30 && business?.installed != false, onClick = onBusiness, modifier = Modifier.weight(1f)) { Text(businessLabel) }
+                                    Button(enabled = !busy && stickers.size in 3..30 && personal?.installed != false, onClick = onWhatsApp, modifier = Modifier.weight(1f)) { Text(personalLabel) }
+                                    OutlinedButton(enabled = !busy && stickers.size in 3..30 && business?.installed != false, onClick = onBusiness, modifier = Modifier.weight(1f)) { Text(businessLabel) }
                                 }
                             }
                         }
@@ -660,6 +666,7 @@ fun StickerManageSheet(
     canTransfer: Boolean,
     busy: Boolean,
     onEdit: () -> Unit,
+    onEditArtwork: () -> Unit,
     onTransfer: () -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit
@@ -668,9 +675,12 @@ fun StickerManageSheet(
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(item.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             StickerLargePreview(item, kind, files, previewCache)
+            if (kind == StickerKind.STATIC) {
+                Button(enabled = !busy, onClick = onEditArtwork, modifier = Modifier.fillMaxWidth()) { Text("Edit artwork and captions") }
+            }
             if (item.tags.isNotBlank()) Text(item.tags, color = MaterialTheme.colorScheme.secondary)
             FilledTonalButton(enabled = !busy, onClick = onEdit, modifier = Modifier.fillMaxWidth()) { Text("Edit label and tags") }
-            OutlinedButton(enabled = canTransfer && !busy, onClick = onTransfer, modifier = Modifier.fillMaxWidth()) { Text("Copy or move to another pack") }
+            OutlinedButton(enabled = !busy, onClick = onTransfer, modifier = Modifier.fillMaxWidth()) { Text(if (canTransfer) "Copy or move to another pack" else "Copy or move to a new pack") }
             TextButton(enabled = !busy, onClick = onDelete, modifier = Modifier.fillMaxWidth()) { Text("Remove sticker", color = MaterialTheme.colorScheme.error) }
             Spacer(Modifier.height(12.dp))
         }
@@ -738,8 +748,10 @@ fun StickerTransferSheet(
     onTarget: (String) -> Unit,
     onCopy: () -> Unit,
     onMove: () -> Unit,
+    onCreatePack: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    var newName by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
@@ -749,7 +761,8 @@ fun StickerTransferSheet(
                     FilterChip(selected = targetId == pack.id, onClick = { onTarget(pack.id) }, label = { Text(pack.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }, modifier = Modifier.fillMaxWidth())
                 }
             }
-            if (packs.isEmpty()) Text("Create another pack of the same sticker type to copy or move here.")
+            OutlinedTextField(newName, { newName = it.take(60) }, label = { Text("New pack name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            TextButton(enabled = enabled && newName.isNotBlank(), onClick = { onCreatePack(newName); newName = "" }) { Text("Create new pack") }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = enabled && targetId != null, onClick = onCopy, modifier = Modifier.weight(1f)) { Text("Copy") }
                 Button(enabled = enabled && targetId != null, onClick = onMove, modifier = Modifier.weight(1f)) { Text("Move") }

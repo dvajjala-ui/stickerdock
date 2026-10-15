@@ -113,6 +113,31 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         }
         return result
     }
+    fun stickerPreviews(perPack: Int = 4): Map<String, List<StickerItem>> {
+        val result = mutableMapOf<String, MutableList<StickerItem>>()
+        readableDatabase.rawQuery("""
+            SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY pack_id ORDER BY created_at,id) AS position
+                FROM stickers
+            ) WHERE position<=CAST(? AS INTEGER) ORDER BY pack_id,created_at,id
+        """.trimIndent(), arrayOf(perPack.coerceIn(1, 4).toString())).use { cursor ->
+            while (cursor.moveToNext()) {
+                val item = readSticker(cursor, 0)
+                result.getOrPut(item.packId) { mutableListOf() }.add(item)
+            }
+        }
+        return result
+    }
+
+    fun replaceStickerArtwork(item: StickerItem, filename: String, hash: String) = transaction {
+        val current = getSticker(item.packId, item.fileName)
+        require(current?.id == item.id && current.sha256 == item.sha256) { "Sticker changed; reopen it before editing" }
+        require(!hasStickerHash(hash, item.packId) || hash == item.sha256) { "This artwork is already in the pack" }
+        require(writableDatabase.update("stickers", ContentValues().apply {
+            put("file_name", filename); put("sha256", hash)
+        }, "id=? AND pack_id=?", arrayOf(item.id, item.packId)) == 1)
+        bumpVersion(item.packId)
+    }
     fun getSticker(packId: String, filename: String): StickerItem? {
         readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM stickers WHERE pack_id=? AND file_name=? LIMIT 1",
             arrayOf(packId, filename)).use { cursor ->
