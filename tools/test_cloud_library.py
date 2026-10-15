@@ -95,7 +95,8 @@ class CloudLibraryTest(unittest.TestCase):
         self.assertIn("confirm", result["message"])
     def test_rejected_snapshot_can_be_updated_and_resubmitted(self):
         client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
-        manifest = cloud.validate_manifest(self.manifest())
+        manifest = cloud.validate_manifest(self.manifest(stickers=[
+            {"sha256": hashlib.sha256(bytes([i])).hexdigest(), "label": "Reaction", "tags": ""} for i in range(3)]))
         pack = {"id": PACK, "name": manifest["name"], "manifest": manifest, "fingerprint": "a"*64}
         def query(_client, table, _query):
             return [pack] if table == "cloud_packs" else [{"id": str(uuid.uuid4()), "status": "rejected"}]
