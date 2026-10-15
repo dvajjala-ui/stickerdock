@@ -412,36 +412,26 @@ fun FactoryScreen(
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("From the Factory", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                Text("Reviewed general-audience sticker packs", color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Text("New stickers", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Text("Fresh packs ready for your chats", color = MaterialTheme.colorScheme.onTertiaryContainer)
                             }
                             TextButton(enabled = !loading, onClick = onRefresh) { Text("Refresh") }
                         }
-                        Text("Only published GENERAL packs appear here. Your local library keeps working even when Factory is offline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        Text("New approved packs are added to your library automatically. Your saved stickers keep working offline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
                     }
                 }
             }
             if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             when {
-                error != null -> item { EmptyStateCard("Factory unavailable", "Your local stickers still work offline. Try again when the network is available.", "Try again", onRefresh) }
-                !loading && packs.isEmpty() -> item { EmptyStateCard("No reviewed packs yet", "New Factory packs will appear after review and publication.") }
+                error != null -> item { EmptyStateCard("New stickers unavailable", "Your saved stickers still work offline. Try again when the network is available.", "Try again", onRefresh) }
+                !loading && packs.isEmpty() -> item { EmptyStateCard("Nothing new yet", "Fresh sticker packs will appear here automatically.") }
                 else -> items(packs, key = { it.id }) { entry ->
                     Card(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(entry.creator, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             if (entry.categories.isNotEmpty()) Text(entry.categories.joinToString(" • ") { it.label }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-                            FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }, modifier = Modifier.fillMaxWidth()) { Text(if (entry.id in importedIds) "Open in library" else "Import pack") }
+                            FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }, modifier = Modifier.fillMaxWidth()) { Text(if (entry.id in importedIds) "Open in library" else "Add to library") }
                         }
-                    }
-                }
-            }
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("AI meme creator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Creator Studio stays hidden on Android until hosted exposure is verified.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        FilledTonalButton(enabled = false, onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Coming soon") }
                     }
                 }
             }
@@ -461,6 +451,7 @@ fun PackDetailScreen(
     onImport: () -> Unit,
     onPackOptions: () -> Unit,
     onShare: () -> Unit,
+    whatsAppStatus: Map<WhatsAppTarget, WhatsAppPackStatus>,
     onWhatsApp: () -> Unit,
     onBusiness: () -> Unit,
     onManageSticker: (StickerItem) -> Unit,
@@ -502,18 +493,38 @@ fun PackDetailScreen(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Add to WhatsApp", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(if (stickers.size < 3) "Add at least 3 stickers before exporting this pack." else "Choose the WhatsApp app that should receive this pack.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Use in WhatsApp", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            when {
+                                stickers.size < 3 -> "Add at least 3 stickers before sending this pack."
+                                whatsAppStatus.values.any { it.added } -> "StickerDock keeps the pack version current. After an edit, tap Sync if WhatsApp has not refreshed it yet."
+                                else -> "Choose the WhatsApp app that should receive this pack."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            val personal = whatsAppStatus[WhatsAppTarget.PERSONAL]
+                            val business = whatsAppStatus[WhatsAppTarget.BUSINESS]
+                            val personalLabel = when {
+                                personal?.installed == false -> "WhatsApp not installed"
+                                personal?.added == true -> "Sync WhatsApp"
+                                else -> "Add to WhatsApp"
+                            }
+                            val businessLabel = when {
+                                business?.installed == false -> "Business not installed"
+                                business?.added == true -> "Sync Business"
+                                else -> "Add to Business"
+                            }
                             if (maxWidth < 420.dp) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(enabled = stickers.size in 3..30, onClick = onWhatsApp, modifier = Modifier.fillMaxWidth()) { Text("WhatsApp") }
-                                    OutlinedButton(enabled = stickers.size in 3..30, onClick = onBusiness, modifier = Modifier.fillMaxWidth()) { Text("WhatsApp Business") }
+                                    Button(enabled = stickers.size in 3..30 && personal?.installed != false, onClick = onWhatsApp, modifier = Modifier.fillMaxWidth()) { Text(personalLabel) }
+                                    OutlinedButton(enabled = stickers.size in 3..30 && business?.installed != false, onClick = onBusiness, modifier = Modifier.fillMaxWidth()) { Text(businessLabel) }
                                 }
                             } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(enabled = stickers.size in 3..30, onClick = onWhatsApp, modifier = Modifier.weight(1f)) { Text("WhatsApp") }
-                                    OutlinedButton(enabled = stickers.size in 3..30, onClick = onBusiness, modifier = Modifier.weight(1f)) { Text("WhatsApp Business") }
+                                    Button(enabled = stickers.size in 3..30 && personal?.installed != false, onClick = onWhatsApp, modifier = Modifier.weight(1f)) { Text(personalLabel) }
+                                    OutlinedButton(enabled = stickers.size in 3..30 && business?.installed != false, onClick = onBusiness, modifier = Modifier.weight(1f)) { Text(businessLabel) }
                                 }
                             }
                         }

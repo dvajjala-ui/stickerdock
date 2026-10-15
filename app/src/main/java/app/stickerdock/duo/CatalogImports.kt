@@ -12,6 +12,11 @@ class CatalogImports(context: Context, private val store: StickerStore) {
         return if (ids.isNotEmpty() && ids.all { store.getPack(it) != null }) ids else emptyList()
     }
 
+    /** True after a catalog revision was imported once, even if the user later deleted its local packs. */
+    fun wasImported(id: String, hash: String): Boolean =
+        prefs.getString("hash:$id", null) == hash &&
+            prefs.getStringSet("packs:$id", emptySet()).orEmpty().isNotEmpty()
+
     fun record(id: String, hash: String, packIds: Set<String>) {
         require(packIds.isNotEmpty())
         prefs.edit().putString("hash:$id", hash).putStringSet("packs:$id", packIds).apply()

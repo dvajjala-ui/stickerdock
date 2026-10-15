@@ -24,6 +24,8 @@ class CatalogImportsTest {
             assertTrue(tracker.importedPackIds("daily-example", "new-hash").isEmpty())
             store.deletePack(first.id)
             assertTrue(tracker.importedPackIds("daily-example", "original-hash").isEmpty())
+            assertTrue("Auto delivery must respect a user's deletion", tracker.wasImported("daily-example", "original-hash"))
+            assertFalse("New published revisions remain eligible", tracker.wasImported("daily-example", "new-hash"))
         }
     }
 }

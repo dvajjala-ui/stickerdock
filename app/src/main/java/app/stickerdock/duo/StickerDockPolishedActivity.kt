@@ -1,5 +1,6 @@
 package app.stickerdock.duo
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
@@ -33,7 +34,7 @@ import kotlinx.coroutines.withContext
 private enum class PolishedHomeSection(val label: String, val mark: String) {
     LIBRARY("Library", "▦"),
     IMPORT("Import", "⇩"),
-    FACTORY("Factory", "✦")
+    FACTORY("New", "✦")
 }
 
 private data class LibrarySnapshot(
@@ -103,6 +104,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
         var communityError by remember { mutableStateOf<String?>(null) }
         var catalogImportedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+        var whatsAppStatus by remember { mutableStateOf<Map<WhatsAppTarget, WhatsAppPackStatus>>(emptyMap()) }
+        var whatsAppStatusRefresh by remember { mutableStateOf(0) }
+        var pendingWhatsAppTarget by remember { mutableStateOf<WhatsAppTarget?>(null) }
 
         var showPackOptions by remember { mutableStateOf(false) }
         var managingSticker by remember { mutableStateOf<StickerItem?>(null) }
@@ -219,16 +223,28 @@ class StickerDockPolishedActivity : ComponentActivity() {
             scope.launch {
                 try {
                     val result = withContext(Dispatchers.IO) {
-                        val catalog = CommunityCatalog(this@StickerDockPolishedActivity, backup).browse()
+                        val community = CommunityCatalog(this@StickerDockPolishedActivity, backup)
+                        val catalog = community.browse()
                         val imports = CatalogImports(this@StickerDockPolishedActivity, store)
-                        catalog to catalog.filter {
+                        var automaticallyAdded = 0
+                        catalog.filterNot { imports.wasImported(it.id, it.sha256) }
+                            .take(3)
+                            .forEach { entry ->
+                                runCatching { community.downloadAndImport(entry) }
+                                    .onSuccess { if (it.packs > 0) automaticallyAdded += it.packs }
+                            }
+                        Triple(catalog, catalog.filter {
                             imports.importedPackIds(it.id, it.sha256).isNotEmpty()
-                        }.mapTo(mutableSetOf()) { it.id }
+                        }.mapTo(mutableSetOf()) { it.id }, automaticallyAdded)
                     }
                     communityPacks = result.first
                     catalogImportedIds = result.second
+                    if (result.third > 0) {
+                        refresh()
+                        snackbar.showSnackbar("${result.third} new sticker ${if (result.third == 1) "pack" else "packs"} added to your library")
+                    }
                 } catch (e: Exception) {
-                    communityError = e.message ?: "Unable to load Factory packs"
+                    communityError = e.message ?: "Unable to load new stickers"
                 } finally {
                     communityLoading = false
                 }
@@ -236,7 +252,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         fun importFactoryPack(entry: CommunityCatalog.Listing) {
-            operation("Importing Factory pack") {
+            operation("Adding sticker pack") {
                 val summary = CommunityCatalog(this@StickerDockPolishedActivity, backup).downloadAndImport(entry)
                 val importedIds = CatalogImports(this@StickerDockPolishedActivity, store).importedPackIds(entry.id, entry.sha256)
                 runOnUiThread {
@@ -333,6 +349,40 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 "Restored ${restored.packs} packs • ${restored.stickers} stickers • ${restored.rejected} skipped"
             }
         }
+        val whatsAppInstaller = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val target = pendingWhatsAppTarget
+            pendingWhatsAppTarget = null
+            whatsAppStatusRefresh++
+            scope.launch {
+                val validationError = result.data?.getStringExtra("validation_error")
+                when {
+                    !validationError.isNullOrBlank() -> snackbar.showSnackbar("WhatsApp rejected this pack: $validationError")
+                    result.resultCode == Activity.RESULT_OK -> snackbar.showSnackbar("Added to ${target?.label ?: "WhatsApp"}")
+                    else -> snackbar.showSnackbar("Pack was not added. Confirm the request inside WhatsApp and try again.")
+                }
+            }
+        }
+
+        fun launchWhatsApp(packToInstall: StickerPack, target: WhatsAppTarget) {
+            try {
+                val status = whatsAppStatus[target]
+                if (status?.installed == false) {
+                    scope.launch { snackbar.showSnackbar("${target.label} is not installed on this phone") }
+                    return
+                }
+                val installIntent = WhatsAppStickerProvider.installIntent(packToInstall, target.packageName)
+                if (installIntent.resolveActivity(packageManager) == null) {
+                    scope.launch { snackbar.showSnackbar("${target.label} cannot receive sticker packs. Update it and try again.") }
+                    return
+                }
+                pendingWhatsAppTarget = target
+                whatsAppInstaller.launch(installIntent)
+            } catch (_: ActivityNotFoundException) {
+                scope.launch { snackbar.showSnackbar("Unable to open ${target.label}") }
+            } catch (e: SecurityException) {
+                scope.launch { snackbar.showSnackbar(e.message ?: "${target.label} refused the request") }
+            }
+        }
 
         LaunchedEffect(selectedId) {
             selectedStickerIds = emptySet()
@@ -347,6 +397,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 if (searchText == requested) stickerMatches = matches
             }
         }
+        LaunchedEffect(pack?.id, pack?.version, whatsAppStatusRefresh) {
+            whatsAppStatus = if (pack == null) emptyMap() else withContext(Dispatchers.IO) {
+                WhatsAppTarget.entries.associateWith {
+                    WhatsAppIntegration.status(this@StickerDockPolishedActivity, pack.id, it)
+                }
+            }
+        }
         LaunchedEffect(Unit) {
             refreshFactory()
             if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
@@ -355,7 +412,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
         DisposableEffect(Unit) { onDispose { previewCache.clear() } }
         DisposableEffect(Unit) {
-            val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refreshFactory() }
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    refreshFactory()
+                    whatsAppStatusRefresh++
+                }
+            }
             lifecycle.addObserver(observer)
             onDispose { lifecycle.removeObserver(observer) }
         }
@@ -487,8 +549,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                         } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Cannot share pack") }
                                                     }
                                                 },
-                                                { installPack(pack, "com.whatsapp", snackbar, scope) },
-                                                { installPack(pack, "com.whatsapp.w4b", snackbar, scope) },
+                                                whatsAppStatus,
+                                                { launchWhatsApp(pack, WhatsAppTarget.PERSONAL) },
+                                                { launchWhatsApp(pack, WhatsAppTarget.BUSINESS) },
                                                 { managingSticker = it },
                                                 { item -> selectedStickerIds = if (item.id in selectedStickerIds) selectedStickerIds - item.id else selectedStickerIds + item.id },
                                                 { item -> selectedStickerIds = selectedStickerIds + item.id },
@@ -514,8 +577,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Cannot share pack") }
                                         }
                                     },
-                                    { installPack(pack, "com.whatsapp", snackbar, scope) },
-                                    { installPack(pack, "com.whatsapp.w4b", snackbar, scope) },
+                                    whatsAppStatus,
+                                    { launchWhatsApp(pack, WhatsAppTarget.PERSONAL) },
+                                    { launchWhatsApp(pack, WhatsAppTarget.BUSINESS) },
                                     { managingSticker = it },
                                     { item -> selectedStickerIds = if (item.id in selectedStickerIds) selectedStickerIds - item.id else selectedStickerIds + item.id },
                                     { item -> selectedStickerIds = selectedStickerIds + item.id },
@@ -813,21 +877,4 @@ class StickerDockPolishedActivity : ComponentActivity() {
         return "${if (move) "Moved" else "Copied"} $added • $duplicates duplicate • $failed failed"
     }
 
-    private fun installPack(
-        pack: StickerPack,
-        packageName: String,
-        snackbar: SnackbarHostState,
-        scope: kotlinx.coroutines.CoroutineScope
-    ) {
-        try {
-            val intent = WhatsAppStickerProvider.installIntent(pack, packageName)
-            if (intent.resolveActivity(packageManager) == null) {
-                scope.launch { snackbar.showSnackbar("WhatsApp app not available or sticker import unsupported") }
-            } else startActivity(intent)
-        } catch (_: ActivityNotFoundException) {
-            scope.launch { snackbar.showSnackbar("Unable to launch WhatsApp") }
-        } catch (e: SecurityException) {
-            scope.launch { snackbar.showSnackbar(e.message ?: "WhatsApp refused request") }
-        }
-    }
 }

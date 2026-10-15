@@ -1,4 +1,12 @@
-# StickerDock development handoff — updated October 14, 2026
+# StickerDock development handoff — updated October 15, 2026
+
+## Current Android continuation
+
+- Pulled main a9d5883 and retained the polished adaptive launcher UI.
+- Candidate 0.4.0 adds official per-target WhatsApp whitelist status, Add/Sync actions, activity-result validation errors and provider change notifications. Version increments already existed; WhatsApp controls cache refresh timing. Real personal/Business device acceptance remains pending.
+- Approved catalog revisions now import automatically in bounded batches of three on open/resume. Deleted revisions are remembered so automatic delivery does not recreate user-deleted packs. New tab removes internal factory/source language and the disabled Studio card.
+- Requirements and unfinished work are tracked in REQUIREMENTS_LEDGER.md. Preserve IDs/history and add subsequent user requests there.
+- Final local verification: 46 Android unit tests passed, debug APK assembled successfully (0.4.0), and git diff --check passed. APK SHA-256: BD148E3E0FE52D12A4AC20E80BA70B90F1D040E80DDE3BB753B28C5D632BBB49. No new deployment, database apply or public publication is implied.
 
 ## Goal and historical decisions
 

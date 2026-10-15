@@ -11,7 +11,8 @@ A Kotlin/Jetpack Compose Android app that keeps your own sticker library indepen
 - **Sticker.ly public links:** save/paste bulk pack URLs or share links into the app; follow back to Sticker.ly. **Does not mass-download or rehost Sticker.ly's catalog.**
 - **Sharing:** send a StickerDock pack as a portable ZIP through Android share sheet; import archives and received images.
 - **Two WhatsApp installations:** supports separate consumer WhatsApp and Business integration intents; Android's public API does not route to a specified account within one WhatsApp app.
-- **Factory feed:** reviewed GENERAL packs from the production Supabase catalog appear on the home screen when the app opens or resumes. Import a pack, then add it to WhatsApp/Business. Matching catalog hashes are tracked to avoid downloading the same pack again. Unreviewed output stays private; MATURE packs stay local/private.
+- **Automatic new stickers:** the New tab loads reviewed GENERAL packs on open/resume and adds up to three unseen pack revisions per refresh to the library. Deleted revisions stay deleted until manually added again. Open a pack and add it to WhatsApp/Business. Unreviewed output stays private; MATURE packs stay local/private.
+- **WhatsApp status and sync:** separate personal/Business added checks, Add/Sync actions and export-result errors. Pack edits update the provider version and notify observers; refresh timing is controlled by WhatsApp and needs phone verification.
 - **Persistence:** non-destructive SQLite migrations through schema v7, app-private storage, metadata-preserving backup schema v5 with restore support for schemas 1–4, no user account or paid cloud required. Public gallery is networked and opt-in.
 
 ## Migrate your phone's stickers

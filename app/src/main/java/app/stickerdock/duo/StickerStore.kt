@@ -38,6 +38,7 @@ data class FolderImportStats(
 )
 
 class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 7) {
+    private val resolver = context.applicationContext.contentResolver
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL', category TEXT NOT NULL DEFAULT 'GENERAL')")
         db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, label TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '', UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
@@ -280,7 +281,13 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         cursor.getLong(offset + 3), StickerKind.valueOf(cursor.getString(offset + 4)),
         PackRating.valueOf(cursor.getString(offset + 5)), PackCategory.valueOf(cursor.getString(offset + 6))
     )
-    private fun bumpVersion(id: String) { writableDatabase.execSQL("UPDATE packs SET version=version+1 WHERE id=?", arrayOf(id)) }
+    private fun bumpVersion(id: String) {
+        writableDatabase.execSQL("UPDATE packs SET version=version+1 WHERE id=?", arrayOf(id))
+        val base = "content://${WhatsAppStickerProvider.AUTHORITY}"
+        resolver.notifyChange(android.net.Uri.parse("$base/metadata"), null)
+        resolver.notifyChange(android.net.Uri.parse("$base/metadata/$id"), null)
+        resolver.notifyChange(android.net.Uri.parse("$base/stickers/$id"), null)
+    }
 
     companion object {
         private fun createFolderImportTables(db: SQLiteDatabase) {
