@@ -15,7 +15,7 @@ import uuid
 from PIL import Image
 
 PRIVATE_BUCKET = "sticker-factory-private"
-MAX_REQUEST = 6_000_000
+MAX_REQUEST = 4_300_000  # Keep JSON/base64 below the hosted function request bound.
 MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
@@ -95,7 +95,7 @@ def request(url: str, method="GET", data=None, headers=None, limit=MAX_PROVIDER_
     return body
 
 
-def decode_image(data_url: str, max_bytes=4_000_000) -> tuple[bytes, str, str]:
+def decode_image(data_url: str, max_bytes=3_000_000) -> tuple[bytes, str, str]:
     if not isinstance(data_url, str):
         raise StudioError("Expected a PNG, JPEG, or WebP image")
     match = re.fullmatch(r"data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\r\n]+)", data_url)

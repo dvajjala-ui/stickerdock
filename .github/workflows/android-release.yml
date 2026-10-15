@@ -66,7 +66,7 @@ jobs:
           grep -q 'jar verified' /tmp/aab-verify.log
       - uses: actions/upload-artifact@v7
         with:
-          name: stickerdock-0.3.0-release-candidate
+          name: stickerdock-release-candidate
           retention-days: 14
           if-no-files-found: error
           path: |

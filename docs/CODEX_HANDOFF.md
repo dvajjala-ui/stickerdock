@@ -1,5 +1,35 @@
 # StickerDock development handoff — updated October 15, 2026
 
+## Latest production-flow continuation
+
+This section supersedes older pending-signing and admin feature notes below.
+
+- Admin now supports adding inbox/AI result images into an existing static draft,
+  category editing, direct AI-result preview and result-to-pack selection.
+  Unsaved edits are protected when closing, paging or changing review status.
+- Setup & health checks distinguish absent server config/schema from empty data.
+  The read-only production-readiness workflow uses existing GitHub secrets;
+  neither endpoint nor workflow applies migrations or publishes output.
+- Factory batch controls match the generator's 3–10 limit. Audience changes wait
+  until the next UTC day after generation starts; archive-derived ratings prevent
+  mixed audience output from being mislabeled. CLI publication uses immutable
+  hash-bearing filenames. Studio bounds large AI source uploads before encoding.
+- Python: 129 tests run, 125 passed, 4 local video dependency skips. Chromium local
+  admin/Studio flow checks passed at 390px. Mocked API responses are not hosted
+  acceptance. Existing Android source passed CI at
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38699209731.
+- Signed release APK/AAB 0.5.0 built locally; APK signature verifies. SHA-256:
+  `B2A0404289CD9029F2DD206130FC62A24B68D98A65734E83D689AE3B455176F4`.
+  Four signing secrets are configured in the GitHub `android-production`
+  environment. Private key backup is outside the repository under
+  `%USERPROFILE%/.codex/toolchains/stickerdock/private-release`; credentials are
+  protected with Windows DPAPI. Preserve/export a secure backup before changing
+  machines. Back up app data before switching from a debug-signed installation.
+- User authorized a new Vercel project for admin/Studio. Saved CLI auth returns
+  403; browser session works. Deployment, current schema/catalog read-back and
+  phone acceptance still need separate evidence. Do not claim public AI delivery
+  or WhatsApp acceptance from local tests.
+
 ## Current Android continuation
 
 October 15 follow-up — candidate 0.5.0:

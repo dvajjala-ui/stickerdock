@@ -114,6 +114,38 @@ class ProductionWorkerTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_pack(b"x" * (MAX_PUBLIC_PACK_BYTES + 1))
 
+    def test_midday_audience_change_waits_for_next_utc_day(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {
+            "enabled": True, "daily_target": 3, "batch_size": 3,
+            "rating": "MATURE", "topics": ["ADULT_HUMOR | Private adult jokes"],
+            "content_categories": ["ADULT_HUMOR"], "auto_migrate_completed": False}
+        def generator(config, generated, font, now):
+            self.assertEqual(config["rating"], "GENERAL")
+            self.assertTrue(all(plan["category"] != "ADULT_HUMOR" for plan in config["topic_plans"]))
+            return "waiting"
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_TRENDS_API_KEY": ""}):
+            runtime = Path(temporary)
+            directory = runtime / "generated-stickers" / DAY
+            directory.mkdir(parents=True)
+            (directory / "state.json").write_text(json.dumps({"records": [
+                {"rating": "GENERAL", "file": "old.webp", "caption": "Previous"}]}))
+            summary = worker.run_production({"modes": ["illustration"]}, runtime, client, NOW, generator)
+        self.assertTrue(summary["warnings"])
+        self.assertEqual(client.rows[("factory_settings", "default")]["rating"], "MATURE")
+
+    def test_archive_rating_is_derived_from_its_content(self):
+        client = FakeSupabase()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / DAY
+            directory.mkdir()
+            (directory / "daily-complete.zip").write_bytes(pack_bytes("MATURE"))
+            (directory / "state.json").write_text(json.dumps({"records": [{}] * 3}))
+            worker.persist_run(client, root, {"rating": "GENERAL", "daily_target": 3, "modes": ["illustration"]}, NOW, "complete")
+        source = next(row for (table, _), row in client.rows.items() if table == "sticker_packs")
+        self.assertEqual(source["rating"], "MATURE")
+
     def test_animation_duration_matches_phone_import_rules(self):
         from publish_factory_pack import validate_animation
         frames = [Image.new("RGB", (512, 512), color) for color in ("red", "blue")]

@@ -1,5 +1,29 @@
 # StickerDock verification checklist
 
+## Production-flow continuation — October 15
+
+- LOCAL: Python suite ran 129 tests: 125 passed, 4 video tests skipped because
+  local FFmpeg/DejaVu dependencies are unavailable. JavaScript syntax checks pass.
+- BROWSER LOCAL: Chromium exercised unsaved-edit protection, metadata/category
+  save, adding stickers to an existing draft, direct AI-result preview and
+  result-to-pack selection. Missing-schema setup was exercised with mocked
+  responses. Both admin and Studio fit a 390px viewport without horizontal overflow.
+- BROWSER LOCAL: Studio resized an 11,148,045-byte source to a 1,677,496-byte
+  upload; mocked upload/queue/result/editor flow passed. This does not prove
+  hosted generation or deployment.
+- LOCAL RELEASE: signed 0.5.0 APK and AAB built. APK signature verification and
+  AAB JAR signature verification pass. APK SHA-256:
+  `B2A0404289CD9029F2DD206130FC62A24B68D98A65734E83D689AE3B455176F4`.
+  The signing key is backed up outside Git and four signing secrets are configured
+  in the GitHub `android-production` environment. Phone acceptance is still pending.
+- LIVE PENDING: dispatch the read-only production-readiness workflow after push
+  to establish current table/column and catalog availability. A new Vercel
+  project is authorized; hosted authenticated smoke remains a release gate.
+
+Switching from a debug-signed installation to this release-signed APK requires
+backing up the library before uninstall/reinstall. Future release updates must
+keep the same signing key.
+
 ## Core-flow additions — October 15
 
 - LOCAL: 52 Android unit tests pass, debug APK 0.5.0 assembled, release lint passes. Focused native-graphics coverage checks safe/stale artwork replacement, identity/metadata retention, rotation/transparency, 31-photo splitting, duplicate cleanup, corrupt shared-ZIP continuation and WhatsApp preflight rejection of damaged bytes. Existing backup compatibility remains covered; the 10k library fixture checks bounded previews.

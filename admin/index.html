@@ -22,6 +22,7 @@
       <button data-page="catalog"><span>↗</span> Public catalog</button>
       <button data-page="activity"><span>≋</span> Activity log</button>
       <button data-page="settings"><span>⚙</span> Settings</button>
+      <button data-page="health"><span>✓</span> Setup & health</button>
     </nav>
     <div class="sidebar-bottom"><div class="flow-note"><span>☏</span><strong>Made for your phone</strong><p>Reviewed packs go straight to the app’s Factory feed.</p></div><button id="connection-button" class="account"><span class="avatar">D</span><span>Owner workspace<small id="connection-label">Preview mode</small></span><span>↗</span></button></div>
   </aside>
@@ -35,6 +36,8 @@
   <dialog id="pack-dialog"><div id="pack-editor"></div></dialog>
   <dialog id="create-dialog"><form id="create-form"><div class="dialog-heading"><h2>Create a sticker pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Choose source images from the private library. Static images become 512 × 512 WebP stickers.</p><div class="form-grid"><label>Pack name<input name="name" maxlength="60" required placeholder="e.g. Everyday reactions"></label><label>Creator<input name="creator" maxlength="60" required value="StickerDock"></label></div><label>Category<select name="category" id="create-category"></select></label><div id="create-sources" class="source-choices"></div><p class="hint">Keep 3–30 unique stickers for WhatsApp publication. Source rights travel with the pack.</p><div class="dialog-actions"><button type="button" class="secondary" data-close>Cancel</button><button class="primary" type="submit">Create private draft</button></div></form></dialog>
   <dialog id="confirm-dialog"><form id="confirm-form"><div class="dialog-heading"><h2 id="confirm-title">Confirm action</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary" type="button" data-close>Cancel</button><button class="primary" type="submit" id="confirm-submit">Confirm</button></div></form></dialog>
+  <dialog id="add-sources-dialog"><form id="add-sources-form"><div class="dialog-heading"><h2>Add stickers to pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Select private source images. Existing sticker bytes and rights are preserved; the pack returns to draft for review.</p><label>Destination<select id="add-target" name="target_pack_id" required></select></label><div id="add-source-choices" class="source-choices"></div><p class="hint">Each destination holds up to 30 stickers. Duplicate images are skipped.</p><div class="dialog-actions"><button type="button" class="secondary" data-close>Cancel</button><button class="primary" type="submit">Add selected stickers</button></div></form></dialog>
+  <dialog id="result-dialog"><div class="dialog-heading"><h2>AI result</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><img id="result-image" alt="Generated sticker result" width="320" height="320"><p>Review this private result before adding it to a draft pack.</p><div id="result-actions" class="dialog-actions"></div></dialog>
   <div id="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

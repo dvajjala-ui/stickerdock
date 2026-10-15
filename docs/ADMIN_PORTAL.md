@@ -28,6 +28,9 @@ Android account system.
   completed-pack auto-migration controls. Content planner shows the latest
   source-linked brief and explicit fallback warnings.
 - Append-only owner audit events and server-only privileged credentials.
+- Add source images to an existing static subpack, deduplicate, preserve original bytes/rights and reset the revision to draft. Category edits are included in Android exports.
+- Direct AI-result preview and result-to-pack selection. Unsaved edits block review/status changes and prompt before closing the editor.
+- Setup & health distinguishes server configuration, required tables and catalog publication. An accepted owner token reaches setup guidance when migrations are missing; synthetic preview records are cleared before entering live mode.
 - Responsive desktop/mobile layout and a clearly marked synthetic local preview.
 
 ## User flow on the phone
@@ -38,7 +41,7 @@ Android account system.
 4. Owner selects Publish. Only reviewed GENERAL content enters the public catalog.
 5. The newly built APK reads that catalog automatically on open/resume; Refresh
    fetches it again while the app stays open. CDN propagation may add a short delay.
-6. User selects Import. The pack enters the offline local library.
+6. The APK adds unseen approved revisions to the offline library automatically in bounded batches. Explicit Add to library remains available in the New tab.
 7. User selects Add to WhatsApp or WhatsApp Business and confirms in that app.
 
 Generation does not automatically approve content or silently install stickers
@@ -90,6 +93,13 @@ The web API only enqueues AI requests; it does not need Groq credentials. Verify
 the 10-minute Creator worker and three-hour Factory schedules are running on the
 same project. The GitHub emergency pause variable still overrides scheduled
 workflow invocation.
+
+Batch settings accept 3–10 stickers, matching the renderer. Audience changes apply
+next UTC day if today's generation already has records or saved ideas; today's
+audience remains stable and content rows derive their rating from the archive.
+Studio prepares large local images before AI upload so base64 requests stay under
+the hosted function payload bound. The readiness CLI/workflow uses read-only
+table/catalog requests and does not apply migrations or publish content.
 
 This MVP uses one owner token. Team roles, Supabase Auth/MFA, per-person auditing,
 malware scanning, larger uploads, richer prompt-template versions, image synthesis

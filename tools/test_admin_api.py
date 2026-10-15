@@ -149,6 +149,34 @@ class AdminApiTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "refresh"):
             admin.pack_status(self.client, {"id": row["id"], "version": 0, "status": "reviewed"})
 
+    def test_adding_sources_preserves_originals_and_requires_fresh_review(self):
+        row = self.migrate()
+        old_archive = self.client.objects[(PRIVATE_BUCKET, row["private_path"])]
+        target = admin.pack_detail(self.client, {"id": row["id"]})["target_packs"][0]["id"]
+        source = "inbox/" + "b" * 64 + ".png"
+        image = "data:image/png;base64," + base64.b64encode(png_bytes("blue")).decode()
+        payload = {"id": row["id"], "version": 1, "target_pack_id": target, "sources": [source, source]}
+        with patch.object(_shared, "fetch_inbox", return_value=image), patch.object(_shared, "source_metadata", return_value={"license": "USER_OWNED"}):
+            self.assertEqual(admin.dispatch({"action": "pack_add_sources", **payload}, self.client), {"added": 1})
+        updated = self.client.find("admin_packs", "id", row["id"])
+        self.assertEqual((updated["status"], updated["version"], updated["sticker_count"]), ("draft", 2, 4))
+        self.assertEqual(updated["references"][-1]["media_credit"]["license"], "USER_OWNED")
+        self.assertEqual(old_archive, self.client.objects[(PRIVATE_BUCKET, row["private_path"])])
+        self.assertEqual(len(admin.pack_detail(self.client, {"id": row["id"]})["stickers"]), 4)
+        with self.assertRaisesRegex(ValueError, "refresh"):
+            admin.add_pack_sources(self.client, payload)
+
+    def test_category_change_is_in_the_exported_archive(self):
+        row = self.migrate()
+        admin.save_pack(self.client, {"id": row["id"], "version": 1, "name": row["name"],
+            "creator": row["creator"], "category": "WORK", "stickers": []})
+        self.assertEqual(admin.pack_detail(self.client, {"id": row["id"]})["categories"], ["WORK"])
+
+    def test_settings_reject_batches_the_generator_cannot_render(self):
+        for batch in (1, 2):
+            with self.assertRaisesRegex(ValueError, "3–10"):
+                admin.save_settings(self.client, {"enabled": True, "daily_target": 3, "batch_size": batch})
+
     def test_checksum_failure_prevents_migration(self):
         self.client.rows[("sticker_packs", self.origin)]["sha256"] = "a" * 64
         with self.assertRaisesRegex(ValueError, "checksum"):

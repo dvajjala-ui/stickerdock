@@ -1,0 +1,26 @@
+name: Read-only production readiness
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Check required tables and published catalog without changing data
+        shell: bash
+        run: python tools/production_readiness.py | tee readiness.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: production-readiness
+          path: readiness.json
+          retention-days: 7

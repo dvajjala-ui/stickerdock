@@ -119,7 +119,21 @@
     if (sourcePath) return sourcePath;
     if (!ready || !image.src.startsWith("data:image/")) throw new Error("Choose an image first.");
     status("Saving the source to the private factory inbox…");
-    const result = await api("/api/upload", {image: image.src, title: "Creator AI source"});
+    const upload = document.createElement("canvas");
+    const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
+    upload.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    upload.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = upload.getContext("2d");
+    context.drawImage(image, 0, 0, upload.width, upload.height);
+    let prepared = upload.toDataURL("image/png");
+    if (prepared.length > 4_000_000) {
+      const smaller = document.createElement("canvas");
+      smaller.width = Math.max(1, Math.round(upload.width * 0.7));
+      smaller.height = Math.max(1, Math.round(upload.height * 0.7));
+      smaller.getContext("2d").drawImage(upload, 0, 0, smaller.width, smaller.height);
+      prepared = smaller.toDataURL("image/png");
+    }
+    const result = await api("/api/upload", {image: prepared, title: "Creator AI source"});
     sourcePath = result.path;
     return sourcePath;
   }

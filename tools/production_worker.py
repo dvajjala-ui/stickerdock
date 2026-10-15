@@ -363,7 +363,7 @@ def persist_run(client, generated, config, now, result):
         categories = sorted({pack.get("category", "GENERAL") for pack in manifest.get("packs", [])})
         client.upsert("sticker_packs", [{
             "id": pack_id, "day": day, "name": "Daily " + day,
-            "creator": "StickerDock AI Factory", "rating": config["rating"],
+            "creator": "StickerDock AI Factory", "rating": "MATURE" if any(p.get("rating") == "MATURE" for p in manifest["packs"]) else "GENERAL",
             "status": pack_status, "private_path": remote, "sha256": digest,
             "sticker_count": count, "metadata": {"modes": config["modes"],
                                                     "categories": categories}}], "id")
@@ -408,6 +408,25 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
     runtime.mkdir(parents=True, exist_ok=True)
     safe_restore(client.download(PRIVATE_BUCKET, STATE_OBJECT, missing_ok=True), runtime)
     relocate_state(runtime)
+    deferred = []
+    if controls:
+        # Audience changes wait until tomorrow once any ideas/artwork exist.
+        controls = dict(controls)
+        day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        state_path = runtime / "generated-stickers" / day / "state.json"
+        state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        ratings = {record.get("rating", "GENERAL") for record in state.get("records", [])}
+        if state.get("pending"):
+            ratings.add(state["pending"].get("rating", "GENERAL"))
+        if ratings:
+            active_rating = "MATURE" if "MATURE" in ratings else "GENERAL"
+            if active_rating != controls.get("rating", "GENERAL"):
+                deferred.append("Audience change applies next UTC day because today's generation already started")
+                controls["rating"] = active_rating
+                if active_rating == "GENERAL":
+                    controls["content_categories"] = [c for c in controls.get("content_categories", []) if c != "ADULT_HUMOR"] or ["EVERYDAY"]
+                    controls["topics"] = [topic for topic in controls.get("topics", []) if not topic.strip().upper().startswith("ADULT_HUMOR")]
+                    config["topics"] = controls["topics"] or ["EVERYDAY | Original everyday reactions in Hinglish"]
     try:
         generated = runtime / "generated-stickers"
         generated.mkdir(exist_ok=True)
@@ -418,6 +437,7 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             # Admin controls take precedence over workflow defaults.
             configured["daily_target"] = controls["daily_target"]
             configured["batch_size"] = controls["batch_size"]
+            configured["rating"] = controls.get("rating", configured["rating"])
             configured, brief = ensure_content_brief(client, configured, controls, now)
         mirror_licensed_inputs(client, runtime)
         result = generator(configured, generated,
@@ -426,6 +446,7 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         summary["inbox_added"] = inbox_added
         if controls:
             summary["content_source"] = brief["source_mode"]
+            summary["warnings"] = deferred
             if controls.get("auto_migrate_completed") is True:
                 summary["admin_draft_id"] = auto_migrate_completed(client, generated, summary)
         return summary

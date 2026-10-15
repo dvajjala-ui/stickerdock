@@ -137,7 +137,7 @@ def _publish_day(client, day):
         sum(len(pack["stickers"]) for pack in manifest["packs"]))
     digest = hashlib.sha256(data).hexdigest()
     slug = "daily-" + day
-    filename = slug + ".zip"
+    filename = slug + "-" + digest[:16] + ".zip"
     client.upload(PUBLIC_BUCKET, "catalog/packs/" + filename, data, "application/zip")
     current = client.download(PUBLIC_BUCKET, "catalog/packs.json", missing_ok=True)
     catalog = json.loads(current) if current else {"version": 1, "packs": []}

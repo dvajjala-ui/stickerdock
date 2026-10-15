@@ -13,11 +13,12 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 | R07 | Keep add/update/delete changes synchronized with WhatsApp | Partial | Pack image_data_version increments on changes. WhatsApp reads this to refresh cached content; added status and Add/Open actions use its official API. Artwork changes get new filenames. Timing is controlled by WhatsApp and requires device verification. Removing whole installed packs and two-way private database sync cannot be forced through this API. |
 | R08 | Users see stickers without needing source/factory details | Active | New tab uses user-facing wording, hides creator/source implementation details and removes disabled Studio card. Provenance remains internal for review. Required attribution must still be respected. |
 | R09 | Record all new/changed/removed requirements permanently | Active | This ledger is authoritative for status/history alongside the detailed product/admin plans. |
-| R10 | Ship quickly with focused necessary verification | Active | Build and relevant Android regressions required; avoid repeating unrelated Python suites for Android-only changes. Device WhatsApp acceptance and release signing remain launch gates. |
+| R10 | Ship quickly with focused necessary verification | Active | Build and relevant Android regressions required; avoid repeating unrelated Python suites for Android-only changes. Release signing and local signed APK/AAB build are complete; current hosted CI and device WhatsApp acceptance remain launch gates. |
 | R11 | Daily trends: funny, serious, news, cricket, movies, series, politics and Indian/Hinglish content | Partial | Daily trend brief and scheduled private generation exist; actual daily capacity and approved delivery still need operational evidence. |
 | R12 | Independent web admin on Vercel with CRUD, custom topics, uploads and image-to-sticker conversion | Partial | Admin and Studio source exist. Migration/hosting verification remains pending; see ADMIN_PORTAL.md and ADMIN_CONTROL_PLANE_PLAN.md. |
 | R13 | Static/animated separation, mature private packs, backups and direct sharing | Partial | Source implemented. Mature stays local/private. Animated device acceptance and backup migration QA remain pending. |
 | R14 | Moderated public community eventually | Pending | Rights review, identity, scanning, report/block, moderation and age protections required before public submissions. |
+| R15 | Review the full admin → AI → client production flow as both a normal user and experienced owner; close discovered gaps | Active | October 15 continuation implements draft source additions/category editing, direct AI-result previews, unsaved-edit guards, readiness/setup diagnostics, 3–10 batch compatibility, safe daily audience transitions and bounded Studio AI uploads. Release signing is configured with a private external backup. Hosted admin, live catalog publication and device acceptance remain separate gates. |
 
 ## History
 
@@ -31,5 +32,5 @@ Updated 2026-10-15. Preserve IDs and history. Add new user requests here before 
 
 1. Build current candidate and install on Galaxy; add a 3–30 sticker pack to personal WhatsApp and Business, then add/remove a sticker and verify refresh/Sync.
 2. Apply the provided additive db.sql if still pending, review/publish one GENERAL Factory pack and verify automatic delivery in the APK.
-3. Configure real release signing, publish policy/support details and distribute a signed candidate after phone acceptance.
-4. Verify hosted admin/Studio and then implement the pending Android pixel editor. Do not equate debug APK compilation with production readiness.
+3. Preserve the configured release signing key, publish policy/support details and distribute the signed candidate after phone acceptance.
+4. Deploy admin/Studio to the newly authorized Vercel project and verify authenticated operation. Native static artwork editing is implemented; background removal and animated editing remain pending. Do not equate compilation with production readiness.

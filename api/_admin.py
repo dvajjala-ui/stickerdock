@@ -13,6 +13,7 @@ from PIL import Image, ImageOps
 from api import _shared
 from tools.publish_factory_pack import manifest_categories, validate_pack, validate_references
 from tools.supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, catalog_lease, public_catalog_base
+from tools.production_readiness import readiness
 
 CATEGORIES = {"GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS", "LOVE", "WORK", "FESTIVALS", "OTHER"}
 CONTENT_CATEGORIES = {"TRENDING", "POLITICS", "CREATIVE", "MOVIES", "SERIES", "INDIA", "SPORTS", "TECHNOLOGY", "EVERYDAY", "ADULT_HUMOR"}
@@ -95,7 +96,10 @@ def pack_detail(client, payload):
         for item in details[offset:offset + 5]:
             asset = archive.read("packs/" + item["pack_id"] + "/" + item["name"])
             item["preview"] = "data:image/webp;base64," + base64.b64encode(asset).decode()
-    return {"pack": row, "stickers": details, "offset": offset, "preview_count": 5}
+    return {"pack": row, "stickers": details, "offset": offset, "preview_count": 5,
+            "categories": manifest_categories(manifest),
+            "target_packs": [{"id": pack["id"], "name": pack["name"], "kind": pack["kind"],
+                              "count": len(pack["stickers"])} for pack in manifest["packs"]]}
 
 
 def store_draft(client, data, manifest, references, name, creator, origin_id=None, pack_id=None):
@@ -105,7 +109,7 @@ def store_draft(client, data, manifest, references, name, creator, origin_id=Non
     path = f"admin/packs/{pack_id}/{digest}.zip"
     client.upload(PRIVATE_BUCKET, path, data, "application/zip")
     row = {"id": pack_id, "name": name, "creator": creator,
-           "rating": manifest["packs"][0]["rating"], "status": "draft",
+           "rating": "MATURE" if any(p["rating"] == "MATURE" for p in manifest["packs"]) else "GENERAL", "status": "draft",
            "private_path": path, "sha256": digest,
            "sticker_count": sum(len(p["stickers"]) for p in manifest["packs"]),
            "references": references, "origin_id": origin_id}
@@ -188,6 +192,9 @@ def save_pack(client, payload):
     data, manifest = pack_archive(client, row)
     name = text(payload.get("name"), "pack name", 60)
     creator = text(payload.get("creator"), "creator", 60)
+    category = payload.get("category")
+    if category is not None and category not in CATEGORIES:
+        raise ValueError("Invalid category")
     edits = payload.get("stickers")
     if not isinstance(edits, list):
         raise ValueError("Missing sticker edits")
@@ -217,7 +224,7 @@ def save_pack(client, payload):
                 path = "packs/" + pack["id"] + "/" + item["name"]
                 zip_entry(new, path, old.read(path))
             if surviving:
-                pack.update(name=name, stickers=surviving, category=pack.get("category", "GENERAL"))
+                pack.update(name=name, stickers=surviving, category=category or pack.get("category", "GENERAL"))
                 surviving_packs.append(pack)
         if not surviving_packs:
             raise ValueError("A pack must keep at least one sticker; archive it instead")
@@ -233,6 +240,61 @@ def save_pack(client, payload):
         "sticker_count": len(references), "version": row["version"] + 1}, row["id"], row["version"])
     audit(client, "pack.edited", row["id"], {"old_sha256": row["sha256"], "sha256": digest})
     return {"saved": True}
+
+
+def add_pack_sources(client, payload):
+    row = current_pack(client, payload)
+    if row["status"] == "published":
+        raise ValueError("Unpublish the pack before editing")
+    data, manifest = pack_archive(client, row)
+    target = next((p for p in manifest["packs"] if p["id"] == payload.get("target_pack_id")), None)
+    if target is None or target["kind"] != "STATIC":
+        raise ValueError("Choose a static destination pack")
+    sources = payload.get("sources")
+    if not isinstance(sources, list) or not 1 <= len(sources) <= 30:
+        raise ValueError("Select 1–30 inbox images")
+    additions, seen = [], {item["sha256"] for item in target["stickers"]}
+    for path in sources:
+        if not isinstance(path, str) or not _shared.CREATOR_SOURCE_RE.fullmatch(path):
+            raise ValueError("Invalid source path")
+        raw, _, _ = _shared.decode_image(_shared.fetch_inbox(path), 3_000_000)
+        normalized = normalize_static(raw)
+        digest = hashlib.sha256(normalized).hexdigest()
+        if digest in seen:
+            continue
+        seen.add(digest)
+        additions.append(({"name": str(uuid.uuid4()) + ".webp", "sha256": digest, "label": "", "tags": ""},
+                          normalized, {"media_credit": _shared.source_metadata(path), "source_path": path}))
+    if not additions:
+        raise ValueError("All selected images are already in this pack")
+    if len(target["stickers"]) + len(additions) > 30 or row["sticker_count"] + len(additions) > 100:
+        raise ValueError("Destination packs hold at most 30 stickers and an archive at most 100; choose fewer images")
+    output, references, index = io.BytesIO(), [], 0
+    with zipfile.ZipFile(io.BytesIO(data)) as old, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as new:
+        for pack in manifest["packs"]:
+            pack.setdefault("category", "GENERAL")
+            for item in pack["stickers"]:
+                path = "packs/" + pack["id"] + "/" + item["name"]
+                zip_entry(new, path, old.read(path))
+                references.append(row["references"][index] if index < len(row["references"]) else
+                                  {"media_credit": {"license": "REFERENCE_ONLY"}})
+                index += 1
+            if pack is target:
+                for item, asset, reference in additions:
+                    zip_entry(new, "packs/" + pack["id"] + "/" + item["name"], asset)
+                    references.append(reference)
+                pack["stickers"].extend(item for item, _, _ in additions)
+        manifest["schema"] = 5
+        zip_entry(new, "manifest.json", json.dumps(manifest))
+    revised = output.getvalue()
+    validate_pack(revised, public=False)
+    digest = hashlib.sha256(revised).hexdigest()
+    path = f"admin/packs/{row['id']}/{digest}.zip"
+    client.upload(PRIVATE_BUCKET, path, revised, "application/zip")
+    client.update_versioned("admin_packs", {"private_path": path, "sha256": digest, "references": references,
+        "sticker_count": len(references), "status": "draft", "version": row["version"] + 1}, row["id"], row["version"])
+    audit(client, "pack.stickers_added", row["id"], {"added": len(additions), "sha256": digest})
+    return {"added": len(additions)}
 
 
 def pack_status(client, payload):
@@ -287,8 +349,8 @@ def save_settings(client, payload):
     if not isinstance(payload.get("enabled"), bool):
         raise ValueError("Enabled must be true or false")
     target, batch = payload.get("daily_target"), payload.get("batch_size")
-    if type(target) is not int or not 3 <= target <= 100 or type(batch) is not int or not 1 <= batch <= 10:
-        raise ValueError("Use a daily target of 3–100 and batch size of 1–10")
+    if type(target) is not int or not 3 <= target <= 100 or type(batch) is not int or not 3 <= batch <= 10:
+        raise ValueError("Use a daily target of 3–100 and batch size of 3–10")
     if target > batch * 8:
         raise ValueError("The three-hour schedule runs eight batches daily; use a target no larger than eight times the batch size")
     topics = payload.get("topics", [])
@@ -349,6 +411,8 @@ def signed_download(client, payload):
 
 
 def dispatch(payload, client=None):
+    if payload.get("action") == "health":
+        return readiness(client)
     client = client or SupabaseFactory()
     action = payload.get("action")
     if action == "overview":
@@ -370,7 +434,8 @@ def dispatch(payload, client=None):
         audit(client, "request.queued", result["id"])
         return result
     operations = {"migrate_factory": migrate_factory, "pack_create": create_pack,
-                  "pack_save": save_pack, "pack_status": pack_status, "publish": publish_pack}
+                  "pack_save": save_pack, "pack_add_sources": add_pack_sources,
+                  "pack_status": pack_status, "publish": publish_pack}
     if action == "unpublish":
         with catalog_lease(client):
             return publish_pack(client, payload, unpublish=True)
