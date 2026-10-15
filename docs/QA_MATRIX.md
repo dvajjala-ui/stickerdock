@@ -1,5 +1,25 @@
 # StickerDock verification checklist
 
+## Private cloud library / owner sessions — October 15
+
+- LIVE: migration applied; cloud_packs, cloud_assets, community_submissions,
+  community_reports and cloud_request_budgets all verified with RLS enabled.
+- LIVE: cloud account isolation, private upload/metadata, checksum download,
+  rights-confirmed submission/withdrawal, safe deletion retry and cleanup passed:
+  https://github.com/dvajjala-ui/stickerdock/actions/runs/38716261393.
+- LIVE: Vercel deploy succeeded; unauthenticated cloud returns 401, owner console
+  reads and submissions list return 200, public catalog still has one real-image
+  pack. No synthetic test pack was published.
+- LOCAL: 52 Android unit tests, release lint and signed APK/AAB build passed.
+  Backend suite: 151 tests / four video-dependency skips, plus four session tests.
+- WEB: 390px admin sign-in/recovery pages, no overflow and no JavaScript page errors.
+- PENDING BY USER DECISION: SMTP production mail setup skipped. Verified-account
+  sessions work; do not promise confirmation/reset mail for arbitrary new users.
+- DEVICE PENDING: local import → cloud → another phone restore, pause/retry,
+  background scheduling, public report/hide/withdraw and WhatsApp targets.
+- SAFETY: mature packs stay offline; sync does not grant publication or training
+  rights. Full cloud account/media erasure is currently an operator support flow.
+
 ## Pinterest and real images — October 15
 
 - LIVE FINAL: four-sticker `Desi photo reactions` pack published, public ZIP hash

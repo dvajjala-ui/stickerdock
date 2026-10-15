@@ -133,7 +133,16 @@ class StickerDockPolishedActivity : ComponentActivity() {
         LaunchedEffect(cloudFingerprint, cloudRevision, libraryReady) {
             if (cloud.enabled && libraryReady) {
                 delay(3000)
-                runCatching { withContext(Dispatchers.IO) { cloud.sync() } }
+                // A previous snapshot may still finish its current HTTP call
+                // after this effect is cancelled by another local edit.
+                val syncJob = kotlinx.coroutines.currentCoroutineContext()[Job]
+                for (attempt in 0 until 60) {
+                    val result = runCatching {
+                        withContext(Dispatchers.IO) { cloud.sync(stopped = { syncJob?.isActive == false }) }
+                    }
+                    if (result.getOrNull() != "Sync is already running") break
+                    delay(5000)
+                }
             }
         }
         val filteredPacks = packs.filter {
@@ -459,6 +468,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
             val observer = LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) {
                     refreshFactory()
+                    cloudRevision++
                     whatsAppStatusRefresh++
                 }
             }

@@ -1,5 +1,37 @@
 # StickerDock development handoff — updated October 15, 2026
 
+## Cloud library and owner sign-in — October 15, 0.6.0
+
+R19–R21 are implemented in source and deployed on Vercel. See
+`docs/CLOUD_LIBRARY.md` for flows, limits and acceptance gates. Additive migration
+202610150001 applied; five private tables have RLS enabled and no client grants.
+Unknown cloud categories become ALL; native fallback label is All. Original
+local files and SQLite/ZIP schema compatibility are preserved.
+
+Verified live cloud smoke at code 384a96f:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38716261393
+covers two disposable confirmed accounts, private images, metadata, idempotent
+commit, checksum restore, isolation, rights gate, submission/withdrawal, deletion
+and cleanup. No personal files or public test publication. Later retry/UI fixes
+require the latest candidate CI checks; do not confuse them with phone acceptance.
+
+Admin is live-only and now asks for normal owner email/password, not a pasted
+owner token. Secure HttpOnly cookies support refresh/logout; legacy token remains
+for operational scripts. Owner allowlist defaults to dvjjala@gmail.com. Password
+reset and account confirmation use /account; Supabase Site URL was corrected
+from localhost to https://stickerdock.vercel.app/account. User explicitly asked
+to skip SMTP setup, so production account-email delivery remains pending. Do not
+disable confirmation or claim new-user mail delivery is ready. No real owner
+password was created or changed by the agent.
+
+Local validation: 52 Android unit tests and release lint passed; full Python
+suite 151 run / 147 passed / 4 local video skips, plus 4 owner-session tests.
+Hosted admin sign-in and account recovery page pass at 390px without page errors
+or horizontal overflow. Signed 0.6.0 APK/AAB use existing release certificate.
+No ADB device connected; WhatsApp, large-library sync, and physical-phone
+acceptance remain pending. Pinterest approval and full daily Factory capacity
+also retain their existing external/operational gates.
+
 ## Pinterest and real-media continuation
 
 Final LIVE publication: `Desi photo reactions` is published with four reviewed

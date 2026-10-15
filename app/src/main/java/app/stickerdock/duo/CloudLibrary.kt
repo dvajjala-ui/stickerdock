@@ -113,6 +113,7 @@ class CloudLibrary(private val context: Context) {
                 val localIds = store.listPacks().mapTo(mutableSetOf()) { it.id }
                 // Only remove cloud packs previously backed up by THIS installation.
                 prefs.all.keys.filter { it.startsWith("$owner:pack:") }.forEach { mapKey ->
+                    check(enabled && !stopped()) { "Sync paused; local library is safe" }
                     val localId = mapKey.removePrefix("$owner:pack:")
                     if (localId !in localIds) {
                         val map = JSONObject(prefs.getString(mapKey, "{}")!!)

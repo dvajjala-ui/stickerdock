@@ -4,7 +4,7 @@ import io
 import json
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from PIL import Image
 from api import _cloud as cloud
 from api._shared import StudioError
@@ -93,6 +93,17 @@ class CloudLibraryTest(unittest.TestCase):
             result = cloud.auth_action({"action": "signup", "email": "someone@example.com", "password": "long-passphrase"})
         self.assertNotIn("access_token", result)
         self.assertIn("confirm", result["message"])
+    def test_rejected_snapshot_can_be_updated_and_resubmitted(self):
+        client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
+        manifest = cloud.validate_manifest(self.manifest())
+        pack = {"id": PACK, "name": manifest["name"], "manifest": manifest, "fingerprint": "a"*64}
+        def query(_client, table, _query):
+            return [pack] if table == "cloud_packs" else [{"id": str(uuid.uuid4()), "status": "rejected"}]
+        with patch.object(cloud, "rows", side_effect=query):
+            result = cloud.dispatch({"action": "share", "id": PACK, "rights_confirmed": True, "adult_confirmed": True}, OWNER, client)
+        self.assertEqual(result["status"], "pending")
+        self.assertEqual(client.upsert.call_args.args[1][0]["manifest"], manifest)
+        client.upload.assert_not_called()
 
 
 if __name__ == "__main__": unittest.main()

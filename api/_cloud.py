@@ -238,7 +238,7 @@ def dispatch(payload, owner, client=None):
                 raise StudioError("Confirm you are 18+ and own redistribution rights for every image")
             if not 3 <= len(pack["manifest"]["stickers"]) <= 30:
                 raise StudioError("Public packs need 3–30 stickers")
-            if previous and previous["status"] != "withdrawn":
+            if previous and previous["status"] not in {"withdrawn", "rejected"}:
                 return {"status": previous["status"]}
             row = {"owner_id": owner, "pack_id": pack["id"], "name": pack["name"],
                 "manifest": pack["manifest"], "fingerprint": pack["fingerprint"], "status": "pending",
