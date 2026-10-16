@@ -13,6 +13,11 @@ class CatalogUrlsTest {
         assertEquals(base + "packs/daily-2026-10-12.zip",
             CatalogUrls.pack(base, "daily-2026-10-12.zip"))
         assertTrue(CatalogUrls.isAllowed(base, base + "packs/a.zip"))
+        val thumbnail = "b".repeat(64) + ".webp"
+        assertEquals(base + "previews/" + thumbnail, CatalogUrls.preview(base, thumbnail))
+        assertTrue(CatalogUrls.isAllowed(base, base + "previews/" + thumbnail))
+        assertFalse(CatalogUrls.isAllowed(base, base + "previews/" + thumbnail + "?redirect=private"))
+        assertFalse(CatalogUrls.isAllowed(base, base + "previews/../private.webp"))
     }
 
     @Test fun rejectsUnsafeBasesAndFilenames() {

@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "codex/iphone-client-and-navigation": false
+    }
+  },
   "rewrites": [
     {"source": "/studio", "destination": "/studio/index.html"},
     {"source": "/account", "destination": "/site/account.html"},

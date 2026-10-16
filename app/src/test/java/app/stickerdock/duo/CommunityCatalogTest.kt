@@ -87,6 +87,19 @@ class CommunityCatalogTest {
         assertRejected("Catalog has too many packs") { parse(entries) }
     }
 
+    @Test fun readsOptionalPreviewContractWithoutBreakingOldCatalogs() {
+        val listing = parse(pack("preview-pack", "pack.zip", hashA, "GENERAL").dropLast(1) +
+            """, "preview":{"file":"$hashB.webp","sha256":"$hashB"},"sticker_count":12,"kinds":["STATIC"]}""").single()
+        assertEquals(base + "previews/$hashB.webp", listing.previewUrl)
+        assertEquals(12, listing.stickerCount)
+        assertEquals(listOf(StickerKind.STATIC), listing.kinds)
+        assertEquals(null, parse(pack("old-pack", "old.zip", hashA, "GENERAL")).single().previewUrl)
+        assertRejected("Invalid preview checksum") {
+            parse(pack("bad-preview", "pack.zip", hashA, "GENERAL").dropLast(1) +
+                """, "preview":{"file":"../private.webp","sha256":"$hashB"}}""")
+        }
+    }
+
     private fun parse(entries: String): List<CommunityCatalog.Listing> =
         CommunityCatalog.parseCatalog(
             """{"version":1,"packs":[$entries]}""".toByteArray(),

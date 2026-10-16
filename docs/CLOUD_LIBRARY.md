@@ -33,8 +33,8 @@ Changes to shared packs require withdrawal and resubmission. Withdrawal removes
 the pack from future catalog discovery; already downloaded/publicly cached
 copies cannot be recalled. No open unmoderated publishing is enabled.
 
-New tab provides hide pack/creator and report controls. Hidden creators are
-stored locally and excluded from future automatic downloads. Reset hidden
+Discover provides hide pack/creator and report controls. Hidden creators are
+stored locally and excluded from catalog browsing. Reset hidden
 packs/creators restores discovery. Existing local copies stay under user control.
 Signed-in reports appear in Admin; email support is also available without login.
 

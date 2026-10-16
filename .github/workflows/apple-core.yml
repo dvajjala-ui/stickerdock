@@ -1,0 +1,57 @@
+name: Apple app and shared-core verification (manual)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - 'sticker-core/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'tools/apple_simulator_destination.py'
+      - '.github/workflows/apple-core.yml'
+permissions:
+  contents: read
+jobs:
+  framework:
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+      - name: Test common rules and compile device and simulator framework
+        run: |
+          xcodebuild -version
+          gradle --no-daemon -PstickerCoreOnly=true :sticker-core:jvmTest :sticker-core:assembleStickerDockCoreReleaseXCFramework
+      - name: Generate native iPhone project
+        run: |
+          brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Resolve pinned packages and build unsigned iPhone app
+        run: |
+          xcodebuild -resolvePackageDependencies -project ios/StickerDock.xcodeproj -scheme StickerDock
+          xcodebuild -project ios/StickerDock.xcodeproj -scheme StickerDock -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath work/apple-device build CODE_SIGNING_ALLOWED=NO
+      - name: Select available iPhone simulator
+        run: |
+          python3 tools/apple_simulator_destination.py >> "$GITHUB_ENV"
+      - name: Run native integration and navigation tests
+        run: |
+          xcodebuild -project ios/StickerDock.xcodeproj -scheme StickerDock -destination "platform=iOS Simulator,id=$STICKERDOCK_SIMULATOR_ID" -derivedDataPath work/apple-simulator -resultBundlePath work/apple-tests.xcresult test CODE_SIGNING_ALLOWED=NO
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: StickerDock-apple-verification
+          retention-days: 3
+          path: |
+            sticker-core/build/XCFrameworks/release/
+            sticker-core/build/test-results/
+            work/apple-device/Build/Products/Debug-iphoneos/StickerDock.app
+            work/apple-tests.xcresult
+            ios/StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

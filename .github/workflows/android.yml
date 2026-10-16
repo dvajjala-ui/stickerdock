@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - 'app/**'
+      - 'sticker-core/**'
       - 'api/**'
       - 'admin/**'
       - 'supabase/**'
@@ -22,6 +23,7 @@ on:
       - main
     paths:
       - 'app/**'
+      - 'sticker-core/**'
       - 'api/**'
       - 'admin/**'
       - 'supabase/**'
@@ -73,6 +75,7 @@ jobs:
       - name: Test, lint, and build APK plus release bundle
         run: |
           gradle --no-daemon \
+            :sticker-core:jvmTest \
             :app:testDebugUnitTest \
             :app:lintRelease \
             :app:assembleDebug \
@@ -115,3 +118,12 @@ jobs:
         with:
           name: stickerdock-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stickerdock-test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+            sticker-core/build/reports/tests/
+            sticker-core/build/test-results/

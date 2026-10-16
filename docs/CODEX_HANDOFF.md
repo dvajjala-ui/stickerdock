@@ -1,4 +1,102 @@
-# StickerDock development handoff — updated October 15, 2026
+# StickerDock development handoff — updated October 16, 2026
+
+## Latest continuation — signed 0.9.1, shared Kotlin foundation and real samples
+
+See CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md. All eight references were inspected;
+Kotlin Multiplatform is now selected for incremental sharing, with native media/
+file/WhatsApp ports. `sticker-core` is consumed by Android, with 5 common tests
+plus 94 Android tests passing, release lint (0 errors/43 warnings), signed builds
+and a core-only configuration check. Shared animation mux output is byte-exact
+for five previously verified real-media exports. The Mac framework workflow is
+manual and unrun; no iPhone client or Apple acceptance exists. Current artifact:
+`work/StickerDock-0.9.1-recovery.apk`, SHA-256
+`7ED1D2AC4C09E3395ABD36D757D68D13AA9978ADB827EBF37BDD2D476CF0C63E`.
+Signature/alignment pass. Exact installed-APK emulator acceptance verifies
+real-photo 512px previews, new moving MP4 creation, explicit existing-pack save,
+prior-data preservation and force-stop persistence (9 packs/30 to 9/31 stickers).
+Hash-bound evidence: `work/release-0.9.1-acceptance/status.json`. No current-tree
+GitHub CI or physical WhatsApp/Business acceptance is claimed.
+
+Photo/clip CLI focal points prevent center crops cutting off subjects. Python:
+176 passed/no skips. Three more source works yield 12 human/animal reaction
+samples with credits; their four packs import into signed 0.9 and survive restart
+with exact persisted bytes. Report: work/broader-reactions-emulator/acceptance/.
+No model purchase, additional API key, cloud deployment or publication occurred.
+Next: native Groq assistance/batch creation, automatic cutout/manual correction,
+durable video projects, favorites/recents and content-led shared-screen work.
+
+## Current continuation — native reaction creator 0.9.0
+
+User reaffirmed Groq-first assistance with two existing roles (trend research and
+media/caption creation), not a required OpenAI purchase. R31 records this.
+All eight supplied repos and actual Pinterest/Sticker.ly media previews were
+inspected; decisions and hashes: REAL_MEDIA_CREATOR_PLAN_2026-10-16.md.
+
+New independent native GIF/video creator source uses Android decoders/bitmap
+compression plus a spec-based WebP animation container; no third-party binary.
+Picker → trim/framing/caption/fps → animated preview → explicit new/existing
+animated-pack save. Local-only media processing, safe failure/duplicate guards,
+no-motion checks and GIF pre-decode resource bounds. Schema stays SQLite 8/ZIP 5.
+92 local Android tests, final signed APK/AAB build, signature and 16 KB alignment
+pass. Release lint has 0 errors/39 warnings. Real WebM testing caught a repeated
+first-frame bug in Android's timestamp-thumbnail API; source now decodes forward
+with MediaExtractor/MediaCodec, with crop/stride/color/rotation checks. The exact
+replacement passes native WebM/MP4/GIF preview, caption invalidation, explicit
+new/existing-pack save, byte/alpha/motion checks and force-stop persistence.
+A real rotated portrait clip also passes upright pixel comparison and margins.
+Verified copy: work/StickerDock-0.9.0-recovery.apk, SHA-256 4F37F9AD…; exact
+identity/reports/limits are in RECOVERY_PROGRESS.md and
+work/release-0.9-acceptance/status.json. No physical WhatsApp or iPhone acceptance.
+
+Worker photo/clip composition and six-frame Groq vision context are local,
+not deployed. Full Python suite: 173 passed/no skips. Real licensed source trial
+archives imported into signed 0.8, native moving preview verified. Do not confuse
+one clip/caption variants with finished catalog quality or live Groq acceptance.
+
+Next implementation: native Groq caption/trim suggestions with consent and
+server-side credentials/budgets; durable editable video projects; broader
+rights-cleared human/animal/contextual reaction sources and populated discovery
+UI acceptance. Preserve the verified local baseline and explicit-save behavior.
+
+## Recovery continuation — 0.8.0 validation
+
+Current source adds local editable projects/durable drafts and manual cutout.
+SQLite v8 is an additive migration from v7; ZIP schema 5 and cloud manifests
+continue to contain saved stickers only. The 512px starting sticker and recipes
+stay private on this device. See LOCAL_ARTWORK_PROJECTS.md for commit/deletion/
+copy/Undo semantics and RECOVERY_PROGRESS.md for current build/device evidence.
+Final local rebuild passes 78 Android tests, release lint (0 errors/35 warnings),
+signed APK/AAB, signature and 16 KB alignment checks. Final signed release passes
+caption/keyboard, 360dp/130% text cutout footer, transparent cutout export and
+force-stop/cold-boot draft recovery. Exact artifact and hash-bound reports are in
+RECOVERY_PROGRESS.md; copy is work/StickerDock-0.8.0-recovery.apk. Superseded
+0.8.0 hashes must not be distributed. No deployment or current working-tree CI.
+
+October 16 steering: user rejects the scope remaining confined to synthetic
+fixtures. Broaden around real WhatsApp reaction photos, contextual memes and
+animated footage; research all eight supplied repositories and actual public
+Pinterest/Sticker.ly previews. Source/architecture changes are authorized while
+existing data/migration/privacy requirements remain. R29/R30 capture this. No
+third-party app/catalog ownership or media redistribution rights are inferred.
+
+## Recovery continuation — local 0.7.0 candidate
+
+See [RECOVERY_PROGRESS.md](RECOVERY_PROGRESS.md) for the current code/artifact
+and acceptance record. This supersedes automatic-import descriptions below:
+Discover refresh is read-only, previews are separate, and saving requires an
+explicit user action. Catalog v1 accepts optional checksum-verified artwork
+previews. Factory 429 state persists with a visible cooldown and resumes across
+workers; provider authentication failures remain failures. New code is local,
+not deployed. Existing cloud-sync changes are preserved. Phone unavailable;
+device/WhatsApp acceptance remains pending.
+
+Continuation: signed 0.7.0 now adds bounded undo/redo, saved-instance editor
+recovery, discard protection and a compact populated library. Cold emulator
+restart exposed a zero-byte edited file despite valid SQL; imports/restores/
+transfers/edits now sync and verify artwork before database commits. The new
+signed candidate passes 65 Android tests, lint, background process recovery and
+byte/checksum/native-preview checks after cold boot. See RECOVERY_PROGRESS.md
+for exact artifact identity and limits; old SQL-only save evidence is superseded.
 
 ## Cloud library and owner sign-in — October 15, 0.6.0
 

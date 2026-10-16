@@ -15,7 +15,7 @@ import uuid
 import zipfile
 from PIL import Image
 
-from daily_stickers import atomic_json, run as run_generator
+from daily_stickers import atomic_json, run as run_generator, ProviderError
 from sticker_fonts import default_font
 from media_library import sync as sync_media
 from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, SupabaseError, require_production_environment
@@ -357,10 +357,13 @@ def persist_run(client, generated, config, now, result):
     count = len(state.get("records", []))
     complete = day_dir / "daily-complete.zip"
     status = "complete" if complete.exists() else "running"
+    if status != "complete" and state.get("provider_error", {}).get("http_status") in (401, 403):
+        status = "failed"
+        result = "Provider authentication rejected. Check worker credentials before retrying."
     client.upsert("factory_runs", [{
         "day": day, "status": status, "target": config["daily_target"],
         "generated": count, "attempts": int(state.get("requests", 0)),
-        "last_result": result[:500], "groq_metrics": state.get("last_groq_metrics", {})}], "day")
+        "last_result": result[:500], "groq_metrics": run_metrics(state)}], "day")
     if complete.exists():
         pack_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-production:" + day))
         remote = "generated/" + day + "/daily-complete.zip"
@@ -387,6 +390,13 @@ def persist_run(client, generated, config, now, result):
             "target": config["daily_target"], "result": result}
 
 
+def run_metrics(state):
+    metrics = dict(state.get("last_groq_metrics", {}))
+    if state.get("provider_error"):
+        metrics["recovery"] = dict(state["provider_error"])
+    return metrics
+
+
 def persist_failure(client, config, now, error, generated=None):
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
     target = int(config.get("daily_target", 40))
@@ -395,11 +405,21 @@ def persist_failure(client, config, now, error, generated=None):
         state_path = generated / day / "state.json"
         if state_path.exists():
             state = json.loads(state_path.read_text())
-    client.upsert("factory_runs", [{
-        "day": day, "status": "failed", "target": target,
+    waiting = isinstance(error, ProviderError) and error.status == 429
+    if isinstance(error, ProviderError):
+        state["provider_error"] = {"http_status": error.status, "retry_at": error.retry_at}
+    result = ("Provider rate limit reached. Progress saved; the next scheduled worker retries after cooldown."
+              if waiting else "Provider authentication rejected. Check worker credentials before retrying."
+              if isinstance(error, ProviderError) and error.status in (401, 403)
+              else type(error).__name__ + ": worker failed; inspect Actions logs")
+    row = {
+        "day": day, "status": "running" if waiting else "failed", "target": target,
         "generated": len(state.get("records", [])), "attempts": int(state.get("requests", 0)),
-        "last_result": type(error).__name__ + ": worker failed; inspect Actions logs",
-        "groq_metrics": state.get("last_groq_metrics", {})}], "day")
+        "last_result": result, "groq_metrics": run_metrics(state)}
+    client.upsert("factory_runs", [row], "day")
+    return {"day": day, "status": "waiting" if waiting else "failed", "target": target,
+            "generated": row["generated"], "result": result,
+            **({"retry_at": error.retry_at} if isinstance(error, ProviderError) else {})}
 
 
 def run_production(config, runtime, client, now=None, generator=run_generator):
@@ -467,11 +487,14 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
                 summary["admin_draft_id"] = auto_migrate_completed(client, generated, summary)
         return summary
     except Exception as error:
+        recovery = None
         try:
-            persist_failure(client, locals().get("configured", config), now, error,
-                            runtime / "generated-stickers")
+            recovery = persist_failure(client, locals().get("configured", config), now, error,
+                                       runtime / "generated-stickers")
         except Exception:
             pass
+        if recovery and recovery["status"] == "waiting":
+            return recovery
         raise
     finally:
         client.upload(PRIVATE_BUCKET, STATE_OBJECT, state_archive(runtime), "application/zip")

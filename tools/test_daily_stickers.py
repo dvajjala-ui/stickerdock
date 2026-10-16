@@ -102,6 +102,8 @@ class DailyStickersTest(unittest.TestCase):
                     generator.run({}, root, FONT, NOW + 86300)
                 generator.run({}, root, FONT, NOW + 86400)
                 self.assertEqual(call.call_count, 1)
+            next_day = json.loads((root / "2026-10-13/state.json").read_text())
+            self.assertEqual(next_day["provider_error"], {"http_status": 429, "retry_at": NOW + 106300})
 
     def test_request_cap_and_daily_reset(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):

@@ -86,16 +86,29 @@ fun CloudLibrarySheet(cloud: CloudLibrary, pack: StickerPack?, onChanged: () -> 
                     Text(pack.name, style = MaterialTheme.typography.titleMedium)
                     if (pack.rating == PackRating.MATURE) Text("This mature pack stays offline and cannot be shared publicly.")
                     else {
-                        val sharingOn = sharing in setOf("pending", "draft")
+                        val sharingOn = sharing in setOf("pending", "draft", "reviewed", "published")
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column(Modifier.weight(1f)) {
                                 Text("Share with everyone")
-                                Text(when (sharing) { "pending" -> "Waiting for review"; "draft" -> "In moderator review / approved catalog"; "rejected" -> "Not approved; update and resubmit"; "unavailable" -> "Status unavailable; retry before changing"; else -> "Private unless you submit this pack" }, style = MaterialTheme.typography.bodySmall)
+                                Text(when (sharing) {
+                                    "pending" -> "Waiting for review"
+                                    "draft" -> "In moderator review"
+                                    "reviewed" -> "Approved; waiting for publication"
+                                    "published" -> "Public · available in New stickers"
+                                    "rejected" -> "Not approved; update and resubmit"
+                                    "withdrawn" -> "Private · sharing withdrawn"
+                                    "loading" -> "Checking sharing status…"
+                                    "unavailable" -> "Status unavailable; refresh before changing"
+                                    else -> "Private unless you submit this pack"
+                                }, style = MaterialTheme.typography.bodySmall)
                             }
                             Switch(sharingOn, enabled = !busy && sharing !in setOf("loading", "unavailable"), onCheckedChange = { value ->
                                 if (value) confirmShare = true else run { cloud.share(pack, false).also { sharing = it }; "Sharing withdrawn. Downloaded copies cannot be recalled." }
                             })
                         }
+                        TextButton(enabled = !busy, onClick = {
+                            run { cloud.sharingStatus(pack.id).also { sharing = it }; "Sharing status updated" }
+                        }) { Text("Refresh sharing status") }
                         Text("Only the submitted version is reviewed. Edits stay private until you switch sharing off and submit again. Reviews include content and rights checks.", style = MaterialTheme.typography.bodySmall)
                     }
                 }

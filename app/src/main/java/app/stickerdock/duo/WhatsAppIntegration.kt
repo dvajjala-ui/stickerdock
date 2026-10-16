@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import app.stickerdock.core.StickerRules
 
 enum class WhatsAppTarget(
     val label: String,
@@ -28,10 +29,10 @@ object WhatsAppIntegration {
     fun validatePack(pack: StickerPack, store: StickerStore, files: StickerFiles) {
         require(store.getPack(pack.id) != null) { "Pack no longer exists" }
         val stickers = store.listStickers(pack.id)
-        require(stickers.size in 3..30) { "WhatsApp needs 3–30 stickers in each pack." }
+        StickerRules.requireExportCount(stickers.size)
         stickers.forEach { sticker ->
             val file = files.stickerFile(pack.id, sticker.fileName)
-            val limit = if (pack.kind == StickerKind.ANIMATED) 500_000L else 100_000L
+            val limit = (if (pack.kind == StickerKind.ANIMATED) StickerRules.ANIMATED_BYTES else StickerRules.STATIC_BYTES).toLong()
             require(file.isFile && file.length() in 12..limit) { "${sticker.displayName} is missing or too large. Replace or remove it." }
             val bytes = file.readBytes()
             require(StickerFiles.sha256(bytes) == sticker.sha256) { "${sticker.displayName} is damaged. Replace or remove it." }

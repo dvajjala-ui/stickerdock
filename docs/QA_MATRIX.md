@@ -1,5 +1,78 @@
 # StickerDock verification checklist
 
+## Shared core / expanded media — signed 0.9.1 local acceptance passed
+
+5 common tests + 94 Android tests, release lint (0 errors/43 warnings), signed
+APK/AAB builds, signature, 16 KB alignment and archive integrity pass. The shared
+mux reproduces five real native exports exactly.
+Core-only Gradle configuration passes; Apple targets are conditional on macOS
+and have not been compiled. No working-tree CI or iPhone client is claimed.
+Full Python suite: 176 passed/no skips, including focal-framing checks.
+
+The existing signed 0.9 APK separately imports 12 new real-photo/animated samples
+from three independent source works with credits. Four explicit imports add
+exactly four packs/12 stickers; exact saved hashes, decoded sizes/kinds, old-row
+preservation and force-stop persistence pass. Report:
+work/broader-reactions-emulator/acceptance/report.json.
+
+The exact signed 0.9.1 APK upgrade retains all these samples and prior rows.
+Real-photo grid/detail 512px preview inspection, new moving MP4 reaction creation,
+unchanged library during preview, explicit existing animated-pack save, saved
+bytes/dimensions/motion and force-stop persistence pass. Library: 9 packs/30
+stickers before save, 9/31 after. Accepted crash buffer is empty. The first
+picker-navigation automation failure remains a failed harness attempt.
+Hash-bound evidence: work/release-0.9.1-acceptance/status.json and native/report.json.
+This is Android 15 emulator acceptance; physical WhatsApp/Business, Apple and
+large real-phone libraries remain unverified.
+
+## Native creator 0.9.0 — signed local acceptance passed
+
+92 local Android tests pass, including WebP native decoder checks, exact saved
+preview bytes, duplicate/wrong-target guards, failed storage cleanup preserving
+existing packs and GIF resource bounds. Final signed APK/AAB build, signature,
+16 KB alignment and release lint (0 errors/39 warnings) pass. The exact installed
+APK passes native WebM/MP4/GIF preview/save/restart, unchanged library during
+preview, stale-caption preview invalidation, saved byte/hash/alpha/motion checks
+and rotated portrait pixels/margins. Reports are hash-bound in
+work/release-0.9-acceptance/status.json; see RECOVERY_PROGRESS.md. These are local
+emulator checks, not physical WhatsApp/Business or iPhone acceptance.
+The first signed creator
+candidate failed actual WebM motion because timestamp thumbnails repeated one
+frame; it is superseded by sequential decoding. Earlier System UI boot ANR prevented the first
+emulator attempt before creator entry; that attempt is not a passed app test.
+The first rotation fixture lacked metadata; its failed portrait assertion was
+a fixture problem and is not counted as passing. The corrected fixture has an
+actual display matrix and passes upright reference comparison.
+Real-media worker Python suite: 173 passed/no skips; no new deployment or CI.
+
+## Recovery 0.8.0 — local signed candidate verified
+
+Editable projects/drafts, manual cutout and additive SQLite v8 have local source
+coverage. The 78-test run covers legacy migration/scan metadata, transactional
+recipe/artifact rollback, draft persistence, copy/move/Undo, export privacy,
+bounded outlines and native alpha rendering. Final signed build, lint (0 errors/
+35 warnings) and emulator caption/keyboard, 360dp/130% text, cutout alpha and
+force-stop/cold-boot checks pass. Hash-bound reports and exact APK identity are
+recorded in RECOVERY_PROGRESS.md. These synthetic fixtures do not establish meme
+quality. Real photo/animated product evidence is the next scope under R29.
+Physical WhatsApp/Business and iPhone remain pending; no current working-tree CI.
+
+## Recovery 0.7.0 — local candidate
+
+Use [RECOVERY_PROGRESS.md](RECOVERY_PROGRESS.md) for current local checks and
+artifact identity. Automatic catalog import has been removed in source. New
+coverage checks read-only refresh, native legacy preview rendering/tamper
+rejection, optional public preview metadata, persistent provider cooldown/recovery
+and mobile admin status. No new CI or hosted deployment is implied. Physical
+Galaxy/WhatsApp checks remain pending; user currently has no phone available.
+
+The local candidate now passes 65 Android tests and signed-emulator editor
+undo/redo, discard protection, background process reclamation and saved artwork
+after cold boot. Byte/checksum/native-preview verification replaces earlier
+SQL-only save acceptance, which missed a zero-byte edited file. There is still
+no new CI run for this uncommitted candidate. Draft recovery does not yet cover
+force-stop/reboot, and saved editable originals remain pending.
+
 ## Final 0.6.0 candidate evidence
 
 - CODE CI SUCCESS at d9cba2b89d082482bb4e66aa57714248ee0d5ab6:

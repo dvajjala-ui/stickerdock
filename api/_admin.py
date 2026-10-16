@@ -7,12 +7,13 @@ import hashlib
 import io
 import json
 import os
+import time
 import uuid
 import zipfile
 from PIL import Image, ImageOps
 
 from api import _shared
-from tools.publish_factory_pack import manifest_categories, validate_pack, validate_references
+from tools.publish_factory_pack import manifest_categories, validate_pack, validate_references, publish_preview
 from tools.supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, catalog_lease, public_catalog_base
 from tools.production_readiness import readiness
 from tools import pinterest_connection
@@ -83,6 +84,12 @@ def overview(client):
     with ThreadPoolExecutor(max_workers=4) as pool:
         pending = {key: pool.submit(read) for key, read in reads.items()}
         result = {key: future.result() for key, future in pending.items()}
+    for run in result["runs"]:
+        recovery = run.get("groq_metrics", {}).get("recovery", {})
+        if recovery.get("http_status") == 429 and run["status"] == "running":
+            retry_at = recovery.get("retry_at", 0)
+            run["display_status"] = "waiting" if retry_at > time.time() else "retry_due"
+            run["retry_at"] = retry_at
     return {**result, "catalog_base": public_catalog_base(client.url),
             "access_mode": "single-owner-token"}
 
@@ -340,7 +347,8 @@ def publish_pack(client, payload, unpublish=False):
         client.upload(PUBLIC_BUCKET, "catalog/packs/" + filename, data, "application/zip")
         catalog["packs"].insert(0, {"id": slug, "name": row["name"], "creator": row["creator"],
                                  "rating": "GENERAL", "file": filename, "sha256": row["sha256"],
-                                 "categories": manifest_categories(manifest)})
+                                 "categories": manifest_categories(manifest),
+                                 **publish_preview(client, data, manifest)})
         if community:
             catalog["packs"][0]["publisher_id"] = submissions[0]["owner_id"]
         if len(catalog["packs"]) > 100:

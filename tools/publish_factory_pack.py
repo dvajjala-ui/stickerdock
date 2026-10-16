@@ -9,7 +9,7 @@ import json
 import re
 import uuid
 import zipfile
-from PIL import Image
+from PIL import Image, ImageOps
 
 try:
     from .supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base, catalog_lease
@@ -126,6 +126,37 @@ def publish_day(client, day):
         return _publish_day(client, day)
 
 
+def publish_preview(client, data, manifest):
+    """Static, metadata-free contact sheet; clients can browse without fetching a pack ZIP."""
+    sheet = Image.new("RGBA", (576, 384), (0, 0, 0, 0))
+    count, kinds, index = 0, set(), 0
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        for pack in manifest["packs"]:
+            count += len(pack["stickers"])
+            kinds.add(pack["kind"])
+            for sticker in pack["stickers"]:
+                if index >= 6:
+                    break
+                path = "packs/" + pack["id"] + "/" + sticker["name"]
+                with Image.open(io.BytesIO(archive.read(path))) as image:
+                    image.seek(0)
+                    thumbnail = ImageOps.contain(image.convert("RGBA"), (168, 168))
+                x = (index % 3) * 192 + (192 - thumbnail.width) // 2
+                y = (index // 3) * 192 + (192 - thumbnail.height) // 2
+                sheet.alpha_composite(thumbnail, (x, y))
+                index += 1
+    output = io.BytesIO()
+    sheet.save(output, "WEBP", quality=75, method=4)
+    asset = output.getvalue()
+    if len(asset) > 320_000:
+        raise ValueError("Public preview exceeds size limit")
+    digest = hashlib.sha256(asset).hexdigest()
+    filename = digest + ".webp"
+    client.upload(PUBLIC_BUCKET, "catalog/previews/" + filename, asset, "image/webp")
+    return {"preview": {"file": filename, "sha256": digest},
+            "sticker_count": count, "kinds": sorted(kinds)}
+
+
 def _publish_day(client, day):
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
         raise ValueError("Day must be YYYY-MM-DD")
@@ -143,7 +174,7 @@ def _publish_day(client, day):
     catalog = json.loads(current) if current else {"version": 1, "packs": []}
     entry = {"id": slug, "name": "Daily " + day, "creator": "StickerDock AI Factory",
              "rating": "GENERAL", "file": filename, "sha256": digest,
-             "categories": manifest_categories(manifest)}
+             "categories": manifest_categories(manifest), **publish_preview(client, data, manifest)}
     catalog["packs"] = [item for item in catalog.get("packs", []) if item.get("id") != slug]
     catalog["packs"].insert(0, entry)
     catalog["packs"] = catalog["packs"][:100]
