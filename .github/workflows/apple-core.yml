@@ -48,6 +48,8 @@ jobs:
           python3 tools/apple_simulator_destination.py >> "$GITHUB_ENV"
       - name: Package unsigned iPhone testing artifact
         run: |
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' work/apple-device/Build/Products/Release-iphoneos/StickerDock.app/Info.plist)" = '0.10.1'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' work/apple-device/Build/Products/Release-iphoneos/StickerDock.app/Info.plist)" = '13'
           mkdir -p work/apple-package/Payload
           ditto work/apple-device/Build/Products/Release-iphoneos/StickerDock.app work/apple-package/Payload/StickerDock.app
           cd work/apple-package
