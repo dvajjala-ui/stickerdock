@@ -1,5 +1,6 @@
 import XCTest
 import UIKit
+import AVFoundation
 import SDWebImage
 import StickerDockCore
 @testable import StickerDock
@@ -12,6 +13,14 @@ final class MotionCreatorTests: XCTestCase {
     private func check(name: String, ext: String) async throws {
             let source = try XCTUnwrap(Bundle(for: type(of: self)).url(forResource: name, withExtension: ext))
             let before = try Data(contentsOf: source)
+            if name.contains("rotated") {
+                let asset = AVURLAsset(url: source)
+                let track = try XCTUnwrap(try await asset.loadTracks(withMediaType: .video).first)
+                let size = try await track.load(.naturalSize)
+                let transform = try await track.load(.preferredTransform)
+                let displayed = CGRect(origin: .zero, size: size).applying(transform)
+                XCTAssertGreaterThan(abs(displayed.height), abs(displayed.width), "Fixture must contain an actual portrait display matrix")
+            }
             let creator = MediaCreator()
             var recipe = CreationRecipe(); recipe.duration = 1
             if ext == "gif" { recipe.caption = "Actual codec check" }
