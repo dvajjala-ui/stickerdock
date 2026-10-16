@@ -58,9 +58,13 @@ struct CreatorView: View {
                     if info.animated {
                         VStack(alignment: .leading) {
                             Text("Start: \(recipe.start, specifier: "%.1f") seconds")
-                            Slider(value: $recipe.start, in: 0...max(0.01, info.duration - recipe.duration)).accessibilityLabel("Clip start")
+                            if info.duration > recipe.duration {
+                                Slider(value: $recipe.start, in: 0...(info.duration - recipe.duration)).accessibilityLabel("Clip start")
+                            }
                             Text("Length: \(recipe.duration, specifier: "%.1f") seconds")
-                            Slider(value: $recipe.duration, in: 0.5...max(0.51, min(4, info.duration)), step: 0.1).accessibilityLabel("Clip length")
+                            if info.duration > 0.5 {
+                                Slider(value: $recipe.duration, in: 0.5...min(4, info.duration), step: 0.1).accessibilityLabel("Clip length")
+                            }
                         }
                         Picker("Motion rate", selection: $recipe.fps) { ForEach([6, 8, 10], id: \.self) { Text("\($0) fps").tag($0) } }
                     } else { Toggle("Remove background on device", isOn: $recipe.removeBackground) }
@@ -110,6 +114,9 @@ struct CreatorView: View {
             }
         }
         .onChange(of: recipe) { _, _ in output = nil }
+        .onChange(of: recipe.duration) { _, duration in
+            if let info { recipe.start = min(recipe.start, max(0, info.duration - duration)) }
+        }
         .onChange(of: variants) { _, _ in output = nil }
     }
 
