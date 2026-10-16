@@ -75,8 +75,12 @@ enum MediaRules {
             throw StickerError.invalid("Invalid 512px WebP sticker.")
         }
         try require(info.animated == (kind == .ANIMATED), "Keep static and animated stickers in separate packs.")
-        guard let image = SDImageWebPCoder.shared.decodedImage(with: data, options: [.decodeFirstFrameOnly: true, .decodeScaleDownLimitBytes: 4 * 1024 * 1024]), let cg = image.cgImage else { throw StickerError.invalid("The sticker image could not be decoded.") }
-        try require(cg.width == 512 && cg.height == 512, "Decoded sticker dimensions must be exactly 512px.")
+        // This coder budgets all declared animation frames even when decoding
+        // only the first one. Account for that estimate to avoid shrinking a
+        // valid 512px poster; decodeFirstFrameOnly still allocates one image.
+        let decodeBudget = 4 * 1024 * 1024 * max(1, Int(info.frames))
+        guard let image = safeWebPFirstFrame(data: data, thumbnail: .zero, limitBytes: UInt(decodeBudget)), let cg = image.cgImage else { throw StickerError.invalid("The sticker image could not be decoded.") }
+        try require(cg.width == 512 && cg.height == 512, "Decoded sticker must be 512px; received \(cg.width)×\(cg.height).")
     }
 
     static func read(_ url: URL, limit: Int) throws -> Data {

@@ -1,16 +1,22 @@
-# StickerDock — Android sticker manager
+# StickerDock — private sticker creator and library
 
-A Kotlin/Jetpack Compose Android app that keeps your own sticker library independently from WhatsApp and Sticker.ly. Source is actively developed; install the latest GitHub Actions debug APK for testing only.
+Android and iPhone clients keep your sticker library independently from WhatsApp
+and Sticker.ly. Android uses Kotlin/Compose; the native SwiftUI iPhone client
+shares Kotlin Multiplatform media rules/containers. Both remain testing candidates;
+physical WhatsApp acceptance and store distribution are separate gates.
 
-October 16: the Android app now consumes a Kotlin Multiplatform `sticker-core`
-module for media containers and creation/export rules. An iPhone client is **not
-implemented yet**. See the [cross-platform decision and broader product work](docs/CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md)
-for the researched alternatives, platform adapters, content sources and feature order.
-The signed local **0.9.1** candidate adds full-size photo previews and passes
-99 Kotlin tests, 176 Python tests and Android emulator creation/save/upgrade
-checks. APK hashes, real-reaction sample ZIPs and device/platform limitations are
-recorded in [recovery progress](docs/RECOVERY_PROGRESS.md); current-tree hosted CI
-and physical WhatsApp/iPhone acceptance remain pending.
+October 16: signed Android **0.10.0** passes 94 Android + 9 common tests, 178 Python
+tests and emulator creation/save/restart/navigation checks. It adds a Create tab,
+keeps import tools secondary and shows sticker content before export utilities.
+The [iPhone implementation](ios/README.md) now builds unsigned for a real device
+and passes six native integration tests plus one simulator navigation test in
+[the first Apple CI run](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950).
+Additional motion/live-catalog tests and pinned dependencies run in CI; use the
+matching [PR checks](https://github.com/dvajjala-ui/stickerdock/pull/18/checks).
+It is **not an App Store/TestFlight release or complete Android feature parity**.
+See [the requirements audit](docs/REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
+[architecture](docs/CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md) and
+[artifact/evidence record](docs/RECOVERY_PROGRESS.md).
 
 ## Current source features
 - **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs, globally search stickers, edit per-sticker labels/tags, and filter by topic or Static/Animated.

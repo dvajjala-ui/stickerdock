@@ -112,7 +112,7 @@ actor MediaCreator {
     }
 
     func tray(_ bytes: Data) throws -> Data {
-        guard let image = SDImageWebPCoder.shared.decodedImage(with: bytes, options: [.decodeFirstFrameOnly: true, .decodeThumbnailPixelSize: CGSize(width: 96, height: 96)]) else { throw StickerError.invalid("Could not create the pack icon.") }
+        guard let image = safeWebPFirstFrame(data: bytes, thumbnail: CGSize(width: 96, height: 96), limitBytes: 0) else { throw StickerError.invalid("Could not create the pack icon.") }
         let format = UIGraphicsImageRendererFormat(); format.scale = 1
         let result = UIGraphicsImageRenderer(size: CGSize(width: 96, height: 96), format: format).image { _ in image.draw(in: CGRect(x: 0, y: 0, width: 96, height: 96)) }
         guard let png = result.pngData(), png.count <= 50_000 else { throw StickerError.invalid("Could not fit the pack icon.") }

@@ -12,7 +12,7 @@ private enum Thumbnails {
 
     static func decode(_ data: Data, pixels: Int, key: String?) -> UIImage? {
         if let key, let cached = cache.object(forKey: key as NSString) { return cached }
-        let image = SDImageWebPCoder.shared.decodedImage(with: data, options: [.decodeFirstFrameOnly: true, .decodeThumbnailPixelSize: CGSize(width: CGFloat(pixels), height: CGFloat(pixels))])
+        let image = safeWebPFirstFrame(data: data, thumbnail: CGSize(width: CGFloat(pixels), height: CGFloat(pixels)), limitBytes: 0)
         if let key, let image { cache.setObject(image, forKey: key as NSString, cost: pixels * pixels * 4) }
         return image
     }

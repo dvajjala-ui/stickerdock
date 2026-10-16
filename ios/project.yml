@@ -44,6 +44,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.stickerdock.duo
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/StickerDock-Bridging-Header.h
         TARGETED_DEVICE_FAMILY: '1,2'
         STICKERDOCK_CATALOG_BASE: https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/
     dependencies:

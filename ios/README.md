@@ -1,10 +1,12 @@
-# StickerDock for iPhone / iPad — implementation, not Apple acceptance
+# StickerDock for iPhone / iPad — tested candidate, not store release
 
 This native SwiftUI client uses the same Kotlin Multiplatform WebP validation/
 container code as Android. iOS 17+ is the initial target. It is independent of
-the official WhatsApp sample UI. The user has no Mac; this Windows checkout has
-not compiled, signed or run the app. Do not call it installable, tested on iPhone
-or App Store ready until the gates below pass.
+the official WhatsApp sample UI. The user has no Mac, so standard free macOS CI
+on this verified-public repository performs Apple compilation and simulator tests.
+The first run passes an unsigned iPhone build, 6 native integration tests and 1
+navigation UI test. Expanded motion/rotation/live-catalog checks need matching
+latest CI. No signed physical-device install or App Store acceptance is claimed.
 
 ## Implemented source
 
@@ -41,7 +43,9 @@ gradle --no-daemon -PstickerCoreOnly=true :sticker-core:jvmTest :sticker-core:as
 brew install xcodegen
 cd ios
 xcodegen generate
-xcodebuild -resolvePackageDependencies -project StickerDock.xcodeproj -scheme StickerDock
+mkdir -p StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+cp Package.resolved StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+xcodebuild -resolvePackageDependencies -onlyUsePackageVersionsFromResolvedFile -project StickerDock.xcodeproj -scheme StickerDock
 xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -sdk iphoneos -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
 # Select an available simulator with xcrun simctl list devices available.
 xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'platform=iOS Simulator,name=<available iPhone>' test CODE_SIGNING_ALLOWED=NO
@@ -50,7 +54,7 @@ xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'plat
 `.github/workflows/apple-core.yml` prepares the same unsigned device build,
 native integration tests, navigation UI test and xcresult/artifacts on macos-15.
 It runs manually or on relevant pull requests. Draft PR #18 has started its
-first run; results are not yet accepted. It makes no App Store deployment.
+first successful run; newer changes need matching results. It makes no App Store deployment.
 SPM direct dependencies and the resolved transitive versions are pinned in
 `Package.resolved` from the first successful Mac run. Xcode/Swift/Kotlin compatibility errors must be
 fixed there before claiming source-build acceptance.
@@ -62,7 +66,8 @@ belongs in this app.
 
 ## Acceptance still required
 
-1. Apple framework, Swift typecheck/device and simulator builds pass. Windows
+1. Apple framework/device/simulator builds and initial native/UI tests pass in
+   the first source-bound run. Newer source needs its own result. Windows
    Swift grammar parsing is only a syntax check, not an Apple build.
 2. Native codec, archive safety, restart, failed-save and navigation tests pass.
 3. Import real human/animal photos/GIF/video and Android-exported archives;
@@ -70,7 +75,12 @@ belongs in this app.
 4. On a real iPhone, confirm WhatsApp pasteboard/import/edit refresh behavior.
    No separate Business routing or in-app account targeting is promised on iOS.
 5. Accessibility/large text/iPad, memory/scroll/conversion metrics, low storage,
-   interrupted jobs, app icons, privacy/support/store materials and signing.
+   interrupted jobs, privacy/support/store materials and signing. The existing
+   Android vector brand mark is exported as an opaque 1024px iOS app icon;
+   regenerate with tools/export_apple_icon.py. The app privacy manifest declares
+   file metadata access for private-container and explicitly selected files.
+   Store privacy labels/provider retention still need a release review; the
+   manifest is not a claim that the whole product passed a privacy audit.
 6. Add opt-in private account/cloud adapter, native Groq assistant, durable
    video projects/manual mask correction and remaining Android editor parity.
    Existing owner-only web APIs must not be exposed to consumer apps as a shortcut.

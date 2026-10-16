@@ -1,6 +1,43 @@
 # StickerDock development handoff — updated October 16, 2026
 
-## Latest continuation — signed 0.9.1, shared Kotlin foundation and real samples
+## Latest — iPhone client and signed Android 0.10.0
+
+Work is on `codex/iphone-client-and-navigation`, [draft PR #18](https://github.com/dvajjala-ui/stickerdock/pull/18).
+It includes the previously local recovery changes; no production deployment or
+merge occurred. Vercel auto-deployment is disabled for this branch. Read
+REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md before claiming requirements complete.
+
+Android 0.10.0/code 12: 94 Android + 9 shared tests, 178 Python/no skips, lint
+0 errors/43 warnings, signed APK/AAB and signature/16 KB ZIP+ELF checks pass.
+`work/StickerDock-0.10.0-recovery.apk` SHA-256:
+`640D715B1510B86AAD59CF72A581A453F91A0E52B0127DD46BBDB22F9F8B5C57`.
+Exact installed APK passes Create/import toolbar+system Back, 360dp/1.3x text,
+content-first real-photo grid, missing WhatsApp/Business target sheet, moving MP4
+preview, explicit save and restart with every prior row retained (9 packs/31 to
+9/32 stickers). Evidence: work/release-0.10-acceptance/status.json and native/.
+
+The native iOS 17+ source in ios/ has Discover/Create/Library, Photos/Files,
+photo/GIF/video creation, crop/caption variants, photo Vision subject removal,
+atomic local store, favorites, bounded ZIP interchange and explicit catalog save.
+It uses the actual shared WebP core via a bounded bulk Base64 adapter. Official
+WhatsApp handoff uses the general pasteboard, local-only/60 seconds, then opens
+whatsapp://stickerPack. Opening never proves installation. No iOS Business routing
+or in-app account selection is asserted.
+
+Public-repository standard macOS CI solves the unavailable-local-Mac build gate.
+First source e2af790: unsigned device app + frameworks + 6 native tests/1 UI test
+pass at https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950.
+Android CI passes at https://github.com/dvajjala-ui/stickerdock/actions/runs/38899086147.
+Newer motion/rotation/live-catalog checks and exact pinned transitive dependencies
+require their own latest run result. First artifact is retained locally as
+work/StickerDock-apple-first-pass.zip; its SHA matches GitHub's digest.
+
+Still incomplete: physical WhatsApp/Business/iPhone, Apple distribution signing,
+iOS cloud/account adapter, native Groq assistant, durable editable video projects,
+full original/project backup, broader reviewed content and full UI/performance/
+security/operational acceptance. Do not call the whole product production ready.
+
+## 0.9.1 — historical shared-core and sample handoff
 
 See CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md. All eight references were inspected;
 Kotlin Multiplatform is now selected for incremental sharing, with native media/
@@ -25,7 +62,7 @@ No model purchase, additional API key, cloud deployment or publication occurred.
 Next: native Groq assistance/batch creation, automatic cutout/manual correction,
 durable video projects, favorites/recents and content-led shared-screen work.
 
-## Current continuation — native reaction creator 0.9.0
+## 0.9.0 — historical native reaction creator handoff
 
 User reaffirmed Groq-first assistance with two existing roles (trend research and
 media/caption creation), not a required OpenAI purchase. R31 records this.

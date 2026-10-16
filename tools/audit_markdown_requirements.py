@@ -9,12 +9,12 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 
 
 def inventory(root):
-    paths = [root / 'AGENTS.md', root / 'README.md']
-    paths += sorted((root / 'docs').glob('*.md'))
-    paths += [root / 'ios/README.md', root / 'sticker-core/README.md']
+    listing = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', '*.md'], cwd=root)
+    paths = [root / name for name in sorted(set(listing.decode('utf-8').split('\0'))) if name]
     records = []
     for path in paths:
         if not path.is_file():

@@ -4,6 +4,61 @@ Updated October 16, 2026. This is the current implementation record for
 [the product recovery plan](PRODUCT_RECOVERY_PLAN_2026-10-15.md). The plan's
 research findings remain a historical baseline.
 
+## 0.10.0 — native iPhone client and content-first Android navigation
+
+The user asks for a full Markdown/feature audit, iPhone implementation and better
+flows. [The acceptance audit](REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md) maps all
+requirement IDs to evidence and remaining gaps. Historical automatic-download
+spec text is superseded; opening/resuming never saves public packs.
+
+Android now has Library/Create/Discover navigation, with imports/backups inside
+Create. Import returns to its originating screen via toolbar or system Back.
+Pack content appears before export utilities; a compact sticky action opens the
+consumer/Business target sheet. Existing handlers, SQLite v8 and ZIP v5 remain.
+
+Signed candidate **0.10.0/code 12**, existing signing certificate:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `work/StickerDock-0.10.0-recovery.apk` | `640D715B1510B86AAD59CF72A581A453F91A0E52B0127DD46BBDB22F9F8B5C57` |
+| `work/StickerDock-0.10.0-recovery.aab` | `8497C43316E6C7726CD0885292AD719235772A551AEA04B6F5C7BD2D70B79680` |
+
+94 Android + 9 common tests and 178 Python tests/no skips pass. Release lint:
+0 errors/43 warnings. APK/AAB signatures/archive integrity, 16 KB ZIP alignment
+and both 64-bit native-library ELF load alignments pass. Exact installed-APK
+read-back matches the handed-off hash.
+
+Android 15 emulator acceptance passes Create/import navigation, initial viewport
+real-photo artwork, 360dp/1.3x text layouts, disabled missing WhatsApp/Business
+targets, moving native MP4 preview, explicit save and force-stop persistence.
+The library grows from 9 packs/31 to 9/32 stickers; all old rows remain intact.
+New export: 248,534 bytes, 20 frames/2.5 seconds, alpha and motion verified.
+Evidence: `work/release-0.10-acceptance/status.json`, `native/report.json` and
+screenshots beside it. Physical phone/app integration is not established.
+
+The [native iPhone implementation](../ios/README.md) uses SwiftUI and the same
+Kotlin media/container core, with private atomic storage, photo/GIF/video creation,
+caption variants/crop, photo subject-removal source, favorites, ZIP interchange,
+reviewed catalog and explicit WhatsApp pasteboard handoff. It does not yet match
+every Android editor/cloud feature or implement a native Groq assistant.
+
+No Mac is available locally. Repository metadata was verified public, allowing
+standard free GitHub macOS runners. [Draft PR #18](https://github.com/dvajjala-ui/stickerdock/pull/18)
+preserves the recovery work in a reviewable branch and disables Vercel automatic
+deployment for that branch. First candidate e2af790 passes
+[Apple device/simulator framework + unsigned app build + 6 native/1 UI tests](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950)
+and [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899086147).
+First Apple artifact: `work/StickerDock-apple-first-pass.zip`, SHA-256
+`AAF1C0904B27F8925716DC86C71B019F6EE805905C477BD565DAD33DEDF32E75`.
+Newer motion/rotation/live-catalog checks and the exact dependency lock require
+their own latest CI result; do not apply the first green run to later source.
+
+Apple signing/TestFlight/App Store, real-device WhatsApp, full parity, diverse
+content, native AI, operational/security/performance acceptance remain gates.
+No model purchase, provider key creation, deployment or public content change
+occurred. Public catalog read-back returned HTTP 200/one GENERAL pack; that is
+availability evidence, not a completed varied sticker catalog.
+
 ## 0.9.1 — shared Kotlin core, sharper previews and broader real-media trials
 
 [Architecture/product decision](CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md) selects

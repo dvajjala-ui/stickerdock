@@ -54,7 +54,7 @@ adds Create navigation and a content-first pack screen with a compact export
 sheet. Its local build and 94 Android + 9 common tests pass; UI acceptance is
 being recorded against the exact signed artifact.
 
-All 33 root/documentation/core/iOS Markdown files are inventoried by
+All 35 repository Markdown files, including catalog and fixture notes, are inventoried by
 `tools/audit_markdown_requirements.py`; hashes, requirement IDs and review cues
 are recorded in `work/requirements-audit/md-inventory.json`. Historical spec
 conflicts have dated warnings; the product spec now requires explicit saving.
@@ -68,3 +68,18 @@ Apple device/simulator builds and native integration/navigation tests. Initial
 run: [Apple verification](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950).
 Do not infer a pass from its existence. Vercel auto-deployment is disabled for
 this branch using its documented `git.deploymentEnabled` setting.
+
+The expanded native motion test then found a real false-rejection bug in the
+new decoder validation: SDWebImageWebPCoder applies its memory estimate to all
+animation frames even with first-frame-only decoding, shrinking valid 512px
+posters under a fixed limit. Source now accounts for the declared frame count,
+still decodes one poster and retains the exact 512px check. A defensive Objective-C
+boundary rejects codec exceptions from malformed imports; a corrupt-pixel test
+exercises the error path. The failed run is retained, not counted as passing.
+Latest matching source/test results are on PR #18 and in
+`work/release-0.10-acceptance/status.json` after acceptance.
+
+Release preparation adds the existing Android vector brand mark as an opaque
+1024px iOS app icon, exact transitive dependency pins, bundled notices and a
+required-reason privacy manifest. These assets do not constitute App Store or
+privacy approval. The app remains a candidate with the outstanding gates above.

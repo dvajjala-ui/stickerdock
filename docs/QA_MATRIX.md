@@ -1,5 +1,28 @@
 # StickerDock verification checklist
 
+## 0.10.0 — Android accepted locally; first Apple build/tests passed
+
+- LOCAL ANDROID: 94 Android + 9 shared tests, 178 Python/no skips, lint
+  0 errors/43 warnings, signed APK/AAB, signature and 16 KB ZIP/ELF alignment pass.
+- NATIVE ANDROID: exact installed APK 640D715B… passes Create/import return
+  navigation with toolbar/system Back, 360dp/1.3x text, initial real-photo content,
+  disabled missing WhatsApp/Business target buttons, moving MP4 preview with no
+  library additions, explicit save and restart. Old rows retained, 9/31 → 9/32.
+  Reports/screenshots: work/release-0.10-acceptance/native/.
+- HOSTED FIRST CANDIDATE e2af790: [Android](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899086147)
+  and [Apple](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950)
+  pass. Apple builds device/simulator frameworks and unsigned iPhone app, then
+  passes 6 native integration tests and 1 navigation UI test. Tests cover actual
+  photo encoding, archive round trip/restart, duplicate/invalid import preservation,
+  traversal rejection, generic static/animated ZIP separation and WhatsApp payload.
+- NEWER CANDIDATE: native GIF/MP4/rotated-video tests, actual codec validation on
+  import, public-catalog integration and pinned SPM resolution need the matching
+  latest Apple result. Prior green CI is not proof of these newer changes.
+- NOT ACCEPTED: physical WhatsApp/Business/iPhone, Apple distribution signing,
+  huge real-phone libraries, native AI/cloud parity and production readiness.
+
+See REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md and RECOVERY_PROGRESS.md.
+
 ## Shared core / expanded media — signed 0.9.1 local acceptance passed
 
 5 common tests + 94 Android tests, release lint (0 errors/43 warnings), signed

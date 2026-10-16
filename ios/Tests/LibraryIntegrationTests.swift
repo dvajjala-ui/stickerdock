@@ -70,6 +70,27 @@ final class LibraryIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.deletingLastPathComponent().appendingPathComponent("escape.webp").path))
     }
 
+    func testMalformedCompressedPixelsFailAsAnErrorInsteadOfCrashing() throws {
+        func chunk(_ tag: String, _ payload: [UInt8]) -> Data {
+            var data = Data(tag.utf8)
+            var size = UInt32(payload.count).littleEndian
+            withUnsafeBytes(of: &size) { data.append(contentsOf: $0) }
+            data.append(contentsOf: payload)
+            if payload.count % 2 != 0 { data.append(0) }
+            return data
+        }
+        var body = Data("WEBP".utf8)
+        body.append(chunk("VP8X", [0, 0, 0, 0, 255, 1, 0, 255, 1, 0]))
+        // Correct 512px lossless feature header, missing the pixel bitstream.
+        body.append(chunk("VP8L", [47, 255, 193, 127, 0]))
+        var riff = Data("RIFF".utf8)
+        var length = UInt32(body.count).littleEndian
+        withUnsafeBytes(of: &length) { riff.append(contentsOf: $0) }
+        riff.append(body)
+        XCTAssertNotNil(AppleMediaBridge().inspect(base64: riff.base64EncodedString()))
+        XCTAssertThrowsError(try MediaRules.validate(riff, kind: .STATIC))
+    }
+
     func testCatalogImportIsExplicitAndRevisionDeduplicated() async throws {
         let store = LibraryStore(root: try directory())
         let initial = try await store.load(); XCTAssertTrue(initial.isEmpty)
