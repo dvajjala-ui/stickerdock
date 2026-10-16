@@ -7,6 +7,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ArchivePathsTest {
+    @Test fun allAndUnknownPrivateCategoriesUseTheExistingGeneralWireKey() {
+        assertEquals("GENERAL", ArchivePaths.portableCategory("ALL"))
+        assertEquals("GENERAL", AppleMediaBridge().portableArchiveCategory("FUNNY"))
+        assertEquals("MOVIES", ArchivePaths.portableCategory("MOVIES"))
+    }
     private val id = "12345678-1234-1234-abcd-123456789abc"
     @Test fun foundationAndAndroidUUIDSpellingsShareOneCanonicalContract() {
         assertEquals(id, ArchivePaths.canonicalId(id.uppercase()))

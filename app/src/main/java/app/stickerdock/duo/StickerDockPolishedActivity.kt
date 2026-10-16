@@ -389,21 +389,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 var added = 0
                 var skipped = 0
                 var failed = 0
+                var firstError: String? = null
                 uris.forEach { uri ->
                     try {
-                        val result = try {
-                            val restored = backup.restore(uri)
-                            Triple(restored.packs, restored.stickers, restored.rejected)
-                        } catch (_: Exception) {
-                            val imported = PackZipImporter(this@StickerDockPolishedActivity, store, files).import(uri)
-                            Triple(imported.packs, imported.imported, imported.skipped + imported.duplicates)
-                        }
+                        val imported = PackZipImporter(this@StickerDockPolishedActivity, store, files).import(uri)
+                        val result = Triple(imported.packs, imported.imported, imported.skipped + imported.duplicates)
                         packsCreated += result.first
                         added += result.second
                         skipped += result.third
-                    } catch (_: Exception) { failed++ }
+                    } catch (error: Exception) {
+                        failed++
+                        if (firstError == null) firstError = error.message?.take(160) ?: "Cannot read this archive"
+                    }
                 }
-                "${uris.size} ZIPs • $packsCreated packs • $added stickers • $skipped skipped • $failed failed"
+                "${uris.size} ZIPs • $packsCreated packs • $added stickers • $skipped skipped • $failed failed" + firstError?.let { ". $it" }.orEmpty()
             }
         }
 

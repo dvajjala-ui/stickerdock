@@ -49,8 +49,8 @@ enum PackArchive {
                 try require(label.utf16.count <= 80 && tags.utf16.count <= 400, "Sticker label or tags are too long.")
                 items.append(ImportedSticker(data: bytes, label: label, tags: tags))
             }
-            let category = pack["category"] as? String ?? "ALL"
-            result.append(ImportedPack(name: name, kind: kind, rating: rating, category: category.count <= 40 ? category : "ALL", stickers: items))
+            let category = pack["category"] as? String ?? "GENERAL"
+            result.append(ImportedPack(name: name, kind: kind, rating: rating, category: category.count <= 40 ? category : "GENERAL", stickers: items))
         }
         try require(Set(entries.keys) == expected, "Unexpected content in backup.")
         return result
@@ -73,7 +73,7 @@ enum PackArchive {
             try require(Set(groups.map { $0.id }).count == groups.count, "Duplicate archive identity.")
             let archive = try Archive(url: url, accessMode: .create)
             let manifest: [String: Any] = ["schema": 5, "packs": groups.map { group in
-                ["id": group.id, "name": group.pack.name, "kind": group.pack.kind.rawValue, "rating": group.pack.rating.rawValue, "category": group.pack.category,
+                ["id": group.id, "name": group.pack.name, "kind": group.pack.kind.rawValue, "rating": group.pack.rating.rawValue, "category": bridge.portableArchiveCategory(value: group.pack.category),
                  "stickers": group.items.map { ["name": $0.name, "sha256": $0.sticker.sha256, "label": $0.sticker.label, "tags": $0.sticker.tags] }] as [String: Any]
             }]
             let data = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])

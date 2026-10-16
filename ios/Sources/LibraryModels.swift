@@ -51,7 +51,7 @@ struct ImportedPack {
     var name: String
     var kind: StickerKind
     var rating: ContentRating = .GENERAL
-    var category: String = "ALL"
+    var category: String = "GENERAL"
     var stickers: [ImportedSticker]
 }
 

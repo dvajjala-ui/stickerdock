@@ -167,7 +167,7 @@ actor MediaCreator {
         let handler = VNImageRequestHandler(cgImage: image)
         let request = VNGenerateForegroundInstanceMaskRequest()
         try handler.perform([request])
-        guard let result = request.results?.first else { throw StickerError.invalid("No subject found. Turn off background removal or choose another photo.") }
+        guard let result = request.results?.first, !result.allInstances.isEmpty else { throw StickerError.invalid("No subject found. Turn off background removal or choose another photo.") }
         let buffer = try result.generateMaskedImage(ofInstances: result.allInstances, from: handler, croppedToInstancesExtent: false)
         let input = CIImage(cvPixelBuffer: buffer)
         guard let cg = CIContext().createCGImage(input, from: input.extent) else { throw StickerError.invalid("Could not render the subject mask.") }

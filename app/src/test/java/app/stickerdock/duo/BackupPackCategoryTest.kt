@@ -5,6 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class BackupPackCategoryTest {
+    @Test fun sharedPortableCategoriesMatchEveryAndroidWireValue() {
+        PackCategory.entries.forEach { category ->
+            assertEquals(category.name, app.stickerdock.core.ArchivePaths.portableCategory(category.name))
+        }
+    }
     @Test fun olderBackupsAndFactoryPacksRestoreAsGeneral() {
         for (schema in 1..3) {
             assertEquals(PackCategory.GENERAL, BackupPackCategory.read(JSONObject(), schema))

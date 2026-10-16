@@ -35,6 +35,7 @@ final class LibraryIntegrationTests: XCTestCase {
         attachment.name = "iOS-Android-compatibility.zip"; attachment.lifetime = .keepAlways; add(attachment)
         let restored = try PackArchive.read(archive)
         XCTAssertEqual(restored.first?.rating, .MATURE)
+        XCTAssertEqual(restored.first?.category, "GENERAL") // portable All, not the private FUNNY alias
         XCTAssertEqual(restored.first?.stickers.first?.data, item.data)
         let second = LibraryStore(root: root.appendingPathComponent("second"))
         _ = try await second.importPacks(restored)
@@ -122,6 +123,29 @@ final class LibraryIntegrationTests: XCTestCase {
         _ = try await store.importPacks(input, sourceKey: "reviewed:revision")
         do { _ = try await store.importPacks(input, sourceKey: "reviewed:revision"); XCTFail("Revision duplicated") } catch { }
         let packs = try await store.load(); XCTAssertEqual(packs.count, 1)
+    }
+
+    func testFavoritesRenameAndDeletionPersistWithoutChangingAnotherPack() async throws {
+        let root = try directory()
+        let store = LibraryStore(root: root)
+        let first = try await photo(.systemTeal), second = try await photo(.systemBrown)
+        let packs = try await store.importPacks([
+            ImportedPack(name: "First pack", kind: .STATIC, stickers: [first]),
+            ImportedPack(name: "Keep this pack", kind: .STATIC, stickers: [second])
+        ])
+        try await store.toggleFavorite(packID: packs[0].id, stickerID: packs[0].stickers[0].id)
+        try await store.rename(packs[0].id, name: "My favorite reactions")
+        let reopened = LibraryStore(root: root)
+        let saved = try await reopened.load()
+        let edited = try XCTUnwrap(saved.first { $0.id == packs[0].id })
+        XCTAssertEqual(edited.name, "My favorite reactions")
+        XCTAssertTrue(edited.stickers[0].favorite)
+        try await reopened.remove(packID: edited.id, stickerID: edited.stickers[0].id)
+        try await reopened.remove(packID: edited.id)
+        let remaining = try await LibraryStore(root: root).load()
+        XCTAssertEqual(remaining, [packs[1]])
+        let retained = try await reopened.bytes(pack: packs[1], sticker: packs[1].stickers[0])
+        XCTAssertEqual(retained, second.data)
     }
 
     func testWhatsAppPayloadContainsExactBytesAndRejectsIncompletePack() async throws {

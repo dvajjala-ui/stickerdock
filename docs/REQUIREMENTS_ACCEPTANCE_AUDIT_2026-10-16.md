@@ -93,3 +93,11 @@ while reading both spellings, and routes manifest archives through validated
 restore with no generic fallback. Regression tests require exact bytes, names,
 tags and private ratings and preserve existing data on invalid manifests. The
 failed synthetic QA import is retained as failure evidence, not a passed test.
+
+Further checking distinguished UI labels from wire values: Android displays All
+using the existing `GENERAL` archive key; neither `ALL` nor the test's private
+`FUNNY` alias is a valid v5 category. Shared writer normalization now emits
+`GENERAL` for unknown private aliases and retains known categories. Android's
+strict backup reader remains strict. ZIP failures now show the first reason
+instead of only a failed count. Interoperability tests must use a native export
+from this corrected writer, not reinterpret a malformed old fixture as success.

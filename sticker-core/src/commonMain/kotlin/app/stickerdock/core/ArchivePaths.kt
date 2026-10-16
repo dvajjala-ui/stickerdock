@@ -5,6 +5,9 @@ package app.stickerdock.core
  * supplied by an archive are used as local output directories.
  */
 object ArchivePaths {
+    private val categories = setOf("GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS", "LOVE", "WORK", "FESTIVALS", "OTHER")
+    /** GENERAL is the existing ZIP wire spelling for the user-visible All category. */
+    fun portableCategory(value: String): String = value.uppercase().takeIf { it in categories } ?: "GENERAL"
     private val uuid = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
     fun canonicalId(value: String): String? = if (value.length == 36) value.lowercase().takeIf(uuid::matches) else null
     fun isId(value: String): Boolean = canonicalId(value) != null
