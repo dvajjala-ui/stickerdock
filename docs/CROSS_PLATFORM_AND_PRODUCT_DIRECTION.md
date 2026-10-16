@@ -163,7 +163,7 @@ Professional presentation should center Discover, Create and Library. Use real
 posters, readable captions, motion badges and small clear actions; keep import
 utilities/settings secondary. Validate 360/411dp, large text, empty/loading/error
 states, keyboard interactions and large libraries before visual sign-off.
-The signed 0.10.0 Android pack screen removes the repeated title and moves the
+The signed 0.10.1 Android pack screen removes the repeated title and moves the
 large WhatsApp panel into a target sheet. Native 411/360dp and 1.3x text checks
 show real artwork in the initial viewport. Create is a primary destination;
 import/backup tools are secondary. Full design/performance sign-off remains open.

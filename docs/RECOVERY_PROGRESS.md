@@ -4,7 +4,43 @@ Updated October 16, 2026. This is the current implementation record for
 [the product recovery plan](PRODUCT_RECOVERY_PLAN_2026-10-15.md). The plan's
 research findings remain a historical baseline.
 
-## 0.10.0 — native iPhone client and content-first Android navigation
+## 0.10.1 — privacy-preserving interchange and expanded native verification
+
+Signed candidate code 13 uses the existing certificate. APK SHA-256:
+`ACBB81AA99B4E52D9CEA6EC68D8D73BCF7CD735DBB940FE6D030C48CDA7EB620`;
+AAB: `DA17AF13A164195FC821C7A109EFD15AA9B534A5468E75BC24C43A0145E22374`.
+Artifacts are `work/StickerDock-0.10.1-recovery.apk` and `.aab`.
+97 Android + 12 common tests, 178 Python/no skips, lint 0 errors/43 warnings,
+signature/integrity and 16 KB ZIP/ELF checks pass. Android CI for b5b33c6:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38907007546.
+
+Exact installed-APK navigation/real-MP4 preview/save/restart acceptance passes:
+10 packs/33 to 10/34 stickers, every prior row retained. Export is 232,716 bytes,
+20 frames/2.5 seconds with alpha and movement. The next actual Swift-exported
+ZIP passes Android's system picker, retaining raw bytes/name/MATURE/GENERAL and
+all earlier rows across restart (11/35). This is interoperability evidence from
+synthetic software fixtures, not proof of finished sticker content quality.
+Reports: `work/release-0.10.1-acceptance/status.json`, `native/report.json`,
+`apple-to-android/report.json`. Physical WhatsApp remains untested.
+
+This work fixes upper/lower UUID compatibility and lossy manifest ZIP fallback
+that could discard a private rating. Portable category spelling stays GENERAL
+for All; invalid v5 input remains rejected. The first failed synthetic import
+and invalid FUNNY-category attempt are retained as failure evidence.
+
+iPhone GIF and MP4 production checks now pass independently. Apple run
+38907007539 passes 12 native tests and its UI test but fails the rotation check:
+the test remux command had silently omitted rotation metadata. The fixture now
+has an independently verified 90-degree matrix, and the native test asserts
+the source track transform before requiring portrait output. Matching full CI
+is still required. Earlier decoder-budget and movie-probe bugs were fixed
+without relaxing output size, movement, frame-count or byte requirements.
+
+CI packages an unsigned IPA as well as the device app/framework and xcresult.
+It requires Apple signing before installation; no Apple account, credentials,
+paid model, deployment or public content publication was created.
+
+## 0.10.0 — historical native iPhone / Android navigation candidate
 
 The user asks for a full Markdown/feature audit, iPhone implementation and better
 flows. [The acceptance audit](REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md) maps all

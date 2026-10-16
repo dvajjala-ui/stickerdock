@@ -42,14 +42,14 @@ jobs:
       - name: Resolve pinned packages and build unsigned iPhone app
         run: |
           xcodebuild -resolvePackageDependencies -onlyUsePackageVersionsFromResolvedFile -project ios/StickerDock.xcodeproj -scheme StickerDock
-          xcodebuild -disableAutomaticPackageResolution -project ios/StickerDock.xcodeproj -scheme StickerDock -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath work/apple-device build CODE_SIGNING_ALLOWED=NO
+          xcodebuild -disableAutomaticPackageResolution -project ios/StickerDock.xcodeproj -scheme StickerDock -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath work/apple-device build CODE_SIGNING_ALLOWED=NO
       - name: Select available iPhone simulator
         run: |
           python3 tools/apple_simulator_destination.py >> "$GITHUB_ENV"
       - name: Package unsigned iPhone testing artifact
         run: |
           mkdir -p work/apple-package/Payload
-          ditto work/apple-device/Build/Products/Debug-iphoneos/StickerDock.app work/apple-package/Payload/StickerDock.app
+          ditto work/apple-device/Build/Products/Release-iphoneos/StickerDock.app work/apple-package/Payload/StickerDock.app
           cd work/apple-package
           zip -qr ../StickerDock-iOS-unsigned.ipa Payload
       - name: Run native integration and navigation tests
@@ -70,7 +70,7 @@ jobs:
           path: |
             sticker-core/build/XCFrameworks/release/
             sticker-core/build/test-results/
-            work/apple-device/Build/Products/Debug-iphoneos/StickerDock.app
+            work/apple-device/Build/Products/Release-iphoneos/StickerDock.app
             work/StickerDock-iOS-unsigned.ipa
             work/apple-tests.xcresult
             work/apple-test-attachments/

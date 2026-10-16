@@ -1,20 +1,32 @@
 # StickerDock development handoff — updated October 16, 2026
 
-## Latest — iPhone client and signed Android 0.10.0
+## Latest — signed Android 0.10.1 and iPhone client verification
 
 Work is on `codex/iphone-client-and-navigation`, [draft PR #18](https://github.com/dvajjala-ui/stickerdock/pull/18).
 It includes the previously local recovery changes; no production deployment or
 merge occurred. Vercel auto-deployment is disabled for this branch. Read
 REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md before claiming requirements complete.
 
-Android 0.10.0/code 12: 94 Android + 9 shared tests, 178 Python/no skips, lint
+Android 0.10.1/code 13: 97 Android + 12 shared tests, 178 Python/no skips, lint
 0 errors/43 warnings, signed APK/AAB and signature/16 KB ZIP+ELF checks pass.
-`work/StickerDock-0.10.0-recovery.apk` SHA-256:
-`640D715B1510B86AAD59CF72A581A453F91A0E52B0127DD46BBDB22F9F8B5C57`.
+`work/StickerDock-0.10.1-recovery.apk` SHA-256:
+`ACBB81AA99B4E52D9CEA6EC68D8D73BCF7CD735DBB940FE6D030C48CDA7EB620`.
 Exact installed APK passes Create/import toolbar+system Back, 360dp/1.3x text,
 content-first real-photo grid, missing WhatsApp/Business target sheet, moving MP4
-preview, explicit save and restart with every prior row retained (9 packs/31 to
-9/32 stickers). Evidence: work/release-0.10-acceptance/status.json and native/.
+preview, explicit save and restart with every prior row retained (10 packs/33 to
+10/34 stickers). Evidence: work/release-0.10.1-acceptance/status.json and native/.
+Actual Swift-exported ZIP then imports through the Android picker byte-exactly,
+retaining MATURE, GENERAL, name and every old row (11/35 after import/restart).
+The native archive-export test passed on b5b33c6; that whole Apple run failed a
+separate incorrectly generated rotation fixture. Its corrected successor must
+pass independently. Android CI b5b33c6 passes at
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38907007546.
+
+Portable schema-5 categories use GENERAL for the All label. Shared writers map
+unknown private aliases to GENERAL; strict Android readers still reject invalid
+v5 categories. UUID readers accept both cases, writers emit lower case. A ZIP
+with a manifest never silently falls back to lossy generic import. Earlier
+failed synthetic imports remain in emulator QA data, not counted as passes.
 
 The native iOS 17+ source in ios/ has Discover/Create/Library, Photos/Files,
 photo/GIF/video creation, crop/caption variants, photo Vision subject removal,

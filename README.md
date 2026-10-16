@@ -5,7 +5,7 @@ and Sticker.ly. Android uses Kotlin/Compose; the native SwiftUI iPhone client
 shares Kotlin Multiplatform media rules/containers. Both remain testing candidates;
 physical WhatsApp acceptance and store distribution are separate gates.
 
-October 16: signed Android **0.10.0** passes 94 Android + 9 common tests, 178 Python
+October 16: signed Android **0.10.1** passes 97 Android + 12 common tests, 178 Python
 tests and emulator creation/save/restart/navigation checks. It adds a Create tab,
 keeps import tools secondary and shows sticker content before export utilities.
 The [iPhone implementation](ios/README.md) now builds unsigned for a real device
@@ -13,6 +13,8 @@ and passes six native integration tests plus one simulator navigation test in
 [the first Apple CI run](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950).
 Additional motion/live-catalog tests and pinned dependencies run in CI; use the
 matching [PR checks](https://github.com/dvajjala-ui/stickerdock/pull/18/checks).
+The 0.10.1 archive path preserves private ratings and exact media across platforms;
+invalid manifest backups fail explicitly instead of falling back to image imports.
 It is **not an App Store/TestFlight release or complete Android feature parity**.
 See [the requirements audit](docs/REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
 [architecture](docs/CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md) and

@@ -50,7 +50,7 @@ xcodegen generate
 mkdir -p StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
 cp Package.resolved StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 xcodebuild -resolvePackageDependencies -onlyUsePackageVersionsFromResolvedFile -project StickerDock.xcodeproj -scheme StickerDock
-xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -sdk iphoneos -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
 # Select an available simulator with xcrun simctl list devices available.
 xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'platform=iOS Simulator,name=<available iPhone>' test CODE_SIGNING_ALLOWED=NO
 ```

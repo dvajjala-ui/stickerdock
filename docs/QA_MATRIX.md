@@ -1,6 +1,22 @@
 # StickerDock verification checklist
 
-## 0.10.0 — Android accepted locally; first Apple build/tests passed
+## 0.10.1 — current Android artifact and archive acceptance
+
+- 97 Android + 12 shared tests and 178 Python/no skips pass. Release lint has
+  0 errors/43 warnings. APK/AAB signatures, integrity and 16 KB ZIP/ELF alignment pass.
+- Exact installed APK ACBB81AA… passes the creation/navigation/large-text checks
+  below, including moving MP4 preview, explicit save and restart: 10/33 to 10/34.
+- A real native Swift ZIP imports through Android's picker with exact bytes,
+  MATURE rating, GENERAL category and name retained. Every old row survives
+  restart; library becomes 11/35. Test fixture is synthetic integrity evidence.
+- Android CI: https://github.com/dvajjala-ui/stickerdock/actions/runs/38907007546.
+  The archive-export subtest passes in Apple run 38907007539; that whole run fails
+  a separate malformed rotation fixture and is not counted as a full Apple pass.
+- Current corrected Apple tests, signed iPhone distribution, physical WhatsApp,
+  populated-library performance, native AI/cloud/editor parity remain open.
+  Hash-bound evidence: work/release-0.10.1-acceptance/status.json and subfolders.
+
+## 0.10.0 — historical Android / first Apple acceptance
 
 - LOCAL ANDROID: 94 Android + 9 shared tests, 178 Python/no skips, lint
   0 errors/43 warnings, signed APK/AAB, signature and 16 KB ZIP/ELF alignment pass.

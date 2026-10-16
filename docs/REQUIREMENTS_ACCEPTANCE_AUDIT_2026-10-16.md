@@ -11,16 +11,16 @@ improvements and confirms there is no Mac available.
 | R01, R04, R07 WhatsApp import/export and accounts | Android provider, separate consumer/Business intents, media preflight, version updates | Actual WhatsApp/Business device installation/refresh. An account inside one app cannot be targeted independently. iOS handoff/device acceptance separate. |
 | R02, R18 personal migration | SAF journal/resume, EXIF grouping, ADB ZIP tool | Galaxy huge-library/process-death QA; private collection/style review requires user's media. iOS cannot read another app's private media. |
 | R03 superseded by R22 explicit save | Signed 0.7–0.9.1 read-only discovery, accepted preview/save checks | Maintain on both platforms; never restore launch-time imports. |
-| R05, R08, R25 visual flows | Compose library/discovery/editor, real-media previews | Pack actions currently push stickers down; reduce repeated titles and simplify actions. Accessibility, large text and full product design acceptance pending. |
-| R06, R13 organization and backups | Android CRUD, tags, static/animated separation, SQLite 8 and ZIP 5 | Editable video projects, original-resolution project backup, automatic subject removal. Mature media remains private. iOS parity needs implementation/tests. |
+| R05, R08, R25 visual flows | Android Create tab, secondary import tools with correct Back history, content-first pack/target sheet; exact 0.10.1 APK passes 360dp/1.3x text and real-artwork viewport checks. Native iPhone navigation implemented. | Full populated-phone accessibility, design and performance acceptance; more varied actual content. |
+| R06, R13 organization and backups | Android CRUD/tags/static-animated separation/SQLite 8/ZIP 5; iOS atomic library/favorites/rename/delete and ZIP interchange; actual native Swift export retains bytes/name/MATURE/category after Android picker import/restart. | Durable editable video projects, original-resolution project backup, Android automatic subject removal and full iOS editor/import parity. |
 | R09, R23 evidence and requirements | Ledger + recovery/QA docs | Correct stale spec/status conflicts. Source tests are not release certification. |
-| R10 release | Signed 0.9.1 APK/AAB, 94 Android + 5 common tests, 176 Python, emulator creation/save/restart | Current working-tree hosted CI and real phones; later source must not be described as included in 0.9.1. |
+| R10 release | Signed 0.10.1 APK/AAB, 97 Android + 12 common tests, 178 Python, lint/signature/16 KB checks and exact-APK native acceptance; Android CI b5b33c6 passes. | Latest expanded Apple CI, signing, real phones and complete operational release checks. Older artifacts do not include newer fixes. |
 | R11, R17, R27, R29 real content supply | Real-media worker, Groq vision/trends roles, licensed trials: 12 additional stickers/4 packs/3 works | Reviewed varied catalog, source/attribution persistence, daily operational capacity; trial variants do not constitute a finished catalog. |
 | R12, R15, R21, R28 admin/operations | Admin/Studio routes, owner session/auth, review/publish worker code and historical live evidence | Refresh hosted acceptance after deployment; email/SMTP deferred; MFA/restore/rollout review. No known default password. Never print secrets. |
 | R14, R20 community | Rights/consent/moderation/report/block source and prior smoke evidence | Production isolation/scanning/age/moderation acceptance; public uploads not an unrestricted MVP feature. |
 | R16 Pinterest | OAuth/reference browsing code, application pending in historical record | Platform approval/current credentials. No scraping/rehosting workaround. |
 | R19 optional cloud | Android authenticated opt-in private backup/restore/checkpoints | Physical phone + email onboarding; native iOS account adapter still pending. Cloud never replaces authoritative local media. |
-| R24, R30, R32 Android/iPhone architecture | Real Kotlin Multiplatform media/rules core consumed by Android | iPhone app/ports, Apple compilation, simulator/device/WhatsApp acceptance and distribution. No Mac locally. |
+| R24, R30, R32 Android/iPhone architecture | Real shared Kotlin core consumed by Android and native SwiftUI iOS17 client; unsigned device/framework builds and initial simulator tests pass through public-repository macOS CI. | Expanded codec/rotation acceptance is recorded below; Apple distribution signing, real-device WhatsApp, full cloud/editor/AI parity remain gates. No local Mac is required for the CI builds. |
 | R26, R31 creation and AI | Native Android offline photos + GIF/video trim/caption/save, worker Groq assistance | Native authenticated assistant, shared budget/cooldown, durable video drafts, batch suggestions and automatic cutout. Do not expose owner tokens to consumer apps. |
 | R33 complete audit and product improvement | This audit, corrected spec, new implementation/evidence recorded below | Remains active until platform and operational gates actually pass. |
 
@@ -37,22 +37,23 @@ improvements and confirms there is no Mac available.
    phone performance and cross-platform parity. No new provider key is needed
    just to convert user-selected media locally.
 
-Current-tree CI inspection: fetched origin/main; commit remains c5871d7. GitHub
+Initial baseline inspection: fetched origin/main; commit remained c5871d7. GitHub
 connector returned no PR-triggered runs for that commit; that filtered response
 does not establish absence of scheduled/push runs. Dirty local source has not
-run through hosted CI. No deployment, paid API call or account change is made
+run through hosted CI at that point; later source-bound results are recorded below. No deployment, paid API call or account change is made
 by this audit.
 
-## Implementation now under verification
+## Implementation and acceptance
 
 The iOS client in `ios/` implements native Discover/Create/Library, bounded local
 photo/GIF/video creation, caption variants, photo subject removal, favorites,
 atomic private storage, Android-compatible ZIP interchange, explicit catalog
-preview/save and the official WhatsApp pasteboard handoff. It is source pending
-Apple compilation/device acceptance, not full feature parity. Android 0.10.0
+preview/save and the official WhatsApp pasteboard handoff. Apple compilation and
+initial native/UI tests pass; expanded checks and physical acceptance are separate,
+not full feature parity. Android 0.10.1
 adds Create navigation and a content-first pack screen with a compact export
-sheet. Its local build and 94 Android + 9 common tests pass; UI acceptance is
-being recorded against the exact signed artifact.
+sheet. Its local build, 97 Android + 12 common tests and exact signed-artifact
+UI/real-MP4/save/restart acceptance pass.
 
 All 35 repository Markdown files, including catalog and fixture notes, are inventoried by
 `tools/audit_markdown_requirements.py`; hashes, requirement IDs and review cues
@@ -77,7 +78,7 @@ still decodes one poster and retains the exact 512px check. A defensive Objectiv
 boundary rejects codec exceptions from malformed imports; a corrupt-pixel test
 exercises the error path. The failed run is retained, not counted as passing.
 Latest matching source/test results are on PR #18 and in
-`work/release-0.10-acceptance/status.json` after acceptance.
+`work/release-0.10.1-acceptance/status.json` after acceptance.
 
 Release preparation adds the existing Android vector brand mark as an opaque
 1024px iOS app icon, exact transitive dependency pins, bundled notices and a
@@ -101,3 +102,14 @@ using the existing `GENERAL` archive key; neither `ALL` nor the test's private
 strict backup reader remains strict. ZIP failures now show the first reason
 instead of only a failed count. Interoperability tests must use a native export
 from this corrected writer, not reinterpret a malformed old fixture as success.
+
+The corrected native export from b5b33c6 now passes Android's actual file picker:
+one pack/sticker, exact bytes/name/MATURE/GENERAL, all prior rows retained after
+force-stop/restart. Its photo/archive subtest passes even though the whole Apple
+run fails a separate rotation fixture assertion. GIF and MP4 encoding pass; the
+rotation fixture was found to have no matrix because the legacy FFmpeg rotate
+metadata option was ignored. It is replaced with verified display-matrix bytes,
+and XCTest now checks the source transform before checking portrait output.
+No failed run is counted as a full Apple pass. Final corrected CI is tracked on
+PR #18. The half-second clip UI also no longer offers trim positions beyond the
+source duration. Signing, physical WhatsApp and all remaining table gates stand.
