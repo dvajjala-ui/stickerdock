@@ -15,7 +15,8 @@ final class MotionCreatorTests: XCTestCase {
             let before = try Data(contentsOf: source)
             if name.contains("rotated") {
                 let asset = AVURLAsset(url: source)
-                let track = try XCTUnwrap(try await asset.loadTracks(withMediaType: .video).first)
+                let tracks = try await asset.loadTracks(withMediaType: .video)
+                let track = try XCTUnwrap(tracks.first)
                 let size = try await track.load(.naturalSize)
                 let transform = try await track.load(.preferredTransform)
                 let displayed = CGRect(origin: .zero, size: size).applying(transform)
