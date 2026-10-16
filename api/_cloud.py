@@ -87,14 +87,6 @@ def authenticate(headers):
 
 def auth_action(payload):
     action = payload.get("action")
-    if action == "inventory":
-        offset = max(0, min(1000, int(payload.get("offset", 0))))
-        packs = rows(client, "cloud_packs", f"owner_id=eq.{owner}&select=id,name,revision,fingerprint&order=id.asc&limit=100&offset={offset}")
-        return {"packs": packs, "next_offset": offset + 100 if len(packs) == 100 else None}
-    if action == "sharing_status":
-        pack_id = identity(payload.get("id"))
-        submissions = rows(client, "community_submissions", f"owner_id=eq.{owner}&pack_id=eq.{pack_id}&limit=1")
-        return {"status": sharing_status(client, submissions[0] if submissions else None)}
     if action == "refresh":
         refresh = payload.get("refresh_token", "")
         if not isinstance(refresh, str) or not 10 <= len(refresh) <= 4096:
@@ -189,6 +181,14 @@ def dispatch(payload, owner, client=None):
     if not budget or not budget[0].get("allowed"):
         raise StudioError("Cloud hourly limit reached. Local stickers are unaffected; retry later.")
     action = payload.get("action")
+    if action == "inventory":
+        offset = max(0, min(1000, int(payload.get("offset", 0))))
+        packs = rows(client, "cloud_packs", f"owner_id=eq.{owner}&select=id,name,revision,fingerprint&order=id.asc&limit=100&offset={offset}")
+        return {"packs": packs, "next_offset": offset + 100 if len(packs) == 100 else None}
+    if action == "sharing_status":
+        pack_id = identity(payload.get("id"))
+        submissions = rows(client, "community_submissions", f"owner_id=eq.{owner}&pack_id=eq.{pack_id}&limit=1")
+        return {"status": sharing_status(client, submissions[0] if submissions else None)}
     if action == "list":
         offset = max(0, min(1000, int(payload.get("offset", 0))))
         packs = rows(client, "cloud_packs", f"owner_id=eq.{owner}&order=updated_at.desc,id.asc&limit=50&offset={offset}")

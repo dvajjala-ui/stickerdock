@@ -6,6 +6,26 @@ research findings remain a historical baseline.
 
 ## 0.10.1 — privacy-preserving interchange and expanded native verification
 
+Pre-merge review found and repaired two additional correctness gaps. Cloud
+`inventory` and `sharing_status` belonged in authenticated dispatch, not the
+sign-in helper; owner-scoped pagination/status, budget and HTTP authentication
+regressions now pass. The complete Python suite is 182 tests/no skips. CI adds
+a pinned development-only Ruff undefined-name check (F821/F822/F823); it passes
+across api/tools. Native iOS ZIP reads now compare ZIPFoundation's returned CRC
+against each entry's checksum before accepting a manifest or generic WebP.
+Two new native regressions corrupt valid JSON/declared media CRC and require
+error plus unchanged existing library/media. They require their own Apple run.
+
+The previous f91cdd1 candidate passes all 13 native/1 UI tests and optimized
+Release packaging at https://github.com/dvajjala-ui/stickerdock/actions/runs/38911846626.
+Independent read-back confirms internal version 0.10.1/build 13, icon/privacy
+assets, CRC and absent signing. This is historical evidence once review fixes
+change source; it is not acceptance of later code. User now explicitly requests
+merging reviewed changes to main. PR17 was already merged October15; PR18 is
+the only open PR at the start of this continuation. Local browser access is
+disabled in Work settings; HTTP Admin/Studio return200, session status reports
+unsigned, and protected admin POST without credentials returns401 as expected.
+
 Signed candidate code 13 uses the existing certificate. APK SHA-256:
 `ACBB81AA99B4E52D9CEA6EC68D8D73BCF7CD735DBB940FE6D030C48CDA7EB620`;
 AAB: `DA17AF13A164195FC821C7A109EFD15AA9B534A5468E75BC24C43A0145E22374`.

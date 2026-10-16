@@ -69,7 +69,8 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y ffmpeg fonts-dejavu-core
           fi
-          python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
+          python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt -r tools/requirements-checks.txt
+          python3 -m ruff check api tools --select F821,F822,F823
           python3 -m unittest discover -s tools -p 'test_*.py' -v
           node --check admin/app.js
       - name: Test, lint, and build APK plus release bundle

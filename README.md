@@ -5,7 +5,8 @@ and Sticker.ly. Android uses Kotlin/Compose; the native SwiftUI iPhone client
 shares Kotlin Multiplatform media rules/containers. Both remain testing candidates;
 physical WhatsApp acceptance and store distribution are separate gates.
 
-October 16: signed Android **0.10.1** passes 97 Android + 12 common tests, 178 Python
+October 16: signed Android **0.10.1** passes 97 Android + 12 common tests; backend
+review fixes pass 182 Python
 tests and emulator creation/save/restart/navigation checks. It adds a Create tab,
 keeps import tools secondary and shows sticker content before export utilities.
 The [iPhone implementation](ios/README.md) now builds unsigned for a real device

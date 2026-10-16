@@ -17,10 +17,48 @@ import UniformTypeIdentifiers
 
 private enum HomeTab: Hashable { case discover, create, library }
 
+private struct CreatorSheetPresentationKey: EnvironmentKey { static let defaultValue: Binding<Bool> = .constant(false) }
+private extension EnvironmentValues {
+    var creatorSheetPresentation: Binding<Bool> {
+        get { self[CreatorSheetPresentationKey.self] }
+        set { self[CreatorSheetPresentationKey.self] = newValue }
+    }
+}
+
+struct OperationProgressBar: View {
+    @EnvironmentObject var model: LibraryModel
+    var body: some View {
+        if let busy = model.busy {
+            HStack { ProgressView(); Text(busy).font(.footnote); Spacer(); Button("Cancel", action: model.cancel).accessibilityIdentifier("cancel-operation") }
+                .padding().background(.regularMaterial).accessibilityIdentifier("operation-progress")
+        }
+    }
+}
+
+private struct OperationFeedback: ViewModifier {
+    @EnvironmentObject var model: LibraryModel
+    var active: Bool
+    func body(content: Content) -> some View {
+        content
+            .alert("Couldn’t finish", isPresented: Binding(get: { active && model.error != nil }, set: { if !$0 && active { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
+            .overlay(alignment: .top) {
+                if active, let notice = model.notice {
+                    HStack { Text(notice).font(.callout); Button { model.notice = nil } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Dismiss message") }
+                        .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)).padding().shadow(radius: 3)
+                }
+            }
+    }
+}
+
+extension View {
+    func operationFeedback(active: Bool = true) -> some View { modifier(OperationFeedback(active: active)) }
+}
+
 struct RootView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var tab: HomeTab = .library
     @State private var settings = false
+    @State private var creatorPresented = false
     var body: some View {
         TabView(selection: $tab) {
             NavigationStack { DiscoverView() }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
@@ -30,18 +68,14 @@ struct RootView: View {
                     .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") } }
             }.tabItem { Label("Library", systemImage: "square.grid.2x2") }.tag(HomeTab.library)
         }
+        .environment(\.creatorSheetPresentation, $creatorPresented)
         .tint(.indigo)
-        .safeAreaInset(edge: .bottom) {
-            if let busy = model.busy { HStack { ProgressView(); Text(busy).font(.footnote); Spacer(); Button("Cancel", action: model.cancel) }.padding().background(.regularMaterial) }
-        }
+        .safeAreaInset(edge: .bottom) { OperationProgressBar() }
         .sheet(isPresented: $settings) { NavigationStack { SettingsView() } }
-        .sheet(isPresented: Binding(get: { model.shareURL != nil }, set: { if !$0 { model.shareURL = nil } })) {
+        .sheet(isPresented: Binding(get: { !settings && model.shareURL != nil }, set: { if !$0 && !settings { model.shareURL = nil } })) {
             if let url = model.shareURL { ShareSheet(url: url) }
         }
-        .alert("Couldn’t finish", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") { model.error = nil } } message: { Text(model.error ?? "") }
-        .overlay(alignment: .top) {
-            if let notice = model.notice { HStack { Text(notice).font(.callout); Button { model.notice = nil } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Dismiss message") }.padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18)).padding().shadow(radius: 3) }
-        }
+        .operationFeedback(active: !settings && !creatorPresented)
     }
 }
 
@@ -94,6 +128,7 @@ struct PackView: View {
     let id: String
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.creatorSheetPresentation) private var creatorSheetPresentation
     @State private var selected: SavedSticker?
     @State private var rename = false
     @State private var name = ""
@@ -128,6 +163,7 @@ struct PackView: View {
                 .confirmationDialog("Delete this pack from this device?", isPresented: $deleting, titleVisibility: .visible) { Button("Delete pack", role: .destructive) { model.run("Deleting pack") { try await model.store.remove(packID: id); dismiss() } } }
                 .sheet(item: $selected) { item in StickerDetail(pack: pack, sticker: item) }
                 .sheet(isPresented: $creating) { NavigationStack { CreatorView(destination: id) } }
+                .onChange(of: creating) { _, value in creatorSheetPresentation.wrappedValue = value }
             } else { ContentUnavailableView("Pack unavailable", systemImage: "tray", description: Text("It may have been deleted. Your other packs are unchanged.")) }
         }
     }
@@ -169,8 +205,17 @@ private struct SettingsView: View {
                 Text("Adding to WhatsApp temporarily copies the chosen pack to this device’s clipboard for up to 60 seconds.")
             }
             Section("About") { NavigationLink("Open-source notices") { LicenseNoticesView() } }
-        }.navigationTitle("Settings").toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
-            .fileImporter(isPresented: $importer, allowedContentTypes: [.zip]) { if case .success(let url) = $0 { model.importArchive(url) } }
+        }
+        .disabled(model.busy != nil)
+        .navigationTitle("Settings").toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        .safeAreaInset(edge: .bottom) { OperationProgressBar() }
+        .operationFeedback()
+        .sheet(isPresented: Binding(get: { model.shareURL != nil }, set: { if !$0 { model.shareURL = nil } })) {
+            if let url = model.shareURL { ShareSheet(url: url) }
+        }
+        .fileImporter(isPresented: $importer, allowedContentTypes: [.zip]) { result in
+            switch result { case .success(let url): model.importArchive(url); case .failure(let error): model.error = error.localizedDescription }
+        }
     }
 }
 

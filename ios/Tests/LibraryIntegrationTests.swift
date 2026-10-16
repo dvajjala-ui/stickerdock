@@ -94,6 +94,80 @@ final class LibraryIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.deletingLastPathComponent().appendingPathComponent("escape.webp").path))
     }
 
+    private func storedArchive(_ entries: [(String, Data)], in root: URL) throws -> URL {
+        let url = root.appendingPathComponent(UUID().uuidString + ".zip")
+        let archive = try Archive(url: url, accessMode: .create)
+        for (path, bytes) in entries {
+            try archive.addEntry(with: path, type: .file, uncompressedSize: Int64(bytes.count), compressionMethod: .none, provider: { position, count in
+                bytes.subdata(in: Int(position)..<min(Int(position) + count, bytes.count))
+            })
+        }
+        return url
+    }
+
+    private func assertChecksumRejectionPreservesLibrary(_ url: URL, store: LibraryStore, root: URL, original: [SavedPack], bytes: Data) async throws {
+        do {
+            let inputs = try PackArchive.read(url)
+            _ = try await store.importPacks(inputs)
+            XCTFail("An archive with an invalid CRC was imported")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("checksum"), "Unexpected rejection: \(error)")
+        }
+        let reopened = LibraryStore(root: root)
+        let retained = try await reopened.load()
+        XCTAssertEqual(retained, original)
+        let retainedBytes = try await reopened.bytes(pack: original[0], sticker: original[0].stickers[0])
+        XCTAssertEqual(retainedBytes, bytes)
+    }
+
+    func testStoredManifestBitFlipRejectsValidChangedJSONAndPreservesLibrary() async throws {
+        let root = try directory()
+        let store = LibraryStore(root: root.appendingPathComponent("library"))
+        let item = try await photo(.systemIndigo)
+        let existing = try await store.importPacks([ImportedPack(name: "Keep this pack", kind: .STATIC, stickers: [item])])
+        let packID = UUID().uuidString.lowercased(), name = UUID().uuidString.lowercased() + ".webp"
+        let manifest: [String: Any] = ["schema": 5, "packs": [["id": packID, "name": "Private reactions", "kind": "STATIC", "rating": "MATURE", "category": "GENERAL", "stickers": [["name": name, "sha256": MediaRules.hash(item.data), "label": "Reaction", "tags": "private"]]]]]
+        let json = try JSONSerialization.data(withJSONObject: manifest)
+        let url = try storedArchive([("manifest.json", json), ("packs/\(packID)/\(name)", item.data)], in: root)
+        XCTAssertEqual(try PackArchive.read(url).first?.name, "Private reactions")
+        var raw = try Data(contentsOf: url)
+        let range = try XCTUnwrap(raw.range(of: Data("Private reactions".utf8)))
+        raw[range.lowerBound] ^= 1 // P -> Q: valid JSON and valid metadata; only its CRC detects the damage.
+        try raw.write(to: url, options: .atomic)
+        let archive = try Archive(url: url, accessMode: .read)
+        let entry = try XCTUnwrap(archive["manifest.json"])
+        var changed = Data()
+        let checksum: CRC32 = try archive.extract(entry, consumer: { changed.append($0) })
+        XCTAssertNotEqual(checksum, entry.checksum)
+        let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: changed) as? [String: Any])
+        XCTAssertEqual((parsed["packs"] as? [[String: Any]])?.first?["name"] as? String, "Qrivate reactions")
+        try await assertChecksumRejectionPreservesLibrary(url, store: store, root: root.appendingPathComponent("library"), original: existing, bytes: item.data)
+    }
+
+    func testGenericWebPWithWrongStoredCRCIsRejectedAndPreservesLibrary() async throws {
+        let root = try directory()
+        let store = LibraryStore(root: root.appendingPathComponent("library"))
+        let item = try await photo(.systemCyan)
+        let existing = try await store.importPacks([ImportedPack(name: "Keep this pack", kind: .STATIC, stickers: [item])])
+        let url = try storedArchive([("photo.webp", item.data)], in: root)
+        XCTAssertEqual(try PackArchive.read(url).count, 1)
+        var raw = try Data(contentsOf: url)
+        let central = try XCTUnwrap(raw.range(of: Data([0x50, 0x4b, 0x01, 0x02]), options: .backwards))
+        // ZIPFoundation's stored writer has no data descriptor. Change the declared
+        // CRC, leaving the complete, valid WebP payload untouched.
+        XCTAssertEqual(raw[central.lowerBound + 8] & 0x08, 0)
+        raw[central.lowerBound + 16] ^= 1
+        try raw.write(to: url, options: .atomic)
+        let archive = try Archive(url: url, accessMode: .read)
+        let entry = try XCTUnwrap(archive["photo.webp"])
+        var retainedImage = Data()
+        let checksum: CRC32 = try archive.extract(entry, consumer: { retainedImage.append($0) })
+        XCTAssertEqual(retainedImage, item.data)
+        XCTAssertNotEqual(checksum, entry.checksum)
+        try MediaRules.validate(retainedImage, kind: .STATIC)
+        try await assertChecksumRejectionPreservesLibrary(url, store: store, root: root.appendingPathComponent("library"), original: existing, bytes: item.data)
+    }
+
     func testMalformedCompressedPixelsFailAsAnErrorInsteadOfCrashing() throws {
         func chunk(_ tag: String, _ payload: [UInt8]) -> Data {
             var data = Data(tag.utf8)

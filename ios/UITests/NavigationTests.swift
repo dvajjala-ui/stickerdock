@@ -17,8 +17,11 @@ final class NavigationTests: XCTestCase {
         app.tabBars.buttons["Library"].tap()
         app.buttons["Settings and backup"].tap()
         XCTAssertTrue(app.buttons["Import sticker ZIP"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Settings"].exists)
+        XCTAssertFalse(app.buttons["Export library backup"].isEnabled)
         app.buttons["Done"].tap()
         XCTAssertTrue(app.navigationBars["Your library"].exists)
+        XCTAssertFalse(app.navigationBars["Settings"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot()); screenshot.lifetime = .keepAlways
         add(screenshot)
     }

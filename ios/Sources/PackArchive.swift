@@ -22,10 +22,11 @@ enum PackArchive {
             let limit = path == "manifest.json" ? 2_000_000 : 500_000
             try require(entry.uncompressedSize <= UInt64(limit), "ZIP entry is too large.")
             var data = Data()
-            _ = try archive.extract(entry, consumer: { chunk in
+            let checksum = try archive.extract(entry, consumer: { chunk in
                 try require(data.count + chunk.count <= limit && total + chunk.count <= maxTotal, "ZIP expands beyond its limit.")
                 data.append(chunk); total += chunk.count
             })
+            try require(checksum == entry.checksum, "ZIP entry failed its checksum check.")
             entries[path] = data
         }
         guard let manifest = entries["manifest.json"], let doc = try JSONSerialization.jsonObject(with: manifest) as? [String: Any], let schema = doc["schema"] as? Int, (1...5).contains(schema), let packs = doc["packs"] as? [[String: Any]] else { throw StickerError.invalid("Invalid StickerDock backup manifest.") }
@@ -112,11 +113,12 @@ enum PackArchive {
             if entry.type == .directory { continue }
             try require(entry.type == .file && entry.path.lowercased().hasSuffix(".webp") && entry.uncompressedSize <= 500_000, "This ZIP needs WebP stickers or a StickerDock manifest. Convert other photos in Create.")
             var bytes = Data()
-            _ = try archive.extract(entry, consumer: { chunk in
+            let checksum = try archive.extract(entry, consumer: { chunk in
                 total += chunk.count
                 try require(bytes.count + chunk.count <= 500_000 && total <= maxTotal, "ZIP expands beyond its limit.")
                 bytes.append(chunk)
             })
+            try require(checksum == entry.checksum, "ZIP entry failed its checksum check.")
             let bridge = StickerDockCore.AppleMediaBridge()
             let info = bridge.inspect(base64: bytes.base64EncodedString())
             let kind: StickerKind = info?.animated == true ? .ANIMATED : .STATIC

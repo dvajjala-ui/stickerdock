@@ -43,6 +43,59 @@ class Client:
 
 
 class CloudLibraryTest(unittest.TestCase):
+    def test_inventory_is_authenticated_budgeted_and_owner_scoped_with_pagination(self):
+        client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
+        page = [{"id": str(uuid.uuid4()), "name": "My pack", "revision": 2, "fingerprint": "a" * 64} for _ in range(100)]
+        client._request.return_value = json.dumps(page).encode()
+        result = cloud.dispatch({"action": "inventory", "owner": OTHER, "offset": 100}, OWNER, client)
+        self.assertEqual(result, {"packs": page, "next_offset": 200})
+        query = client._request.call_args.args[1]
+        self.assertIn("owner_id=eq." + OWNER, query)
+        self.assertNotIn(OTHER, query)
+        self.assertIn("select=id,name,revision,fingerprint&order=id.asc&limit=100&offset=100", query)
+        client._request.return_value = b"[]"
+        self.assertIsNone(cloud.dispatch({"action": "inventory", "offset": 200}, OWNER, client)["next_offset"])
+        client.rpc.return_value = [{"allowed": False}]; client._request.reset_mock()
+        with self.assertRaisesRegex(StudioError, "hourly limit"):
+            cloud.dispatch({"action": "inventory"}, OWNER, client)
+        client._request.assert_not_called()
+
+    def test_sharing_status_routes_through_owner_scoped_dispatch_and_effective_review(self):
+        client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
+        client._request.return_value = json.dumps([{"status": "draft", "admin_pack_id": PACK}]).encode()
+        client.find.return_value = {"status": "published"}
+        result = cloud.dispatch({"action": "sharing_status", "owner": OTHER, "id": PACK}, OWNER, client)
+        self.assertEqual(result, {"status": "published"})
+        path = client._request.call_args.args[1]
+        self.assertIn("owner_id=eq." + OWNER + "&pack_id=eq." + PACK, path)
+        self.assertNotIn(OTHER, path)
+        client._request.return_value = b"[]"
+        self.assertEqual(cloud.dispatch({"action": "sharing_status", "id": PACK}, OWNER, client), {"status": "private"})
+
+    def test_inventory_and_sharing_status_http_requests_require_authentication(self):
+        from api.cloud import handler
+        for action in ("inventory", "sharing_status"):
+            with self.subTest(action=action):
+                request = handler.__new__(handler); request.headers = {}; request.wfile = io.BytesIO()
+                statuses = []; request.send_response = statuses.append
+                request.send_header = lambda *_: None; request.end_headers = lambda: None
+                with patch("api.cloud.read_json", return_value={"action": action, "id": PACK}), patch("api.cloud.authenticate", side_effect=PermissionError("Sign in")), patch("api.cloud.dispatch") as dispatch, patch("api.cloud.auth_action") as auth:
+                    request.do_POST()
+                self.assertEqual(statuses, [401]); dispatch.assert_not_called(); auth.assert_not_called()
+
+    def test_inventory_and_sharing_status_http_requests_reach_authenticated_dispatch(self):
+        from api.cloud import handler
+        for action in ("inventory", "sharing_status"):
+            with self.subTest(action=action):
+                request = handler.__new__(handler); request.headers = {}; request.wfile = io.BytesIO()
+                statuses = []; request.send_response = statuses.append
+                request.send_header = lambda *_: None; request.end_headers = lambda: None
+                client = MagicMock(); client.rpc.return_value = [{"allowed": True}]; client._request.return_value = b"[]"
+                with patch("api.cloud.read_json", return_value={"action": action, "id": PACK}), patch("api.cloud.authenticate", return_value=OWNER), patch.object(cloud, "SupabaseFactory", return_value=client), patch("api.cloud.auth_action") as auth:
+                    request.do_POST()
+                self.assertEqual(statuses, [200]); auth.assert_not_called()
+                self.assertEqual(json.loads(request.wfile.getvalue()), {"packs": [], "next_offset": None} if action == "inventory" else {"status": "private"})
+
     def test_sync_plan_recovers_missing_backup_and_server_upload_receipts(self):
         client = Client(); manifest = self.manifest()
         digest = manifest["stickers"][0]["sha256"]

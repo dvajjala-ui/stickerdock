@@ -34,6 +34,18 @@ latest CI. No signed physical-device install or App Store acceptance is claimed.
   network reads and redirect rejection. These are source bounds, not measured
   phone performance claims.
 
+## Use the candidate after Apple signing
+
+Create → choose Photos or Files → caption/crop or trim → Generate preview →
+review → Save to library. Select an existing compatible pack or create a new
+one. Discover previews never save automatically; choose Save explicitly.
+
+Library settings imports/exports StickerDock ZIPs. Pack options shares one pack;
+tap a sticker for moving preview, favorite or delete. Static and animated packs
+stay separate. A pack needs 3–30 stickers before Add to WhatsApp. That action
+opens WhatsApp for confirmation; it cannot confirm installation or choose an
+account inside WhatsApp. See [cross-platform migration](../docs/PHONE_MIGRATION.md).
+
 ## Build / verification on a Mac
 
 CI also packages an **unsigned testing IPA**. It needs the user's Apple signing
