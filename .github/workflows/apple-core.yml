@@ -12,6 +12,9 @@ on:
       - '.github/workflows/apple-core.yml'
 permissions:
   contents: read
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   framework:
     runs-on: macos-15

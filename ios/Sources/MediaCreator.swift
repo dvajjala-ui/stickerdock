@@ -3,6 +3,7 @@ import UIKit
 import AVFoundation
 import ImageIO
 import CoreImage
+import UniformTypeIdentifiers
 import Vision
 import SDWebImage
 import SDWebImageWebPCoder
@@ -30,7 +31,7 @@ actor MediaCreator {
 
     func inspect(_ url: URL) async throws -> MediaInfo {
         let data = try MediaRules.read(url, limit: 20_000_000)
-        if let source = CGImageSourceCreateWithData(data as CFData, nil) {
+        if let source = imageSource(data) {
             let count = CGImageSourceGetCount(source)
             let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
             let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
@@ -73,7 +74,7 @@ actor MediaCreator {
         try require([6, 8, 10].contains(recipe.fps) && recipe.duration.isFinite && recipe.start.isFinite && (0.5...4).contains(recipe.duration) && recipe.start >= 0 && recipe.start + recipe.duration <= info.duration + 0.001, "Choose a valid 0.5–4 second section.")
         let count = Int(ceil(recipe.duration * Double(recipe.fps)))
         let frameMs = Int((1000 / Double(recipe.fps)).rounded())
-        let gif = CGImageSourceCreateWithData(data as CFData, nil)
+        let gif = imageSource(data)
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 1600, height: 1600)
@@ -120,8 +121,20 @@ actor MediaCreator {
     }
 
     private func encode(_ image: UIImage, limit: Int) throws -> Data {
-        guard let data = SDImageWebPCoder.shared.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: 0.85, .encodeMaxFileSize: limit, .encodeFirstFrameOnly: true]), data.count <= limit else { throw StickerError.invalid("Sticker is too detailed. Try a simpler crop or shorter caption.") }
-        return data
+        // WebP target size is an estimate, not a hard byte guarantee. Keep a
+        // margin and bounded quality retries; enforce the actual saved size.
+        for quality in [0.85, 0.70, 0.55, 0.40, 0.25, 0.15] {
+            try Task.checkCancellation()
+            if let data = SDImageWebPCoder.shared.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: quality, .encodeMaxFileSize: Int(Double(limit) * 0.9), .encodeFirstFrameOnly: true]), data.count <= limit { return data }
+        }
+        throw StickerError.invalid("Sticker is too detailed. Try a simpler crop or shorter caption.")
+    }
+
+    private func imageSource(_ data: Data) -> CGImageSource? {
+        // ImageIO can return a non-nil probe for movie bytes with no image
+        // dimensions. Such sources must go through AVFoundation instead.
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil), let identifier = CGImageSourceGetType(source), let type = UTType(identifier as String), type.conforms(to: .image) else { return nil }
+        return source
     }
 
     private func delay(_ source: CGImageSource, _ index: Int) -> Double {

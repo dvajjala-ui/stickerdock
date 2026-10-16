@@ -5,8 +5,11 @@ import StickerDockCore
 @testable import StickerDock
 
 final class MotionCreatorTests: XCTestCase {
-    func testNativeGIFAndVideoProduceMovingBoundedWebPWithoutTouchingSource() async throws {
-        for (name, ext) in [("motion", "gif"), ("motion", "mp4"), ("motion-rotated", "mp4")] {
+    func testNativeGIFProducesMovingBoundedWebP() async throws { try await check(name: "motion", ext: "gif") }
+    func testNativeMP4UsesVideoDecoderAndProducesMovingWebP() async throws { try await check(name: "motion", ext: "mp4") }
+    func testNativeVideoDisplayRotationRemainsUpright() async throws { try await check(name: "motion-rotated", ext: "mp4") }
+
+    private func check(name: String, ext: String) async throws {
             let source = try XCTUnwrap(Bundle(for: type(of: self)).url(forResource: name, withExtension: ext))
             let before = try Data(contentsOf: source)
             let creator = MediaCreator()
@@ -30,7 +33,6 @@ final class MotionCreatorTests: XCTestCase {
                 else { XCTAssertGreaterThan(extent.width, extent.height) }
             }
             XCTAssertEqual(try Data(contentsOf: source), before)
-        }
     }
 
     private func opaqueExtent(_ image: CGImage) throws -> CGSize {
