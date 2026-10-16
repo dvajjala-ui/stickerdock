@@ -60,6 +60,29 @@ final class LibraryIntegrationTests: XCTestCase {
         XCTAssertEqual(bytes, first.data)
     }
 
+    func testLegacyFoundationUUIDsExportWithCanonicalAndroidPaths() async throws {
+        let root = try directory()
+        let item = try await photo(.systemPurple)
+        let packID = UUID().uuidString.uppercased(), stickerID = UUID().uuidString.uppercased()
+        let sticker = SavedSticker(id: stickerID, fileName: stickerID + ".webp", sha256: MediaRules.hash(item.data), label: "Legacy photo", tags: "private")
+        let pack = SavedPack(id: packID, name: "Preserve private metadata", kind: .STATIC, rating: .MATURE, category: "ALL", stickers: [sticker])
+        let media = root.appendingPathComponent(packID)
+        try FileManager.default.createDirectory(at: media, withIntermediateDirectories: true)
+        try item.data.write(to: media.appendingPathComponent(sticker.fileName))
+        try JSONEncoder().encode(LibraryDocument(packs: [pack])).write(to: root.appendingPathComponent("library.json"))
+        let store = LibraryStore(root: root)
+        _ = try await store.load()
+        let url = try await PackArchive.write([pack], store: store)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let archive = try Archive(url: url, accessMode: .read)
+        XCTAssertTrue(archive.allSatisfy { $0.path == $0.path.lowercased() })
+        let restored = try PackArchive.read(url)
+        XCTAssertEqual(restored.first?.rating, .MATURE)
+        XCTAssertEqual(restored.first?.name, pack.name)
+        XCTAssertEqual(restored.first?.stickers.first?.data, item.data)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: media.appendingPathComponent(sticker.fileName).path))
+    }
+
     func testArchiveTraversalIsRejectedWithoutExtractingFiles() throws {
         let root = try directory()
         let url = root.appendingPathComponent("malicious.zip")

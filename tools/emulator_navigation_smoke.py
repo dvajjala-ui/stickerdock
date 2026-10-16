@@ -13,7 +13,7 @@ import re
 from emulator_clip_creator_smoke import ClipCreatorSmoke
 
 
-def run(adb, serial, output):
+def run(adb, serial, output, version='0.10.0', caption='Navigation recovery reaction'):
     test = ClipCreatorSmoke(adb, serial, output)
     installed = test.adb('shell', 'pm', 'path', 'app.stickerdock.duo').strip().removeprefix('package:')
     test.adb('pull', installed, str(output / 'installed.apk'))
@@ -61,7 +61,6 @@ def run(adb, serial, output):
     test.adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0')
     test.adb('shell', 'wm', 'density', '420')
     test.open_clip('facepalm-native.mp4', from_create=True)
-    caption = 'Navigation recovery reaction'
     test.preview(caption, '06-create-motion')
     test.save()
     result = test.saved(caption, 'created-reaction.webp')
@@ -75,7 +74,7 @@ def run(adb, serial, output):
     assert set(old) <= set(new), 'Prior stickers changed during navigation or save'
     crashes = test.adb('logcat', '-b', 'crash', '-d')
     assert 'FATAL EXCEPTION' not in crashes, 'Android crash buffer contains an exception'
-    report = dict(passed=True, version='0.10.0', apk_sha256=digest, before=before, after=test.counts(), result=result,
+    report = dict(passed=True, version=version, apk_sha256=digest, before=before, after=test.counts(), result=result,
                   checks=['Create tab and visible media actions', 'toolbar and system Back restore Create from import tools', 'real sticker artwork in initial viewport', 'explicit WhatsApp target sheet with disabled missing applications', '360dp and 1.3x text screenshots', 'moving MP4 preview leaves library unchanged', 'explicit existing-pack save', 'saved bytes/motion/alpha/duration', 'all prior rows preserved after restart'],
                   limitations=['AOSP Android 15 emulator only', 'no physical WhatsApp/Business or iPhone device acceptance'])
     (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
@@ -87,5 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--adb', required=True)
     parser.add_argument('--serial', required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--version', default='0.10.0')
+    parser.add_argument('--caption', default='Navigation recovery reaction')
     args = parser.parse_args()
-    run(args.adb, args.serial, args.output)
+    run(args.adb, args.serial, args.output, args.version, args.caption)

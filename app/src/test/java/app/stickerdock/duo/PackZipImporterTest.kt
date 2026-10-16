@@ -10,6 +10,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -80,6 +81,43 @@ class PackZipImporterTest {
 
         assertRejected(archive, "Unsafe archive path")
         assertTrue(store.listPacks().isEmpty())
+    }
+
+    @Test fun ownBackupImportPreservesPrivateRatingMetadataAndExactBytes() {
+        val original = store.createPack("Private reactions", StickerKind.STATIC, PackRating.MATURE, PackCategory.REACTIONS)
+        assertEquals(ImportResult.Added, files.importBytes(original.id, png(512, 512, Color.RED), label = "A real label", tags = "private, reaction"))
+        val item = store.listStickers(original.id).single()
+        val expected = files.stickerFile(original.id, item.fileName).readBytes()
+        val archive = File(context.cacheDir, "native-export.zip")
+        archive.outputStream().use { StickerBackup(context, store, files).export(it, original.id) }
+
+        val result = PackZipImporter(context, store, files).import(Uri.fromFile(archive))
+
+        assertEquals(1, result.packs)
+        assertEquals(1, result.imported)
+        val restored = store.listPacks().single { it.id != original.id }
+        assertEquals(original.name, restored.name)
+        assertEquals(PackRating.MATURE, restored.rating)
+        assertEquals(PackCategory.REACTIONS, restored.category)
+        val saved = store.listStickers(restored.id).single()
+        assertEquals(item.sha256, saved.sha256)
+        assertEquals(item.label, saved.label)
+        assertEquals(item.tags, saved.tags)
+        assertArrayEquals(expected, files.stickerFile(restored.id, saved.fileName).readBytes())
+        assertArrayEquals(expected, files.stickerFile(original.id, item.fileName).readBytes())
+    }
+
+    @Test fun invalidManifestNeverFallsBackToPublicGenericImport() {
+        val original = store.createPack("Keep existing")
+        val archive = File(context.cacheDir, "invalid-versioned.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.add("manifest.json", "{\"schema\":999,\"packs\":[]}".toByteArray())
+            zip.add("photo.png", png(512, 512, Color.BLUE))
+        }
+        try { PackZipImporter(context, store, files).import(Uri.fromFile(archive)); fail("Invalid manifest was imported as generic images") }
+        catch (_: Exception) { }
+        assertEquals(listOf(original), store.listPacks())
+        assertTrue(store.listStickers(original.id).isEmpty())
     }
 
     @Test

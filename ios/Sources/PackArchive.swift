@@ -35,7 +35,8 @@ enum PackArchive {
         var result: [ImportedPack] = []
         for pack in packs {
             guard let id = pack["id"] as? String, let name = pack["name"] as? String, let stickers = pack["stickers"] as? [[String: Any]] else { throw StickerError.invalid("Invalid backup pack.") }
-            try require(MediaRules.safeID(id) && ids.insert(id).inserted && MediaRules.validName(name) && stickers.count <= 30, "Invalid backup pack metadata.")
+            let canonical = AppleMediaBridge().canonicalArchiveID(value: id)
+            try require(canonical != nil && ids.insert(canonical ?? "").inserted && MediaRules.validName(name) && stickers.count <= 30, "Invalid backup pack metadata.")
             guard let kind = StickerKind(rawValue: schema >= 2 ? (pack["kind"] as? String ?? "") : "STATIC"), let rating = ContentRating(rawValue: schema >= 3 ? (pack["rating"] as? String ?? "") : "GENERAL") else { throw StickerError.invalid("Invalid pack type or rating.") }
             var items: [ImportedSticker] = []
             for sticker in stickers {
@@ -61,22 +62,32 @@ enum PackArchive {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appendingPathComponent("StickerDock.zip")
         do {
+            let bridge = AppleMediaBridge()
+            let groups = packs.map { pack in
+                (pack: pack,
+                 id: bridge.canonicalArchiveID(value: pack.id) ?? UUID().uuidString.lowercased(),
+                 items: pack.stickers.map { item in
+                    (sticker: item, name: (bridge.canonicalArchiveID(value: item.id) ?? UUID().uuidString.lowercased()) + ".webp")
+                 })
+            }
+            try require(Set(groups.map { $0.id }).count == groups.count, "Duplicate archive identity.")
             let archive = try Archive(url: url, accessMode: .create)
-            let manifest: [String: Any] = ["schema": 5, "packs": packs.map { pack in
-                ["id": pack.id, "name": pack.name, "kind": pack.kind.rawValue, "rating": pack.rating.rawValue, "category": pack.category,
-                 "stickers": pack.stickers.map { ["name": $0.fileName, "sha256": $0.sha256, "label": $0.label, "tags": $0.tags] }] as [String: Any]
+            let manifest: [String: Any] = ["schema": 5, "packs": groups.map { group in
+                ["id": group.id, "name": group.pack.name, "kind": group.pack.kind.rawValue, "rating": group.pack.rating.rawValue, "category": group.pack.category,
+                 "stickers": group.items.map { ["name": $0.name, "sha256": $0.sticker.sha256, "label": $0.sticker.label, "tags": $0.sticker.tags] }] as [String: Any]
             }]
             let data = try JSONSerialization.data(withJSONObject: manifest, options: [.sortedKeys])
             try require(data.count <= 2_000_000, "Backup metadata is too large.")
             try add(data, path: "manifest.json", archive: archive)
             var total = data.count
-            for pack in packs {
-                for item in pack.stickers {
+            for group in groups {
+                try require(Set(group.items.map { $0.name }).count == group.items.count, "Duplicate sticker identity.")
+                for entry in group.items {
                     try Task.checkCancellation()
-                    let data = try await store.bytes(pack: pack, sticker: item)
+                    let data = try await store.bytes(pack: group.pack, sticker: entry.sticker)
                     total += data.count
                     try require(total <= maxTotal, "Backup is too large. Share individual packs.")
-                    try add(data, path: "packs/\(pack.id)/\(item.fileName)", archive: archive)
+                    try add(data, path: "packs/\(group.id)/\(entry.name)", archive: archive)
                 }
             }
             return url

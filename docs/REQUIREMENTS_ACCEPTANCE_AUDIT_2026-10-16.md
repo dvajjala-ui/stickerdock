@@ -83,3 +83,13 @@ Release preparation adds the existing Android vector brand mark as an opaque
 1024px iOS app icon, exact transitive dependency pins, bundled notices and a
 required-reason privacy manifest. These assets do not constitute App Store or
 privacy approval. The app remains a candidate with the outstanding gates above.
+
+An actual Swift-exported archive imported through Android's system picker exposed
+two additional interoperability defects: Foundation used upper-case UUIDs, while
+Android accepted lower-case only; the generic ZIP tool ignored a manifest and
+recompressed content with default GENERAL metadata. This could discard a private
+rating. The 0.10.1 source shares archive identity rules, writes canonical UUIDs
+while reading both spellings, and routes manifest archives through validated
+restore with no generic fallback. Regression tests require exact bytes, names,
+tags and private ratings and preserve existing data on invalid manifests. The
+failed synthetic QA import is retained as failure evidence, not a passed test.

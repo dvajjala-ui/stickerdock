@@ -8,6 +8,7 @@ import kotlin.io.encoding.Base64
  * Failure returns null so malformed imported media never unwinds an ObjC call.
  */
 class AppleMediaBridge {
+    fun canonicalArchiveID(value: String): String? = ArchivePaths.canonicalId(value)
     fun normalizeStatic(base64: String): String? = runCatching {
         require(base64.length <= 133_336)
         val bytes = AnimatedWebp.staticContainer(Base64.decode(base64))

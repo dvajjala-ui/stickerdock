@@ -40,6 +40,7 @@ class PackZipImporter(
         var entries = 0
         var uncompressed = 0L
         var skipped = 0
+        var stickerDockManifest = false
 
         ZipInputStream(input).use { zip ->
             while (true) {
@@ -54,6 +55,13 @@ class PackZipImporter(
                 if (entry.isDirectory) {
                     zip.closeEntry()
                     continue
+                }
+
+                if (path.equals("manifest.json", ignoreCase = true)) {
+                    // Never reinterpret a versioned backup as generic pictures:
+                    // doing so discards names, tags and private/mature ratings.
+                    stickerDockManifest = true
+                    break
                 }
 
                 val fileName = path.substringAfterLast('/')
@@ -96,6 +104,12 @@ class PackZipImporter(
                 )
                 zip.closeEntry()
             }
+        }
+
+        if (stickerDockManifest) {
+            assets.clear()
+            val restored = StickerBackup(context, store, files).restore(uri)
+            return Summary(restored.packs, restored.stickers, 0, restored.rejected)
         }
 
         val importable = assets.filterNot { asset ->

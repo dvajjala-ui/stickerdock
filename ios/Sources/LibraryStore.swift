@@ -55,7 +55,7 @@ actor LibraryStore {
             for input in inputs {
                 try Task.checkCancellation()
                 try require(MediaRules.validName(input.name) && input.stickers.count <= 30, "Invalid pack name or size.")
-                let id = UUID().uuidString
+                let id = UUID().uuidString.lowercased()
                 let directory = root.appendingPathComponent(id)
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
                 created.append(directory)
@@ -66,7 +66,7 @@ actor LibraryStore {
                     try require(source.label.utf16.count <= 80 && source.tags.utf16.count <= 400, "Sticker metadata is too long.")
                     let hash = MediaRules.hash(source.data)
                     guard hashes.insert(hash).inserted else { continue }
-                    let itemID = UUID().uuidString
+                    let itemID = UUID().uuidString.lowercased()
                     let item = SavedSticker(id: itemID, fileName: itemID + ".webp", sha256: hash, label: source.label, tags: source.tags)
                     try source.data.write(to: directory.appendingPathComponent(item.fileName), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
                     pack.stickers.append(item)
@@ -99,7 +99,7 @@ actor LibraryStore {
             try require(source.label.utf16.count <= 80 && source.tags.utf16.count <= 400, "Sticker metadata is too long.")
             let hash = MediaRules.hash(source.data)
             try require(hashes.insert(hash).inserted, "This sticker is already in the pack.")
-            let itemID = UUID().uuidString
+            let itemID = UUID().uuidString.lowercased()
             let item = SavedSticker(id: itemID, fileName: itemID + ".webp", sha256: hash, label: source.label, tags: source.tags)
             staged.append((try mediaURL(pack: document.packs[i], sticker: item), source.data))
             next.packs[i].stickers.append(item)

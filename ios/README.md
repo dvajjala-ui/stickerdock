@@ -36,6 +36,10 @@ latest CI. No signed physical-device install or App Store acceptance is claimed.
 
 ## Build / verification on a Mac
 
+CI also packages an **unsigned testing IPA**. It needs the user's Apple signing
+before device installation; it is not a signed download, TestFlight release or
+proof of WhatsApp acceptance. No Apple credential is created or embedded.
+
 From repository root (JDK 17 and Gradle 8.11.1):
 
 ```sh
