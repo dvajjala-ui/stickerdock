@@ -49,13 +49,16 @@ class ClipCreatorSmoke(RecoverySmoke):
         field = self.action_node(label)
         assert field.get("text") == value, f"{label} did not accept the requested text"
 
-    def open_clip(self, filename):
+    def open_clip(self, filename, from_create=False):
         print("Choosing " + filename, flush=True)
         self.adb("shell", "am", "force-stop", "app.stickerdock.duo")
         # Reset only the emulator activity task, not app data. An orphaned
         # DocumentsUI picker can otherwise remain the root after force-stop.
         self.adb("shell", "am", "start", "-W", "-f", "0x10008000", "-n",
                  "app.stickerdock.duo/.StickerDockPolishedActivity")
+        if from_create:
+            self.wait_text("Search library")
+            self.tap("Create")
         self.wait_text("Make an animated reaction")
         self.tap("Make an animated reaction")
         self.wait_text("Show roots")

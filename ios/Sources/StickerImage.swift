@@ -39,6 +39,7 @@ struct StickerImage: View {
             }
         }
         .task(id: (url?.path ?? MediaRules.hash(data ?? Data())) + "-\(pixels)-\(animated)") {
+            image = nil; movingData = nil
             let input = data; let file = url; let size = pixels; let motion = animated
             let result = await Task.detached(priority: .userInitiated) { () -> (UIImage?, Data?) in
                 guard let bytes = input ?? (try? file.map { try MediaRules.read($0, limit: 500_000) }) else { return (nil, nil) }
@@ -55,16 +56,20 @@ struct StickerImage: View {
 private struct MovingImage: UIViewRepresentable {
     let data: Data
     let playing: Bool
+    final class Coordinator { var source: Data? }
+    func makeCoordinator() -> Coordinator { Coordinator() }
     func makeUIView(context: Context) -> SDAnimatedImageView {
         let view = SDAnimatedImageView()
         view.contentMode = .scaleAspectFit
         view.autoPlayAnimatedImage = false
         view.maxBufferSize = 8 * 1024 * 1024
         view.image = SDAnimatedImage(data: data)
+        context.coordinator.source = data
         return view
     }
     func updateUIView(_ view: SDAnimatedImageView, context: Context) {
+        if context.coordinator.source != data { view.stopAnimating(); view.image = SDAnimatedImage(data: data); context.coordinator.source = data }
         if playing { view.startAnimating() } else { view.stopAnimating() }
     }
-    static func dismantleUIView(_ view: SDAnimatedImageView, coordinator: ()) { view.stopAnimating(); view.image = nil }
+    static func dismantleUIView(_ view: SDAnimatedImageView, coordinator: Coordinator) { view.stopAnimating(); view.image = nil; coordinator.source = nil }
 }

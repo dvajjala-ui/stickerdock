@@ -37,7 +37,7 @@ targets:
         CFBundleDocumentTypes:
           - CFBundleTypeName: Sticker archives
             LSHandlerRank: Alternate
-            LSItemContentTypes: [public.zip-archive, org.webmproject.webp]
+            LSItemContentTypes: [public.zip-archive]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         StickerDockCatalogBase: $(STICKERDOCK_CATALOG_BASE)

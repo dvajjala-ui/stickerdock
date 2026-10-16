@@ -31,6 +31,8 @@ final class LibraryIntegrationTests: XCTestCase {
         let created = try await store.importPacks(inputs)
         let archive = try await PackArchive.write(created, store: store)
         defer { try? FileManager.default.removeItem(at: archive.deletingLastPathComponent()) }
+        let attachment = XCTAttachment(data: try Data(contentsOf: archive), uniformTypeIdentifier: "public.zip-archive")
+        attachment.name = "iOS-Android-compatibility.zip"; attachment.lifetime = .keepAlways; add(attachment)
         let restored = try PackArchive.read(archive)
         XCTAssertEqual(restored.first?.rating, .MATURE)
         XCTAssertEqual(restored.first?.stickers.first?.data, item.data)

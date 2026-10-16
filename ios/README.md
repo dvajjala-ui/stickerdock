@@ -49,7 +49,8 @@ xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'plat
 
 `.github/workflows/apple-core.yml` prepares the same unsigned device build,
 native integration tests, navigation UI test and xcresult/artifacts on macos-15.
-It is manual, has not run for this local tree, and makes no App Store deployment.
+It runs manually or on relevant pull requests. Draft PR #18 has started its
+first run; results are not yet accepted. It makes no App Store deployment.
 SPM direct dependencies are pinned; record the resolved transitive versions from
 the first successful Mac run. Xcode/Swift/Kotlin compatibility errors must be
 fixed there before claiming source-build acceptance.
@@ -75,5 +76,6 @@ belongs in this app.
    Existing owner-only web APIs must not be exposed to consumer apps as a shortcut.
 
 No TestFlight/App Store account, Apple signing certificate, paid model/API or
-cloud deployment was created. This is substantial client source with explicit
+cloud deployment was created. This public repository uses standard free macOS
+CI runners; local Windows still cannot execute Apple builds. This is client source with explicit
 unverified gates, not a claim that every requested feature is finished.

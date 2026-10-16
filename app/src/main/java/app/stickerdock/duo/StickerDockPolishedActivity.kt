@@ -79,6 +79,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         val pausePhoneImport = remember { AtomicBoolean(false) }
 
         var sectionName by rememberSaveable { mutableStateOf(PolishedHomeSection.LIBRARY.name) }
+        var importReturnSectionName by rememberSaveable { mutableStateOf(PolishedHomeSection.LIBRARY.name) }
         val section = PolishedHomeSection.valueOf(sectionName)
         var packs by remember { mutableStateOf<List<StickerPack>>(emptyList()) }
         var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -499,7 +500,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
             when {
                 selectedStickerIds.isNotEmpty() -> selectedStickerIds = emptySet()
                 selectedId != null -> selectedId = null
-                else -> sectionName = PolishedHomeSection.LIBRARY.name
+                else -> sectionName = importReturnSectionName
             }
         }
 
@@ -521,7 +522,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     },
                     navigationIcon = {
                         if (pack != null) TextButton(onClick = { selectedId = null }) { Text("Back") }
-                        else if (section == PolishedHomeSection.IMPORT) TextButton(onClick = { sectionName = PolishedHomeSection.LIBRARY.name }) { Text("Back") }
+                        else if (section == PolishedHomeSection.IMPORT) TextButton(onClick = { sectionName = importReturnSectionName }) { Text("Back") }
                     },
                     actions = { TextButton(onClick = { showCloud = true }) { Text(if (pack == null) "Cloud" else "Backup") } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -534,7 +535,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                             NavigationBar {
                                 PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
                                     NavigationBarItem(
-                                        selected = section == destination,
+                                        selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
                                         onClick = { sectionName = destination.name },
                                         icon = { StickerDockNavIcon(destination.label) },
                                         label = { Text(destination.label) }
@@ -566,7 +567,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                 Spacer(Modifier.height(12.dp))
                                 PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
                                     NavigationRailItem(
-                                        selected = section == destination,
+                                        selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
                                         onClick = {
                                             sectionName = destination.name
                                             if (destination != PolishedHomeSection.LIBRARY) selectedId = null
@@ -591,7 +592,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                     name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL
                                                     newPackCategory = PackCategory.GENERAL; dialog = "create"
                                                 },
-                                                { sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
+                                                { importReturnSectionName = PolishedHomeSection.LIBRARY.name; sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
                                                 { selectedId = it },
                                                 { photoPackPicker.launch(arrayOf("image/*")) },
                                                 artworkDrafts, { selectedId = it.packId; artworkSticker = it },
@@ -666,7 +667,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL
                                             newPackCategory = PackCategory.GENERAL; dialog = "create"
                                         },
-                                        { sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
+                                        { importReturnSectionName = PolishedHomeSection.LIBRARY.name; sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
                                         { selectedId = it },
                                         { photoPackPicker.launch(arrayOf("image/*")) },
                                         artworkDrafts, { selectedId = it.packId; artworkSticker = it },
@@ -677,7 +678,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                     CreateScreen(busy,
                                         { photoPackPicker.launch(arrayOf("image/*")) },
                                         { clipPicker.launch(arrayOf("video/*", "image/gif")) },
-                                        { sectionName = PolishedHomeSection.IMPORT.name })
+                                        { importReturnSectionName = PolishedHomeSection.CREATE.name; sectionName = PolishedHomeSection.IMPORT.name })
                                 }
                                 section == PolishedHomeSection.IMPORT -> AnimatedScreenSwap("import") {
                                     ImportScreen(

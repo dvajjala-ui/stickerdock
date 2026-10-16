@@ -42,3 +42,29 @@ connector returned no PR-triggered runs for that commit; that filtered response
 does not establish absence of scheduled/push runs. Dirty local source has not
 run through hosted CI. No deployment, paid API call or account change is made
 by this audit.
+
+## Implementation now under verification
+
+The iOS client in `ios/` implements native Discover/Create/Library, bounded local
+photo/GIF/video creation, caption variants, photo subject removal, favorites,
+atomic private storage, Android-compatible ZIP interchange, explicit catalog
+preview/save and the official WhatsApp pasteboard handoff. It is source pending
+Apple compilation/device acceptance, not full feature parity. Android 0.10.0
+adds Create navigation and a content-first pack screen with a compact export
+sheet. Its local build and 94 Android + 9 common tests pass; UI acceptance is
+being recorded against the exact signed artifact.
+
+All 33 root/documentation/core/iOS Markdown files are inventoried by
+`tools/audit_markdown_requirements.py`; hashes, requirement IDs and review cues
+are recorded in `work/requirements-audit/md-inventory.json`. Historical spec
+conflicts have dated warnings; the product spec now requires explicit saving.
+This inventory is not itself evidence that all listed features work.
+
+No local Mac exists, but live repository metadata confirms this repository is
+public. Standard GitHub macOS runners are free for public repositories according
+to [GitHub's runner documentation](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+[Draft PR #18](https://github.com/dvajjala-ui/stickerdock/pull/18) starts unsigned
+Apple device/simulator builds and native integration/navigation tests. Initial
+run: [Apple verification](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950).
+Do not infer a pass from its existence. Vercel auto-deployment is disabled for
+this branch using its documented `git.deploymentEnabled` setting.

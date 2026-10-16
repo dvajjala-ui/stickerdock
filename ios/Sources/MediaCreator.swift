@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import AVFoundation
 import ImageIO
+import CoreImage
 import Vision
 import SDWebImage
 import SDWebImageWebPCoder

@@ -1,6 +1,8 @@
 import Foundation
 import CryptoKit
 import StickerDockCore
+import SDWebImage
+import SDWebImageWebPCoder
 
 enum StickerError: LocalizedError {
     case invalid(String)
@@ -73,6 +75,8 @@ enum MediaRules {
             throw StickerError.invalid("Invalid 512px WebP sticker.")
         }
         try require(info.animated == (kind == .ANIMATED), "Keep static and animated stickers in separate packs.")
+        guard let image = SDImageWebPCoder.shared.decodedImage(with: data, options: [.decodeFirstFrameOnly: true, .decodeScaleDownLimitBytes: 4 * 1024 * 1024]), let cg = image.cgImage else { throw StickerError.invalid("The sticker image could not be decoded.") }
+        try require(cg.width == 512 && cg.height == 512, "Decoded sticker dimensions must be exactly 512px.")
     }
 
     static func read(_ url: URL, limit: Int) throws -> Data {

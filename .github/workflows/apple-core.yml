@@ -1,4 +1,4 @@
-name: Apple app and shared-core verification (manual)
+name: Apple app and shared-core verification
 on:
   workflow_dispatch:
   pull_request:
@@ -44,6 +44,13 @@ jobs:
       - name: Run native integration and navigation tests
         run: |
           xcodebuild -project ios/StickerDock.xcodeproj -scheme StickerDock -destination "platform=iOS Simulator,id=$STICKERDOCK_SIMULATOR_ID" -derivedDataPath work/apple-simulator -resultBundlePath work/apple-tests.xcresult test CODE_SIGNING_ALLOWED=NO
+      - name: Export simulator screenshots and test summary
+        if: always()
+        run: |
+          if test -d work/apple-tests.xcresult; then
+            xcrun xcresulttool export attachments --path work/apple-tests.xcresult --output-path work/apple-test-attachments
+            xcrun xcresulttool get test-results summary --path work/apple-tests.xcresult --format json > work/apple-test-summary.json
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -54,4 +61,6 @@ jobs:
             sticker-core/build/test-results/
             work/apple-device/Build/Products/Debug-iphoneos/StickerDock.app
             work/apple-tests.xcresult
+            work/apple-test-attachments/
+            work/apple-test-summary.json
             ios/StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
