@@ -51,8 +51,8 @@ xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'plat
 native integration tests, navigation UI test and xcresult/artifacts on macos-15.
 It runs manually or on relevant pull requests. Draft PR #18 has started its
 first run; results are not yet accepted. It makes no App Store deployment.
-SPM direct dependencies are pinned; record the resolved transitive versions from
-the first successful Mac run. Xcode/Swift/Kotlin compatibility errors must be
+SPM direct dependencies and the resolved transitive versions are pinned in
+`Package.resolved` from the first successful Mac run. Xcode/Swift/Kotlin compatibility errors must be
 fixed there before claiming source-build acceptance.
 
 The generated Xcode project and Info.plist are ignored; `project.yml` is the

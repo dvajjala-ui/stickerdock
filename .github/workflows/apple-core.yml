@@ -34,9 +34,11 @@ jobs:
           brew install xcodegen
           cd ios
           xcodegen generate
+          mkdir -p StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          cp Package.resolved StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
       - name: Resolve pinned packages and build unsigned iPhone app
         run: |
-          xcodebuild -resolvePackageDependencies -project ios/StickerDock.xcodeproj -scheme StickerDock
+          xcodebuild -resolvePackageDependencies -onlyUsePackageVersionsFromResolvedFile -project ios/StickerDock.xcodeproj -scheme StickerDock
           xcodebuild -project ios/StickerDock.xcodeproj -scheme StickerDock -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath work/apple-device build CODE_SIGNING_ALLOWED=NO
       - name: Select available iPhone simulator
         run: |
@@ -49,7 +51,7 @@ jobs:
         run: |
           if test -d work/apple-tests.xcresult; then
             xcrun xcresulttool export attachments --path work/apple-tests.xcresult --output-path work/apple-test-attachments
-            xcrun xcresulttool get test-results summary --path work/apple-tests.xcresult --format json > work/apple-test-summary.json
+            xcrun xcresulttool get test-results summary --path work/apple-tests.xcresult --compact > work/apple-test-summary.json
           fi
       - uses: actions/upload-artifact@v7
         if: always()
