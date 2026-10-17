@@ -18,6 +18,10 @@ AI preference:
 
 > Also prepare original AI image generation
 
+Continuation and credential preference:
+
+> jsut dont ask wuestion and keep working make the hcnages and at the end telll me what u have built for me the open ai key i dont ahve currently but if u can make it work some how free or if neccessey and the image mdoel is good i amm open to pay current we ahve 2 groq working keys
+
 ## Interpretation for implementation
 
 - Reconsider the product, navigation, architecture, content supply and quality gates.
