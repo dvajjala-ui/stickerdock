@@ -127,6 +127,7 @@ class GeneratorRecoveryTest(unittest.TestCase):
                     worker.run_production(config, Path(temporary) / "first", client, NOW)
                 self.assertEqual(request.call_count, 1)
             self.assertTrue(factory_preflight.due(client, target=3, budget=1, now=NOW + 1)[0])
+            self.assertNotIn("budget exhausted", client.rows[("factory_runs", DAY)]["last_result"])
             with patch.object(generator, "groq_ideas", side_effect=AssertionError("Must reuse saved output")):
                 result = worker.run_production(config, Path(temporary) / "fresh-runner", client, NOW + 1)
             self.assertEqual((result["status"], result["generated"]), ("complete", 3))

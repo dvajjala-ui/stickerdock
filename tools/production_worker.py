@@ -418,7 +418,8 @@ def persist_failure(client, config, now, error, generated=None):
     waiting = isinstance(error, ProviderResponseError) or isinstance(error, ProviderError) and (error.status == 429 or error.status >= 500)
     if isinstance(error, ProviderError):
         state["provider_error"] = {"http_status": error.status, "retry_at": error.retry_at}
-    exhausted = int(state.get("requests", 0)) >= int(config.get("max_requests_per_day", 16))
+    exhausted = (int(state.get("requests", 0)) >= int(config.get("max_requests_per_day", 16))
+                 and len(state.get("records", [])) < target and not state.get("pending"))
     waiting = waiting and not exhausted
     result = ("Daily provider request budget exhausted. Saved stickers are kept; generation resumes next UTC day."
               if exhausted else "Provider returned an invalid response. Progress saved; a bounded retry is scheduled."
