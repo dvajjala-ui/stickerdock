@@ -1,15 +1,24 @@
 # Daily Groq sticker generator
 
-The private StickerDock Factory generates a target of **40 stickers per UTC day**,
-in **eight batches of five**, at least **three hours apart**. It supplies Groq
-with recent public RSS titles or your reference titles/HTTPS links, asks for
-original short captions and mood/palette choices, then draws original reaction
-characters locally using Pillow. These are AI-written caption stickers with
-template artwork, not diffusion-generated images or downloaded web artwork.
-Groq does not supply a general image-generation API through this integration.
-The example rotates news, movie-inspired jokes and everyday Hinglish topics,
-alternating static illustrations and animated pulse stickers. Movie jokes use
-original captions; this does not download movie frames or copy dialogue.
+The private StickerDock Factory targets **40 stickers per UTC day**, in **eight
+successful batches of five**, at least **three hours apart**. Production requires
+licensed photos/clips and the configured vision model. Groq supplies reaction
+captions; local Pillow/FFmpeg processing makes the saved artwork. Missing real
+media does not silently substitute template illustrations. Local development
+examples can still render illustrations and animated pulse fixtures. Groq does
+not supply a general image-generation API through this integration.
+
+October 17 recovery: configured GPT-OSS/Qwen 3.8 models request a strict batch
+schema, with count/uniqueness/reference checks still enforced locally. See
+[Groq structured outputs](https://console.groq.com/docs/structured-outputs).
+Truncated, malformed and network-failed requests reserve their attempt and save
+a bounded retry within 15 minutes. Successful batches retain the three-hour
+interval; provider Retry-After and the daily request budget remain enforced.
+The scheduler checks every 15 minutes, but cheap preflight skips non-due work
+before installing render dependencies or downloading state. Completed artwork
+whose upload/migration failed resumes without asking the model again. Admin
+shows waiting/retry-due status; authentication failures and exhausted budgets
+remain failures. A simulated 40/day recovery test is not live capacity proof.
 
 Android remains fully usable without a Groq key. The key never enters the APK.
 The recommended production host is GitHub Actions with private secrets and

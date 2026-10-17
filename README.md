@@ -1,20 +1,35 @@
 # StickerDock — private sticker creator and library
 
+| Get StickerDock | Link |
+| --- | --- |
+| Latest signed Android APK | [Download StickerDock.apk](https://github.com/dvajjala-ui/stickerdock/releases/latest/download/StickerDock.apk) |
+| Release notes and evidence | [Latest Android release](https://github.com/dvajjala-ui/stickerdock/releases/latest) · [SHA-256 checksums](https://github.com/dvajjala-ui/stickerdock/releases/latest/download/SHA256SUMS.txt) · [Version/source manifest](https://github.com/dvajjala-ui/stickerdock/releases/latest/download/release.json) |
+| Admin website | [stickerdock.vercel.app/admin](https://stickerdock.vercel.app/admin) |
+| Creator Studio | [stickerdock.vercel.app/studio](https://stickerdock.vercel.app/studio) |
+
+These links stay current with successful releases. Android changes merged into
+`main` build and verify a signed APK/AAB, then run that exact APK on an Android 15
+emulator before advancing the download. Failed builds keep the previous release.
+The admin website follows the existing Vercel production deployment from `main`.
+See [installation, update and release verification](docs/ANDROID_RELEASES.md).
+
 Android and iPhone clients keep your sticker library independently from WhatsApp
 and Sticker.ly. Android uses Kotlin/Compose; the native SwiftUI iPhone client
 shares Kotlin Multiplatform media rules/containers. Both remain testing candidates;
 physical WhatsApp acceptance and store distribution are separate gates.
 
-October 16: signed Android **0.10.1** passes 97 Android + 12 common tests; backend
-review fixes pass 182 Python
-tests and emulator creation/save/restart/navigation checks. It adds a Create tab,
-keeps import tools secondary and shows sticker content before export utilities.
-The [iPhone implementation](ios/README.md) now builds unsigned for a real device
-and passes six native integration tests plus one simulator navigation test in
-[the first Apple CI run](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950).
-Additional motion/live-catalog tests and pinned dependencies run in CI; use the
-matching [PR checks](https://github.com/dvajjala-ui/stickerdock/pull/18/checks).
-The 0.10.1 archive path preserves private ratings and exact media across platforms;
+October 17: Android **0.10.2** adds bounded grid posters for animated stickers,
+detail playback that pauses in the background, streaming GIF/video compression,
+low-storage save protection and wrapping large-text pack actions. The Factory
+uses strict response schemas on its configured Groq models and persists bounded
+retries for invalid responses. Release checks include a synthetic 10,000-sticker
+library, scrolling/memory, 360dp/200% text, restart preservation and real MP4
+preview on the signed APK; source-bound results accompany each published release.
+Physical WhatsApp/Business acceptance remains a separate gate.
+The [iPhone implementation](ios/README.md) is merged and its latest
+[Apple build and simulator verification passes](https://github.com/dvajjala-ui/stickerdock/actions/runs/38914603325).
+It remains unsigned and requires Apple signing for installation.
+The archive path preserves private ratings and exact media across platforms;
 invalid manifest backups fail explicitly instead of falling back to image imports.
 It is **not an App Store/TestFlight release or complete Android feature parity**.
 See [the requirements audit](docs/REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),

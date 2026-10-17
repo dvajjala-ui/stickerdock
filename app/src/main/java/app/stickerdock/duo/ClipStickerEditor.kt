@@ -157,9 +157,10 @@ private fun AnimatedClipPreview(bytes: ByteArray) {
     val drawable by produceState<AnimatedImageDrawable?>(null, bytes) {
         value = withContext(Dispatchers.Default) { ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) as? AnimatedImageDrawable }
     }
-    DisposableEffect(drawable) { drawable?.start(); onDispose { drawable?.stop() } }
+    AnimateWhileResumed(drawable)
     Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
         AndroidView(factory = { ImageView(it).apply { scaleType = ImageView.ScaleType.FIT_CENTER; contentDescription = "Animated reaction preview" } },
+            onRelease = { it.setImageDrawable(null) },
             update = { it.setImageDrawable(drawable) }, modifier = Modifier.size(240.dp))
     }
 }

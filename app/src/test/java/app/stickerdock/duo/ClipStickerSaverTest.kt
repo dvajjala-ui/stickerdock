@@ -69,6 +69,22 @@ class ClipStickerSaverTest {
         assertEquals(listOf(existing.id), store.listPacks().map { it.id })
     }
 
+    @Test fun lowStoragePreservesEveryExistingStickerAndPack() {
+        val bytes = animation()
+        val saved = saver.save(bytes, "Keep this", null, "Existing")
+        val item = store.listStickers(saved.id).single()
+        val version = store.getPack(saved.id)!!.version
+        val full = StickerFiles(context, store, availableSpace = { 0L })
+        val failure = assertThrows(IllegalStateException::class.java) {
+            ClipStickerSaver(store, full).save(bytes, "Retry later", null, "New pack")
+        }
+        assertTrue(failure.message!!.contains("Not enough device storage"))
+        assertEquals(listOf(saved.id), store.listPacks().map { it.id })
+        assertEquals(version, store.getPack(saved.id)!!.version)
+        assertEquals(listOf(item), store.listStickers(saved.id))
+        assertArrayEquals(bytes, files.stickerFile(saved.id, item.fileName).readBytes())
+    }
+
     private fun animation(): ByteArray = WebpAnimation.encode(listOf(Color.RED, Color.BLUE).map { color ->
         val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
         try { ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, it) }.toByteArray() }

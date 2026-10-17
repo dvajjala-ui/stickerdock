@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +51,7 @@ private data class LibrarySnapshot(
 )
 
 class StickerDockPolishedActivity : ComponentActivity() {
+    private val libraryPreviewCache = StickerPreviewCache(32)
     private lateinit var store: StickerStore
     private lateinit var files: StickerFiles
     private lateinit var backup: StickerBackup
@@ -63,6 +65,16 @@ class StickerDockPolishedActivity : ComponentActivity() {
         setContent { StickerDockTheme { StickerDockApp() } }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) libraryPreviewCache.clear()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        libraryPreviewCache.clear()
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun StickerDockApp() {
@@ -74,7 +86,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var reportingPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
         var reportReason by remember { mutableStateOf("") }
         val snackbar = remember { SnackbarHostState() }
-        val previewCache = remember { StickerPreviewCache(64) }
+        val previewCache = remember { libraryPreviewCache }
         val artworkProjects = remember { ArtworkProjects(applicationContext, store, files) }
         val pausePhoneImport = remember { AtomicBoolean(false) }
 
@@ -510,7 +522,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     title = {
                         Column {
                             Text(if (pack == null) "StickerDock" else pack.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
+                            if (LocalDensity.current.fontScale < 1.3f) Text(
                                 if (pack == null) section.label else "${pack.category.label} • ${stickers.size} stickers",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

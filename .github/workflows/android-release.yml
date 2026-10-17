@@ -1,6 +1,17 @@
-name: Signed Android release candidate
+name: Signed Android release
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'sticker-core/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'tools/prepare_android_release.py'
+      - 'tools/emulator_library_acceptance.py'
+      - '.github/workflows/android-release.yml'
   workflow_dispatch:
 
 concurrency:
@@ -8,12 +19,12 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     environment: android-production
     env:
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -37,6 +48,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install verification dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          python -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt -r tools/requirements-checks.txt
+      - name: Verify backend and release helpers
+        run: |
+          python -m ruff check api tools --select F821,F822,F823
+          python -m unittest discover -s tools -p 'test_*.py' -v
+          node --check admin/app.js
       - name: Restore release signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -56,19 +80,63 @@ jobs:
           set -euo pipefail
           test -n "$CATALOG_BASE_URL"
           gradle --no-daemon -PcatalogBaseUrl="$CATALOG_BASE_URL" \
-            :app:testDebugUnitTest :app:assembleRelease :app:bundleRelease
+            :sticker-core:jvmTest :app:testDebugUnitTest :app:lintRelease :app:assembleRelease :app:bundleRelease
       - name: Verify signed APK/AAB
         run: |
           set -euo pipefail
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 app/build/outputs/apk/release/app-release.apk
           jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab | tee /tmp/aab-verify.log
           grep -q 'jar verified' /tmp/aab-verify.log
+      - name: Prepare versioned APK, bundle and checksums
+        id: package
+        run: python tools/prepare_android_release.py --apk app/build/outputs/apk/release/app-release.apk --bundle app/build/outputs/bundle/release/app-release.aab
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify exact signed APK on Android 15
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048
+          script: python tools/emulator_library_acceptance.py --apk work/release/StickerDock.apk --output work/android-acceptance
+      - name: Publish latest successful Android download
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.package.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="android-v$VERSION"
+          if gh release view "$TAG" --json targetCommitish > /tmp/existing-release.json 2>/dev/null; then
+            test "$(python -c 'import json; print(json.load(open("/tmp/existing-release.json"))["targetCommitish"])')" = "$GITHUB_SHA" || { echo 'Bump the Android version before publishing changed source'; exit 1; }
+            gh release upload "$TAG" work/release/StickerDock.apk work/release/StickerDock.aab work/release/SHA256SUMS.txt work/release/release.json work/android-acceptance/acceptance.json --clobber
+            gh release edit "$TAG" --latest
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "StickerDock Android $VERSION" --notes-file work/release/release-notes.md --latest work/release/StickerDock.apk work/release/StickerDock.aab work/release/SHA256SUMS.txt work/release/release.json work/android-acceptance/acceptance.json
+          fi
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$ANDROID_KEYSTORE_FILE"
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: stickerdock-release-candidate
           retention-days: 14
           if-no-files-found: error
           path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/bundle/release/app-release.aab
+            work/release/
+            work/android-acceptance/*.json
+            work/android-acceptance/*.png
+            work/android-acceptance/meminfo.txt
+            app/build/reports/tests/
+            app/build/test-results/
+            app/build/reports/lint-results-release.html
+            sticker-core/build/test-results/

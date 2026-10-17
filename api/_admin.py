@@ -86,7 +86,8 @@ def overview(client):
         result = {key: future.result() for key, future in pending.items()}
     for run in result["runs"]:
         recovery = run.get("groq_metrics", {}).get("recovery", {})
-        if recovery.get("http_status") == 429 and run["status"] == "running":
+        retryable = recovery.get("http_status") == 429 or recovery.get("http_status", 0) >= 500 or recovery.get("kind") in {"invalid_response", "network_error"}
+        if retryable and run["status"] == "running":
             retry_at = recovery.get("retry_at", 0)
             run["display_status"] = "waiting" if retry_at > time.time() else "retry_due"
             run["retry_at"] = retry_at
