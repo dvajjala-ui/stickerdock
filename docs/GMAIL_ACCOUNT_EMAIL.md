@@ -69,9 +69,10 @@ node tools/test_google_mail.cjs
 Source tests use fake addresses, tokens and Google services. They do not prove
 Google authorization, inbox delivery or live Supabase hook latency.
 
-October 17 preparation: 13 focused Python checks (email hook + existing owner
-session protection), the real Apps Script source with Google-service fakes,
-Python undefined-name checks and whitespace validation pass locally. Live
+October 17 preparation: all 198 Python/backend tests, the real Apps Script
+source with Google-service fakes, Python undefined-name checks and whitespace
+validation pass locally. The [hosted build](https://github.com/dvajjala-ui/stickerdock/actions/runs/39041025722)
+also passes, including the mail relay checks and existing Android checks. Live
 configuration is pending because Chrome automation stopped responding while
 opening the new project. No Gmail send permission was granted, secret configured,
 Supabase hook enabled or real email sent during this preparation.
