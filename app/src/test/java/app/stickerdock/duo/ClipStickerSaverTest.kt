@@ -75,9 +75,10 @@ class ClipStickerSaverTest {
         val item = store.listStickers(saved.id).single()
         val version = store.getPack(saved.id)!!.version
         val full = StickerFiles(context, store, availableSpace = { 0L })
-        assertThrows(java.io.IOException::class.java) {
+        val failure = assertThrows(IllegalStateException::class.java) {
             ClipStickerSaver(store, full).save(bytes, "Retry later", null, "New pack")
         }
+        assertTrue(failure.message!!.contains("Not enough device storage"))
         assertEquals(listOf(saved.id), store.listPacks().map { it.id })
         assertEquals(version, store.getPack(saved.id)!!.version)
         assertEquals(listOf(item), store.listStickers(saved.id))
