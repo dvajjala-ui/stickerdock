@@ -1,5 +1,28 @@
 # StickerDock verification checklist
 
+## 0.10.2 — published Android reliability release, October 17
+
+- [Signed release CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037711698)
+  passes 99 Android/12 shared/189 Python tests, release lint, signed APK/AAB and
+  ZIP alignment. [Published assets](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.10.2)
+  include source/version/checksum metadata and the exact-APK acceptance report.
+- SHA-256 `a0988bf2def68fdb3bea0a9b3a24eb156bb0a9b8e384db5a1f4c331abea567fa`
+  matches the downloaded APK, release manifest, GitHub asset digest and report.
+- AOSP Android 15: 334 packs/10,000 synthetic stickers; scrolling PSS
+  32,581→47,958 KB; animated poster/detail behavior; 360dp/200% text; Android
+  tablet two-pane layout; filter/WhatsApp target controls; memory trim and
+  restart data preservation; actual MP4 streaming preview with no saved rows.
+- Low-storage rollback is covered through the save API in native unit tests;
+  the emulator disk was not filled. Preview interaction time includes automation
+  and screenshots, not just encoding. These are synthetic fixture bounds.
+- Local Admin browser flow tests and live 390px/1280px page checks pass, with
+  normal session status, protected API rejection and a stable APK redirect.
+- [Live Factory main run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037827620)
+  produces 5/40 stickers after schema/recovery fixes. Fresh-runner synthetic
+  40/day and interrupted-upload recovery pass; live full-day capacity remains open.
+- Physical WhatsApp/Business, huge personal-phone imports, iPhone parity/signing
+  and advanced AI/automatic-cutout/project-backup requirements remain separate.
+
 ## 0.10.1 — current Android artifact and archive acceptance
 
 - 97 Android + 12 shared tests and 178 Python/no skips pass. Release lint has

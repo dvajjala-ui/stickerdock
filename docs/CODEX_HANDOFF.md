@@ -1,4 +1,41 @@
-# StickerDock development handoff — updated October 16, 2026
+# StickerDock development handoff — updated October 17, 2026
+
+## Latest — Android 0.10.2 published, release delivery and Factory recovery
+
+Main source `fb7dea9` is published as
+[Android 0.10.2/build 14](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.10.2).
+The [signed release run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037711698)
+passes 99 Android + 12 shared tests, 189 Python tests, release lint, APK/AAB
+signature/ZIP checks and exact signed-APK emulator acceptance. APK SHA-256:
+`a0988bf2def68fdb3bea0a9b3a24eb156bb0a9b8e384db5a1f4c331abea567fa`.
+The release manifest and acceptance report bind that hash to source and run.
+
+The 334-pack/10,000-sticker synthetic fixture passes scrolling, cached animated
+posters/detail playback, 360dp/200% text, tablet two-pane layout, filter/target
+sheets, memory trim/restart preservation and real MP4 preview without saving.
+PSS is 32,581 KB before scrolling and 47,958 KB afterward. Preview interaction
+takes 36.2 seconds including picker/UI assertions/screenshots; it is not an
+isolated encoder benchmark. No physical phone/WhatsApp acceptance is inferred.
+Early failed fixture/setup and dismissal-timing runs are not counted as passes.
+
+Factory strict schemas and persisted bounded output/network retries retain daily
+budgets and provider cooldowns. Cheap 15-minute preflight checks leave successful
+batches three hours apart and resume failed completed-output uploads/migration
+without asking AI again. [The live main run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037827620)
+generated and persisted 5/40 stickers for October 17. A complete normal-cooldown
+40/40 day and broader content acceptance remain pending; do not force generation.
+
+README and Admin expose stable latest APK/release/checksum links. Relevant main
+Android pushes run the signed publication workflow; changed releases require a
+new Android version. Existing production signing secrets are reused. Vercel
+serves the updated admin with a working public download redirect; normal
+unsigned session status and protected API 401 behavior are verified. Local
+browser fixtures and live 390px/1280px page checks pass. Owner mutations were not
+repeated in production. See ANDROID_RELEASES.md for distribution and limits.
+
+PR #20 was merged while verification was running; the compact Library and final
+test-driver fixes were subsequently integrated into main before this release.
+The older sections below are historical, including their draft/deployment claims.
 
 ## Latest — signed Android 0.10.1 and iPhone client verification
 

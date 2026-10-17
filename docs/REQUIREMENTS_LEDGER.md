@@ -29,8 +29,8 @@ Latest direction: [Product recovery plan, October 15](PRODUCT_RECOVERY_PLAN_2026
 
 | ID | Requirement | Status | Implementation and remaining work |
 | --- | --- | --- | --- |
-| R34 | Prioritize Android reliability, daily generation recovery, populated-library memory/scrolling, conversion, low-storage failures and large-text layouts; deliver the signed APK and working admin website | Active | Audit and repair current source, run source-bound checks, preserve the existing signing identity and user libraries. Physical WhatsApp/Business acceptance requires a connected authorized phone and must be reported separately. |
-| R35 | Keep README APK and admin links current with every successful release | Active | User confirmed release-driven updates. Provide a stable latest-successful signed APK URL, version/checksum evidence and admin URL; publish updates only after release checks pass. |
+| R34 | Prioritize Android reliability, daily generation recovery, populated-library memory/scrolling, conversion, low-storage failures and large-text layouts; deliver the signed APK and working admin website | Partial | Android 0.10.2/build14 published; 99 Android/12 shared/189 Python tests, lint/signatures and exact-APK 10k-library/large-text/tablet/MP4 emulator checks pass in run39037711698. Admin deployed and live Factory resumes at5/40. Physical WhatsApp/Business and a normal full40/day remain acceptance gates. |
+| R35 | Keep README APK and admin links current with every successful release | Complete | Stable latest APK, release manifest/checksums and Admin links are live in README/site. Main Android changes run verified signed publication; failed runs leave the previous release. Existing Vercel production Git integration updates the admin. User confirmed release-driven updates, not chat maintenance reminders. |
 
 ## History
 

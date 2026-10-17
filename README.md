@@ -26,6 +26,11 @@ retries for invalid responses. Release checks include a synthetic 10,000-sticker
 library, scrolling/memory, 360dp/200% text, restart preservation and real MP4
 preview on the signed APK; source-bound results accompany each published release.
 Physical WhatsApp/Business acceptance remains a separate gate.
+Published verification: **99 Android + 12 shared tests, 189 backend tests,
+release lint and exact signed-APK emulator acceptance pass** in
+[the 0.10.2 release run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037711698).
+The live Factory also [generated and persisted 5 stickers](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037827620)
+after the response fix; a complete normal-cooldown 40/40 day remains unverified.
 The [iPhone implementation](ios/README.md) is merged and its latest
 [Apple build and simulator verification passes](https://github.com/dvajjala-ui/stickerdock/actions/runs/38914603325).
 It remains unsigned and requires Apple signing for installation.
