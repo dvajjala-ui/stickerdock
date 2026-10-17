@@ -44,8 +44,8 @@ the APK, page JavaScript, URLs, screenshots or chat.
    enabling the Supabase hook. HTTP hooks must finish within five seconds;
    Apps Script cold starts can exceed this. Do not enable a slow/unverified
    relay for real account recovery. Use SMTP or a durable delivery service if
-   repeat tests cannot fit that budget. The adapter allows at most three
-   seconds for each network exchange and four seconds for a multi-email flow.
+   repeat tests cannot fit that budget. The adapter uses the remaining portion
+   of a four-second network budget, including multi-email flows.
 6. Enable only after the timing check, then request a real confirmation or
    recovery email for the intended owner. Verify inbox delivery and the
    `/account` redirect. The account holder enters/submits their new password.

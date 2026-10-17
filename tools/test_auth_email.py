@@ -97,6 +97,21 @@ class AuthEmailTest(unittest.TestCase):
                 mail.deliver(event(), 'msg_test')
             outbound.assert_not_called()
 
+    def test_secure_email_change_sends_one_signed_batch(self):
+        value = event('email_change')
+        value['user']['new_email'] = 'new@example.com'
+        value['email_data'].update(token_hash_new='b' * 56, token_new='654321')
+        env = {'GOOGLE_MAIL_RELAY_URL': 'https://script.google.com/macros/s/test/exec', 'GOOGLE_MAIL_RELAY_SECRET': RELAY_SECRET}
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        with patch.dict('os.environ', env), patch('urllib.request.urlopen', return_value=response) as send:
+            mail.deliver(value, 'msg_test')
+        send.assert_called_once()
+        envelope = json.loads(send.call_args.args[0].data)
+        batch = json.loads(base64.b64decode(envelope['payload']))
+        self.assertEqual([message['to'] for message in batch], ['new@example.com', 'owner@example.com'])
+        self.assertLessEqual(send.call_args.kwargs['timeout'], 4)
+
     def test_handler_rejects_unsigned_before_delivery_and_redacts_failures(self):
         body = json.dumps(event()).encode()
         instance = handler.__new__(handler)

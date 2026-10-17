@@ -7,7 +7,7 @@ const source = fs.readFileSync('integrations/google-mail/Code.gs', 'utf8');
 const secret = 'unit-test-mail-secret-with-32-characters';
 const saved = {RELAY_SECRET: secret};
 const sent = [];
-let available = 100, busy = false, locked = false;
+let available = 100, busy = false, locked = false, failRecipient = '';
 const properties = {
   getProperty: key => saved[key] || null,
   getProperties: () => ({...saved}),
@@ -17,7 +17,10 @@ const properties = {
 const context = vm.createContext({console, Date, JSON, Number, Object, Error,
   PropertiesService: {getScriptProperties: () => properties},
   LockService: {getScriptLock: () => ({tryLock: () => {locked = !busy; return locked;}, hasLock: () => locked, releaseLock: () => {locked = false;}})},
-  MailApp: {getRemainingDailyQuota: () => available, sendEmail: message => sent.push(message)},
+  MailApp: {getRemainingDailyQuota: () => available, sendEmail: message => {
+    if (message.to === failRecipient) throw Error('simulated send failure');
+    sent.push(message);
+  }},
   Utilities: {
     Charset: {UTF_8: 'UTF-8'},
     base64Encode: value => Buffer.from(value).toString('base64'),
@@ -31,7 +34,7 @@ vm.runInContext(source, context);
 const message = {to: 'owner@example.com', action: 'recovery', link: 'https://qqicsllktmcmvmzplsxl.supabase.co/auth/v1/verify?token=abc&type=recovery', code: '123456'};
 function request(changes = {}, id = 'a'.repeat(64), age = 0) {
   const timestamp = Math.floor(Date.now()/1000) + age;
-  const payload = Buffer.from(JSON.stringify({...message, ...changes})).toString('base64');
+  const payload = Buffer.from(JSON.stringify(Array.isArray(changes) ? changes : {...message, ...changes})).toString('base64');
   const signature = crypto.createHmac('sha256', secret).update(`${timestamp}.${id}.${payload}`).digest('base64');
   return {postData: {contents: JSON.stringify({timestamp, id, payload, signature})}};
 }
@@ -56,6 +59,17 @@ saved.DAILY_BUDGET = JSON.stringify({day: new Date().toISOString().slice(0,10), 
 assert.equal(context.doPost(request({}, 'f'.repeat(64))).ok, false);
 assert.equal(sent.length, 1);
 assert.equal(locked, false);
+saved.DAILY_BUDGET = JSON.stringify({day: new Date().toISOString().slice(0,10), count: 1});
+const batch = [message, {...message, to: 'new@example.com'}];
+failRecipient = 'new@example.com';
+assert.equal(context.doPost(request(batch, '1'.repeat(64))).ok, false);
+assert.equal(sent.length, 2); // First recipient committed despite second failure.
+failRecipient = '';
+assert.equal(context.doPost(request(batch, '1'.repeat(64))).ok, true);
+assert.equal(sent.length, 3); // Retry sends only the unfinished recipient.
+assert.equal(context.doPost(request(batch, '1'.repeat(64))).duplicate, true);
+assert.equal(context.doPost(request([message, {...message, to: 'invalid'}], '2'.repeat(64))).ok, false);
+assert.equal(sent.length, 3); // Entire batch validated before the first send.
 assert.ok(!JSON.stringify(saved).includes('owner@example.com'));
 assert.ok(!JSON.stringify(saved).includes('token=abc'));
 console.log('Google MailApp relay: signature, replay, quota, recipient/link validation and lock tests passed.');

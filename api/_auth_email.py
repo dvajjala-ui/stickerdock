@@ -80,7 +80,9 @@ def relay_envelope(message, identifier, secret, now=None):
     if len(secret) < 32:
         raise RuntimeError("Mail relay not configured")
     payload = base64.b64encode(json.dumps(message, separators=(",", ":"), ensure_ascii=False).encode()).decode()
-    request_id = hashlib.sha256((identifier + ":" + message["to"] + ":" + message["action"]).encode()).hexdigest()
+    batch = message if isinstance(message, list) else [message]
+    destinations = ":".join(item["to"] + ":" + item["action"] for item in batch)
+    request_id = hashlib.sha256((identifier + ":" + destinations).encode()).hexdigest()
     stamp = int(time.time() if now is None else now)
     signed = f"{stamp}.{request_id}.{payload}".encode()
     return {"timestamp": stamp, "id": request_id, "payload": payload,
@@ -93,15 +95,16 @@ def deliver(event, identifier):
     if not re.fullmatch(r"https://script\.google\.com/macros/s/[A-Za-z0-9_-]+/exec", url):
         raise RuntimeError("Mail relay not configured")
     deadline = time.monotonic() + 4  # Supabase HTTP hooks have a five-second budget.
-    for message in messages(event):
-        envelope = relay_envelope(message, identifier, secret)
-        request = urllib.request.Request(url, data=json.dumps(envelope).encode(),
-            headers={"Content-Type": "application/json"}, method="POST")
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise RuntimeError("Mail relay timed out")
-        with urllib.request.urlopen(request, timeout=min(3, remaining)) as response:
-            # Google redirects ContentService responses to script.googleusercontent.
-            result = json.loads(response.read(4096))
-        if not isinstance(result, dict) or result.get("ok") is not True:
-            raise RuntimeError("Mail relay failed")
+    # Secure email changes have two recipients. Use one Google invocation so
+    # neither delivery pays a second web-app startup/redirect penalty.
+    envelope = relay_envelope(messages(event), identifier, secret)
+    request = urllib.request.Request(url, data=json.dumps(envelope).encode(),
+        headers={"Content-Type": "application/json"}, method="POST")
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise RuntimeError("Mail relay timed out")
+    with urllib.request.urlopen(request, timeout=remaining) as response:
+        # Google redirects ContentService responses to script.googleusercontent.
+        result = json.loads(response.read(4096))
+    if not isinstance(result, dict) or result.get("ok") is not True:
+        raise RuntimeError("Mail relay failed")
