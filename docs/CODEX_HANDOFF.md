@@ -1,5 +1,18 @@
 # StickerDock development handoff — updated October 17, 2026
 
+## Latest — Gmail account email setup prepared
+
+The user now requests Gmail/Apps Script setup for `dvajjala@gmail.com`, superseding
+the older SMTP deferral below. Chrome confirms that Google account is signed in.
+`integrations/google-mail/Code.gs` and the explicit send-only manifest are paired
+with `/api/auth_email`, a signed Supabase hook adapter. No email password is
+needed. Setup and limitations are in GMAIL_ACCOUNT_EMAIL.md. Secrets, Google's
+OAuth grant, deployment and end-to-end timing/delivery still require completion;
+do not mark email delivery operational from source tests. Supabase HTTP hooks
+have five seconds, so verify cold-start behavior before enabling this hook.
+The existing owner allowlist/form spelling `dvjjala@gmail.com` is a separate
+identity and has not been changed to the Gmail sender without confirmation.
+
 ## Latest — Android 0.10.2 published, release delivery and Factory recovery
 
 Main source `fb7dea9` is published as

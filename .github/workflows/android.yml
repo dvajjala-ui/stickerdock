@@ -7,6 +7,7 @@ on:
       - 'app/**'
       - 'sticker-core/**'
       - 'api/**'
+      - 'integrations/google-mail/**'
       - 'admin/**'
       - 'supabase/**'
       - 'vercel.json'
@@ -25,6 +26,7 @@ on:
       - 'app/**'
       - 'sticker-core/**'
       - 'api/**'
+      - 'integrations/google-mail/**'
       - 'admin/**'
       - 'supabase/**'
       - 'vercel.json'
@@ -73,6 +75,7 @@ jobs:
           python3 -m ruff check api tools --select F821,F822,F823
           python3 -m unittest discover -s tools -p 'test_*.py' -v
           node --check admin/app.js
+          node tools/test_google_mail.cjs
       - name: Test, lint, and build APK plus release bundle
         run: |
           gradle --no-daemon \
