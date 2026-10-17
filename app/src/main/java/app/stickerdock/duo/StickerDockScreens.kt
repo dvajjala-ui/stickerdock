@@ -106,9 +106,11 @@ fun LibraryScreen(
                     }
                 }
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = !busy, onClick = onPhotos, modifier = Modifier.fillMaxWidth()) { Text("Make stickers from photos") }
-                        OutlinedButton(enabled = !busy, onClick = onClip, modifier = Modifier.fillMaxWidth()) { Text("Make an animated reaction") }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(enabled = !busy, onClick = onPhotos,
+                            modifier = Modifier.weight(1f).semantics { contentDescription = "Make stickers from photos" }) { Text("Photos") }
+                        OutlinedButton(enabled = !busy, onClick = onClip,
+                            modifier = Modifier.weight(1f).semantics { contentDescription = "Make an animated reaction" }) { Text("Video/GIF") }
                     }
                 }
             }
