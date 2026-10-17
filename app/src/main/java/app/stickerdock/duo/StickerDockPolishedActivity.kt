@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -521,7 +522,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     title = {
                         Column {
                             Text(if (pack == null) "StickerDock" else pack.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
+                            if (LocalDensity.current.fontScale < 1.3f) Text(
                                 if (pack == null) section.label else "${pack.category.label} • ${stickers.size} stickers",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

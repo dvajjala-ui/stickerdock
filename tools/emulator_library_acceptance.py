@@ -140,6 +140,12 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.wait_text("Filter your library")
         self.scroll_to_text("Show results"); self.tap("Show results")
         self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
+        self.adb("shell", "wm", "size", "1600x1200")
+        self.adb("shell", "wm", "density", "160")
+        self.launch(restart=True); self.wait_text("QA animated 000")
+        self.tap("QA animated 000"); self.wait_text("Use in WhatsApp")
+        self.screenshot("07-android-tablet")
+        self.adb("shell", "wm", "size", "1080x1920")
         self.adb("shell", "wm", "density", "420")
         # RUNNING_LOW can be injected while foreground. COMPLETE requires the
         # process to reach a cached state; Home delivery alone does not prove
@@ -152,7 +158,9 @@ class LibraryAcceptance(ClipCreatorSmoke):
         subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=10", "-t", "2.5", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(clip)], check=True, capture_output=True)
         self.adb("push", str(clip), "/sdcard/Download/qa-motion.mp4")
         self.open_clip("qa-motion.mp4", from_create=True)
-        self.preview("Streaming preview QA", "07-streamed-clip")
+        preview_started = time.monotonic()
+        self.preview("Streaming preview QA", "08-streamed-clip")
+        preview_seconds = time.monotonic() - preview_started
         self.tap("Cancel"); self.wait_text("Close creation"); self.tap("Close creation")
         self.launch(restart=True); self.wait_text("334 packs")
         self.adb("shell", "am", "force-stop", PACKAGE)
@@ -165,7 +173,8 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving"],
+                  "preview_interaction_seconds": round(preview_seconds, 2),
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving"],
                   "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)
