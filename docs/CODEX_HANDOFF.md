@@ -24,6 +24,14 @@ checks pass: https://github.com/dvajjala-ui/stickerdock/actions/runs/39049622843
 Temporary local connection-secret file has been removed; production secrets
 remain only in the approved Google/Vercel/Supabase stores.
 
+Recovery follow-up: a read-only query of `auth.users` for both owner-email
+spellings returned zero rows. No owner account exists yet, explaining why the
+generic accepted recovery response produces no reset email. Do not mistake that
+response for proof of mail delivery or create a password through automation.
+The owner-creation form is ready with the correct email; the account holder must
+enter/submit their password, then confirm the actual signup email. The recovery
+page now explains first-time account creation without revealing account existence.
+
 ## Latest — Android 0.10.2 published, release delivery and Factory recovery
 
 Main source `fb7dea9` is published as
