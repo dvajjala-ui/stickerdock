@@ -333,26 +333,30 @@ def render(idea, font_path, image_path=None, animated=False):
 
 
 def export_zip(path, records, day):
-    """Native schema-4 archive grouped by media kind, audience and category."""
+    """Native schema-5 packs retain searchable captions and reaction metadata."""
     packs, assets = [], {}
     groups = {}
     for record in records:
         groups.setdefault((record.get("kind", "STATIC"), record.get("rating", "GENERAL"),
-                           record.get("category", "GENERAL")), []).append(record)
+                           record.get("category", "GENERAL"), record.get("pack_title", "")), []).append(record)
     chunks = []
-    for (kind, rating, category), group in groups.items():
+    for (kind, rating, category, title), group in groups.items():
         chunk_size = math.ceil(len(group) / math.ceil(len(group) / 30))
-        chunks.extend((kind, rating, category, group[i:i + chunk_size])
+        chunks.extend((kind, rating, category, title, group[i:i + chunk_size])
                       for i in range(0, len(group), chunk_size))
-    for index, (kind, rating, category, chunk) in enumerate(chunks):
+    for index, (kind, rating, category, title, chunk) in enumerate(chunks):
         pack_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"stickerdock:{day}:{path.stem}:{index}"))
         label = category.replace("_", " ").title()
-        pack = {"id": pack_id, "name": f"Daily {day} · {label}"[:60],
+        pack = {"id": pack_id, "name": (title or f"Daily {day} · {label}")[:60],
                 "kind": kind, "rating": rating, "category": category, "stickers": []}
         for record in chunk:
             data = Path(record["file"]).read_bytes()
             filename = record["id"] + ".webp"
-            pack["stickers"].append({"name": filename, "sha256": hashlib.sha256(data).hexdigest()})
+            caption = " ".join(str(record.get("caption", "")).split())[:80]
+            tags = ", ".join(dict.fromkeys(str(value).lower() for value in
+                             (record.get("mood", ""), category.lower(), "animated" if kind == "ANIMATED" else "") if value))[:200]
+            pack["stickers"].append({"name": filename, "sha256": hashlib.sha256(data).hexdigest(),
+                                     "label": caption, "tags": tags})
             assets[f"packs/{pack_id}/{filename}"] = data
         packs.append(pack)
     temporary = path.with_suffix(".tmp")
@@ -361,7 +365,7 @@ def export_zip(path, records, day):
             entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             entry.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(entry, content)
-        write("manifest.json", json.dumps({"schema": 4, "packs": packs}))
+        write("manifest.json", json.dumps({"schema": 5, "packs": packs}))
         for name, data in assets.items():
             write(name, data)
     temporary.replace(path)

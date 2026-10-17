@@ -36,18 +36,20 @@ class DailyStickersTest(unittest.TestCase):
                 self.assertFalse(getattr(image, "is_animated", False))
                 path = root / f"{i}.webp"
                 path.write_bytes(data)
-                records.append({"file": str(path), "id": str(generator.uuid.uuid4())})
+                records.append({"file": str(path), "id": str(generator.uuid.uuid4()), **idea})
             archive_path = root / "complete.zip"
             generator.export_zip(archive_path, records, "2026-10-12")
             with zipfile.ZipFile(archive_path) as archive:
                 manifest = json.loads(archive.read("manifest.json"))
-                self.assertEqual(manifest["schema"], 4)
+                self.assertEqual(manifest["schema"], 5)
                 self.assertEqual([len(p["stickers"]) for p in manifest["packs"]], [20, 20])
                 self.assertEqual(len(archive.namelist()), 41)
                 for pack in manifest["packs"]:
                     self.assertEqual(pack["kind"], "STATIC")
                     self.assertEqual(pack["category"], "GENERAL")
                     for sticker in pack["stickers"]:
+                        self.assertTrue(sticker["label"].startswith("Reaction number"))
+                        self.assertIn("general", sticker["tags"])
                         path = f"packs/{pack['id']}/{sticker['name']}"
                         data = archive.read(path)
                         self.assertEqual(hashlib.sha256(data).hexdigest(), sticker["sha256"])
