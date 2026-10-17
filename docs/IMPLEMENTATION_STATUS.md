@@ -1,5 +1,14 @@
 # StickerDock implementation status
 
+> Historical October 15 baseline. For current source, exact accepted Android
+> artifacts and unfinished platform/provider work, use
+> [the October 16 acceptance audit](REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
+> [recovery progress](RECOVERY_PROGRESS.md) and [the ledger](REQUIREMENTS_LEDGER.md).
+> In particular: discovery no longer auto-imports, Android uses SQLite v8,
+> real-media creation has advanced, release signing exists, and iPhone source
+> is being built/tested through draft PR #18. Older deployment/credential claims
+> below are dated evidence, not current read-back.
+
 Updated October 15, 2026. “Complete” means implemented and covered by automated
 tests/builds; live-provider items are called out separately. It does not replace
 real-device acceptance or store-release testing.

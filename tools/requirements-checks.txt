@@ -1,0 +1,2 @@
+# Development/CI only; catch broken routes with undefined Python names.
+ruff==0.17.1

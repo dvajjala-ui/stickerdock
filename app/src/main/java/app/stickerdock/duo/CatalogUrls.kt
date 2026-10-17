@@ -21,9 +21,18 @@ internal object CatalogUrls {
     fun isAllowed(base: String, url: String): Boolean {
         val normalized = normalizeBase(base)
         if (url == normalized + "packs.json") return true
+        val previews = normalized + "previews/"
+        if (url.startsWith(previews)) {
+            return Regex("[0-9a-f]{64}\\.webp").matches(url.removePrefix(previews))
+        }
         val prefix = normalized + "packs/"
         return url.startsWith(prefix) && try {
             pack(normalized, url.removePrefix(prefix)) == url
         } catch (_: IllegalArgumentException) { false }
+    }
+
+    fun preview(base: String, file: String): String {
+        require(Regex("[0-9a-f]{64}\\.webp").matches(file)) { "Invalid preview filename" }
+        return normalizeBase(base) + "previews/" + file
     }
 }

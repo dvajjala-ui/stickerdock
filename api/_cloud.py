@@ -20,6 +20,25 @@ CATEGORIES = {"ALL", "GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIM
 HASH = re.compile(r"^[0-9a-f]{64}$")
 
 
+class CloudConflict(StudioError):
+    """An account revision changed; local copies must be preserved."""
+
+
+def manifest_fingerprint(manifest):
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def sharing_status(client, submission, admin_rows=None):
+    if not submission:
+        return "private"
+    status = submission["status"]
+    if status == "draft" and submission.get("admin_pack_id"):
+        admin = admin_rows.get(submission["admin_pack_id"]) if admin_rows is not None else client.find("admin_packs", "id", submission["admin_pack_id"])
+        if admin and admin["status"] in {"published", "reviewed", "rejected", "archived"}:
+            return "rejected" if admin["status"] == "archived" else admin["status"]
+    return status
+
+
 def identity(value):
     try:
         return str(uuid.UUID(str(value)))
@@ -162,6 +181,14 @@ def dispatch(payload, owner, client=None):
     if not budget or not budget[0].get("allowed"):
         raise StudioError("Cloud hourly limit reached. Local stickers are unaffected; retry later.")
     action = payload.get("action")
+    if action == "inventory":
+        offset = max(0, min(1000, int(payload.get("offset", 0))))
+        packs = rows(client, "cloud_packs", f"owner_id=eq.{owner}&select=id,name,revision,fingerprint&order=id.asc&limit=100&offset={offset}")
+        return {"packs": packs, "next_offset": offset + 100 if len(packs) == 100 else None}
+    if action == "sharing_status":
+        pack_id = identity(payload.get("id"))
+        submissions = rows(client, "community_submissions", f"owner_id=eq.{owner}&pack_id=eq.{pack_id}&limit=1")
+        return {"status": sharing_status(client, submissions[0] if submissions else None)}
     if action == "list":
         offset = max(0, min(1000, int(payload.get("offset", 0))))
         packs = rows(client, "cloud_packs", f"owner_id=eq.{owner}&order=updated_at.desc,id.asc&limit=50&offset={offset}")
@@ -196,20 +223,23 @@ def dispatch(payload, owner, client=None):
             raise StudioError("Sticker is not in your pack")
         data = client.download(PRIVATE_BUCKET, asset_path(owner, digest))
         return {"data": base64.b64encode(data).decode(), "sha256": digest}
-    if action == "commit":
+    if action in {"commit", "sync_plan"}:
         manifest = validate_manifest(payload.get("manifest"))
-        fingerprint = hashlib.sha256(json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        fingerprint = manifest_fingerprint(manifest)
         query = f"owner_id=eq.{owner}&id=eq.{manifest['id']}&limit=1"
         existing = rows(client, "cloud_packs", query)
         if existing and existing[0]["fingerprint"] == fingerprint:
-            return {"pack": existing[0]}
+            return {"pack": existing[0], **({"state": "current"} if action == "sync_plan" else {})}
         if existing and int(payload.get("revision", 0)) != existing[0]["revision"]:
-            raise StudioError("This pack changed on another device. Restore it before syncing your edits.")
+            raise CloudConflict("This pack changed on another device. Restore cloud packs before syncing your edits.")
         if not existing and len(rows(client, "cloud_packs", f"owner_id=eq.{owner}&select=id&limit=1000")) >= 1000:
             raise StudioError("Cloud library holds up to 1,000 packs")
         hashes = ",".join(s["sha256"] for s in manifest["stickers"])
         assets = rows(client, "cloud_assets", f"owner_id=eq.{owner}&ready=eq.true&select=sha256&sha256=in.({hashes})&limit=30") if hashes else []
         available = {a["sha256"] for a in assets}
+        if action == "sync_plan":
+            return {"state": "upload", "revision": existing[0]["revision"] if existing else 0,
+                    "missing_hashes": [s["sha256"] for s in manifest["stickers"] if s["sha256"] not in available]}
         if any(s["sha256"] not in available for s in manifest["stickers"]):
             raise StudioError("Upload the pack's images before saving metadata")
         revision = existing[0]["revision"] + 1 if existing else 1
@@ -221,7 +251,7 @@ def dispatch(payload, owner, client=None):
                 "&revision=eq." + str(existing[0]["revision"]), data=json.dumps(row).encode(),
                 headers={"Content-Type": "application/json", "Prefer": "return=representation"}) or b"[]")
             if not changed:
-                raise StudioError("Pack changed during sync. Retry after restoring.")
+                raise CloudConflict("Pack changed during sync. Restore cloud packs before retrying.")
         else:
             client._request("POST", "/rest/v1/cloud_packs", data=json.dumps(row).encode(),
                             headers={"Content-Type": "application/json"})
@@ -231,6 +261,8 @@ def dispatch(payload, owner, client=None):
         if action == "delete" and not rows(client, "cloud_packs", f"owner_id=eq.{owner}&id=eq.{identity(payload.get('id'))}&limit=1"):
             return {"status": "deleted"}  # Retry after a lost response is safe.
         pack = owned(client, owner, payload.get("id"))
+        if action == "delete" and "revision" in payload and int(payload["revision"]) != pack["revision"]:
+            raise CloudConflict("This pack changed on another device. Restore it before removing its cloud copy.")
         submissions = rows(client, "community_submissions", f"owner_id=eq.{owner}&pack_id=eq.{pack['id']}&limit=1")
         previous = submissions[0] if submissions else None
         if action == "share":
@@ -238,7 +270,9 @@ def dispatch(payload, owner, client=None):
                 raise StudioError("Confirm you are 18+ and own redistribution rights for every image")
             if not 3 <= len(pack["manifest"]["stickers"]) <= 30:
                 raise StudioError("Public packs need 3–30 stickers")
-            if previous and previous["status"] not in {"withdrawn", "rejected"}:
+            if payload.get("fingerprint") is not None and payload["fingerprint"] != pack["fingerprint"]:
+                raise CloudConflict("Pack changed before submission. Sync or restore it before sharing.")
+            if previous and sharing_status(client, previous) not in {"withdrawn", "rejected"}:
                 return {"status": previous["status"]}
             row = {"owner_id": owner, "pack_id": pack["id"], "name": pack["name"],
                 "manifest": pack["manifest"], "fingerprint": pack["fingerprint"], "status": "pending",
@@ -259,7 +293,11 @@ def dispatch(payload, owner, client=None):
                         publish_pack(client, {"id": admin["id"], "version": admin["version"]}, unpublish=True)
                 client.update("community_submissions", {"status": "withdrawn", "updated_at": now()}, "id", previous["id"])
         if action == "delete":
-            client._request("DELETE", "/rest/v1/cloud_packs?" + f"owner_id=eq.{owner}&id=eq.{pack['id']}")
+            deleted = json.loads(client._request("DELETE", "/rest/v1/cloud_packs?" +
+                f"owner_id=eq.{owner}&id=eq.{pack['id']}&revision=eq.{pack['revision']}",
+                headers={"Prefer": "return=representation"}) or b"[]")
+            if not deleted and rows(client, "cloud_packs", f"owner_id=eq.{owner}&id=eq.{pack['id']}&limit=1"):
+                raise CloudConflict("Pack changed during deletion. Restore cloud packs before retrying.")
         return {"status": "withdrawn" if action == "withdraw" else "deleted"}
     if action == "report":
         catalog_id = safe_text(payload.get("catalog_id"), "catalog pack", 100, required=True)

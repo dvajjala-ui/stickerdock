@@ -146,7 +146,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
             for (i in 0 until packs.length()) {
                 val pack = packs.getJSONObject(i)
                 val id = pack.getString("id")
-                require(BackupArchivePaths.isId(id) && seenPackIds.add(id)) { "Invalid or duplicate pack id" }
+                require(BackupArchivePaths.isId(id) && seenPackIds.add(id.lowercase())) { "Invalid or duplicate pack id" }
                 val name = pack.getString("name")
                 val kind = if (schema >= 2) StickerKind.valueOf(pack.getString("kind")) else StickerKind.STATIC
                 val rating = if (schema >= 3) PackRating.valueOf(pack.getString("rating")) else PackRating.GENERAL

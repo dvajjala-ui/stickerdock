@@ -141,7 +141,18 @@ def validate_ideas(raw, count, excluded, source_count):
 def reference_image(path):
     from video_stickers import CLIP_EXTENSIONS, clip_frames
     if path.suffix.lower() in CLIP_EXTENSIONS:
-        return clip_frames(path)[0].convert("RGB")
+        frames = clip_frames(path)
+        # One bounded image carries chronological context without uploading
+        # the original video or spending one vision image token budget per frame.
+        storyboard = Image.new("RGB", (512, 512), "#202124")
+        draw = ImageDraw.Draw(storyboard)
+        for cell in range(6):
+            index = round(cell * (len(frames) - 1) / 5)
+            tile = ImageOps.contain(frames[index].convert("RGB"), (252, 146), Image.Resampling.LANCZOS)
+            left, top = (cell % 2) * 256, (cell // 2) * 170
+            storyboard.paste(tile, (left + (256 - tile.width) // 2, top + 2))
+            draw.text((left + 8, top + 150), f"{index / 8:.2f}s", fill="white")
+        return storyboard
     if path.stat().st_size > 20_000_000:
         raise ValueError("Reference image exceeds 20MB")
     with Image.open(path) as original:
@@ -165,8 +176,12 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
         encoded = io.BytesIO()
         image.save(encoded, format="JPEG", quality=80)
         user_content = [{"type": "text", "text": user_content +
-                         "\nWrite varied original meme captions fitting the supplied image; "
-                         "do not identify real people or infer sensitive traits."},
+                         "\nWrite varied, conversational English/Hinglish reaction captions fitting "
+                         "the visible expression/action and the requested topic. This may be a "
+                         "chronological video storyboard; captions describe its reaction, not frame "
+                         "numbers or a literal object list. Vary social intent (disbelief, awkwardness, "
+                         "playful sarcasm, surprise) rather than repeating one catchphrase. Do not "
+                         "invent a visible event, identify real people or infer sensitive traits."},
                         {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," +
                          base64.b64encode(encoded.getvalue()).decode("ascii")}}]
     payload = {"model": model, "temperature": 0.9, "max_tokens": 1400,
@@ -232,6 +247,11 @@ def draw_caption(image, caption, font_path):
 
 
 def render(idea, font_path, image_path=None, animated=False):
+    if image_path and not animated:
+        # Real-media mode shares the reaction creator's full photo/outlined
+        # caption composition. Do not draw a generic emoji or a large text card.
+        from reaction_media import compose, encode_static
+        return encode_static(compose(reference_image(Path(image_path)), idea["caption"], font_path))
     image = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     draw.ellipse((99, 25, 413, 339), fill=idea["color"], outline="white", width=14)
@@ -321,6 +341,14 @@ def export_zip(path, records, day):
     temporary.replace(path)
 
 
+class ProviderError(ValueError):
+    """Safe, structured provider failure; never carries response text or credentials."""
+    def __init__(self, status, retry_at):
+        self.status = status
+        self.retry_at = retry_at
+        super().__init__(f"Groq HTTP {status}; cooldown saved; response body omitted")
+
+
 def retry_delay(headers, now):
     value = headers.get("Retry-After", "900")
     try:
@@ -376,6 +404,9 @@ def run(config, root, font_path, now=None):
         if not state["pending"]:
             cooldown = json.loads(cooldown_path.read_text()) if cooldown_path.exists() else {}
             if now < max(state["next_request_at"], cooldown.get("next_request_at", 0)):
+                if cooldown.get("provider_error") and not state.get("provider_error"):
+                    state["provider_error"] = cooldown["provider_error"]
+                    atomic_json(state_path, state)
                 return "Waiting for next batch or rate-limit cooldown"
             if state["requests"] >= max_attempts:
                 return "Daily request budget reached; no more API calls today"
@@ -433,9 +464,14 @@ def run(config, root, font_path, now=None):
                 if error.code in (401, 403):
                     delay = 86400
                 state["next_request_at"] = max(state["next_request_at"], now + delay)
+                state["provider_error"] = {"http_status": error.code,
+                                           "retry_at": state["next_request_at"]}
                 atomic_json(state_path, state)
-                atomic_json(cooldown_path, {"next_request_at": state["next_request_at"]})
-                raise ValueError(f"Groq HTTP {error.code}; cooldown saved; response body omitted") from None
+                atomic_json(cooldown_path, {"next_request_at": state["next_request_at"],
+                                            "provider_error": state["provider_error"]})
+                error.close()
+                raise ProviderError(error.code, state["next_request_at"]) from None
+            state.pop("provider_error", None)
             state["pending"] = {"ideas": ideas, "sources": sources, "warnings": warnings,
                                  "mode": mode, "topic": topic, "image_path": image_path,
                                  "rating": rating, "category": category,

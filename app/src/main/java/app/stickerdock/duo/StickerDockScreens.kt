@@ -12,6 +12,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -64,7 +66,10 @@ fun LibraryScreen(
     onCreatePack: () -> Unit,
     onImportPhone: () -> Unit,
     onOpenPack: (String) -> Unit,
-    onPhotos: () -> Unit
+    onPhotos: () -> Unit,
+    drafts: List<StickerItem> = emptyList(),
+    onResumeDraft: (StickerItem) -> Unit = {},
+    onClip: () -> Unit = {}
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -74,30 +79,59 @@ fun LibraryScreen(
         ) {
             if (packs.isEmpty() && searchText.isBlank()) {
                 item { LibraryOnboardingCard(busy, onPhotos, onImportPhone) }
+                item { OutlinedButton(enabled = !busy, onClick = onClip, modifier = Modifier.fillMaxWidth()) { Text("Make an animated reaction") } }
+                item { TextButton(enabled = !busy, onClick = onCreatePack, modifier = Modifier.fillMaxWidth()) { Text("Create an empty pack") } }
+                return@LazyColumn
             } else {
-                item { LibrarySummaryCard(packs.size, counts.values.sum(), compactPane) }
                 item {
-                    FilledTonalButton(enabled = !busy, onClick = onPhotos, modifier = Modifier.fillMaxWidth()) { Text("Make stickers from photos") }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${packs.size} packs • ${counts.values.sum()} stickers", modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(enabled = !busy, onClick = onCreatePack) { Text("New pack") }
+                    }
+                }
+                if (drafts.isNotEmpty()) item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Unfinished edits", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(drafts, key = { it.id }) { draft ->
+                                Card(Modifier.width(260.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                                    Column(Modifier.padding(12.dp)) {
+                                        Text(draft.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        TextButton(enabled = !busy, onClick = { onResumeDraft(draft) }) { Text("Resume edit") }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(enabled = !busy, onClick = onPhotos, modifier = Modifier.fillMaxWidth()) { Text("Make stickers from photos") }
+                        OutlinedButton(enabled = !busy, onClick = onClip, modifier = Modifier.fillMaxWidth()) { Text("Make an animated reaction") }
+                    }
                 }
             }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                      OutlinedTextField(
                         value = searchText,
                         onValueChange = onSearchChange,
                         label = { Text("Search library") },
                         placeholder = { Text("Pack, sticker label, tag or topic") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                        modifier = Modifier.weight(1f)
+                      )
+                      TextButton(onClick = onOpenFilters) {
+                          Text(if (activeFilterCount == 0) "Filters" else "Filters ($activeFilterCount)")
+                      }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FilledTonalButton(onClick = onOpenFilters) {
-                            Text(if (activeFilterCount == 0) "Filters" else "Filters ($activeFilterCount)")
-                        }
                         if (activeFilterCount > 0) TextButton(onClick = onClearFilters) { Text("Clear") }
                         Spacer(Modifier.weight(1f))
                         if (searchText.isNotBlank()) {
@@ -115,7 +149,7 @@ fun LibraryScreen(
                 item {
                     StickerDockSectionHeader(
                         if (searchText.isBlank()) "Your packs" else "Matching packs",
-                        "${filteredPacks.size} shown • ${packs.size} total"
+                        if (activeFilterCount > 0) "${filteredPacks.size} shown • ${packs.size} total" else ""
                     )
                 }
                 items(filteredPacks, key = { it.id }) { pack ->
@@ -160,74 +194,17 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun LibrarySummaryCard(packCount: Int, stickerCount: Int, compact: Boolean) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
-        Column(Modifier.padding(if (compact) 16.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                "Your sticker library",
-                style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text("$packCount packs • $stickerCount stickers", color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(
-                "Search first, filter only when you need to, and open a pack to manage or export it.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
-}
-
-@Composable
 private fun LibraryOnboardingCard(busy: Boolean, onCreatePack: () -> Unit, onImportPhone: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                "Build your first sticker pack",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                "StickerDock keeps your collection local and helps turn loose sticker files into reusable WhatsApp packs.",
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            OnboardingStep("1", "Create or import", "Start a fresh pack or scan a sticker folder on your phone.")
-            OnboardingStep("2", "Organize", "Label, tag, move and group stickers so they stay easy to find.")
-            OnboardingStep("3", "Use anywhere", "Add a finished pack to WhatsApp or share a portable StickerDock ZIP.")
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                if (maxWidth < 420.dp) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = !busy, onClick = onCreatePack, modifier = Modifier.fillMaxWidth()) { Text("Choose photos") }
-                        FilledTonalButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.fillMaxWidth()) { Text("Import from phone") }
-                    }
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = !busy, onClick = onCreatePack, modifier = Modifier.weight(1f)) { Text("Choose photos") }
-                        FilledTonalButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.weight(1f)) { Text("Import from phone") }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingStep(number: String, title: String, body: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-        Surface(Modifier.size(32.dp), CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)) {
-            Box(contentAlignment = Alignment.Center) { Text(number, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text("YOUR COLLECTION", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text("Your library starts here", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Turn a photo into a sticker, or bring the packs you already have.",
+                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(enabled = !busy, onClick = onCreatePack, modifier = Modifier.fillMaxWidth()) { Text("Choose photos") }
+            OutlinedButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.fillMaxWidth()) { Text("Import from phone") }
+            Text("Private by default. Your saved stickers work offline.", style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -315,7 +292,7 @@ fun LibraryFiltersSheet(
     onClear: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Filter your library", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text("Keep the main Library clean; narrow it down only when you need to.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -343,6 +320,36 @@ fun LibraryFiltersSheet(
 }
 
 @Composable
+fun CreateScreen(busy: Boolean, onPhotos: () -> Unit, onClip: () -> Unit, onImport: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(Modifier.fillMaxHeight().widthIn(max = 960.dp), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Make a reaction worth sending", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Your photos, funny moments and short clips. Make them yours with captions and a crop that keeps the subject in frame.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item {
+                StickerDockActionGrid(listOf(
+                    StickerDockAction("Make stickers from photos", "Choose photos, then edit the crop, caption or cutout", !busy, true, onPhotos),
+                    StickerDockAction("Make an animated reaction", "Trim a video or GIF, preview the motion and save when ready", !busy, true, onClip)
+                ))
+            }
+            item {
+                OutlinedCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Already have stickers?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Bring in phone folders or ZIPs, restore a backup, or organize saved pack links.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OutlinedButton(enabled = !busy, onClick = onImport) { Text("Import and backups") }
+                    }
+                }
+            }
+            item { Text("Creation stays on this device. Packs enter WhatsApp only after you choose Add.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+    }
+}
+
+@Composable
 fun ImportScreen(
     busy: Boolean,
     progress: FolderStickerImporter.Progress?,
@@ -356,7 +363,8 @@ fun ImportScreen(
     onLinks: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
-    onPhotos: () -> Unit
+    onPhotos: () -> Unit,
+    onClip: () -> Unit = {}
 ) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = 960.dp), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -375,6 +383,7 @@ fun ImportScreen(
             item {
                 StickerDockActionGrid(listOf(
                     StickerDockAction("Make stickers from photos", "Pick images; packs are created and grouped automatically", !busy, true, onPhotos),
+                    StickerDockAction("Make an animated reaction", "Trim a video or GIF, add a caption and preview locally", !busy, true, onClip),
                     StickerDockAction("Phone sticker folder", "Scan a WhatsApp or WhatsApp Business media folder", !busy, true, onPhone),
                     StickerDockAction("Sticker ZIPs", "StickerDock backups, .wastickers or generic ZIP batches", !busy, false, onZip),
                     StickerDockAction("Sticker.ly bookmarks", "Save public pack links without scraping creator files", !busy, false, onLinks)
@@ -401,59 +410,7 @@ fun ImportScreen(
     }
 }
 
-@Composable
-fun FactoryScreen(
-    loading: Boolean,
-    packs: List<CommunityCatalog.Listing>,
-    error: String?,
-    importedIds: Set<String>,
-    busy: Boolean,
-    onRefresh: () -> Unit,
-    onPack: (CommunityCatalog.Listing) -> Unit,
-    onHide: ((CommunityCatalog.Listing) -> Unit)? = null,
-    onReport: ((CommunityCatalog.Listing) -> Unit)? = null,
-    onShowHidden: (() -> Unit)? = null
-) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(Modifier.fillMaxHeight().widthIn(max = 960.dp), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("New stickers", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                Text("Fresh packs ready for your chats", color = MaterialTheme.colorScheme.onTertiaryContainer)
-                            }
-                            TextButton(enabled = !loading, onClick = onRefresh) { Text("Refresh") }
-                        }
-                        Text("New approved packs are added to your library automatically. Your saved stickers keep working offline.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        if (onShowHidden != null) TextButton(onClick = onShowHidden) { Text("Reset hidden packs & creators") }
-                    }
-                }
-            }
-            if (loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            when {
-                error != null -> item { EmptyStateCard("New stickers unavailable", "Your saved stickers still work offline. Try again when the network is available.", "Try again", onRefresh) }
-                !loading && packs.isEmpty() -> item { EmptyStateCard("Nothing new yet", "Fresh sticker packs will appear here automatically.") }
-                else -> items(packs, key = { it.id }) { entry ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            if (entry.categories.isNotEmpty()) Text(entry.categories.joinToString(" • ") { it.label }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-                            FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }, modifier = Modifier.fillMaxWidth()) { Text(if (entry.id in importedIds) "Open in library" else "Add to library") }
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                if (onHide != null) TextButton(onClick = { onHide(entry) }) { Text(if (entry.publisherId.isBlank()) "Hide pack" else "Hide creator") }
-                                if (onReport != null) TextButton(onClick = { onReport(entry) }) { Text("Report") }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PackDetailScreen(
     pack: StickerPack,
@@ -476,35 +433,59 @@ fun PackDetailScreen(
     onBulkDelete: () -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
+    var showWhatsApp by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(142.dp),
             modifier = Modifier.fillMaxSize().widthIn(max = 1120.dp),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 112.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) { PackHeaderCard(pack, stickers.size) }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    if (maxWidth < 520.dp) {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(enabled = !busy && stickers.size < 30, onClick = onImport, modifier = Modifier.fillMaxWidth()) { Text("Import stickers") }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(enabled = !busy, onClick = onPackOptions, modifier = Modifier.weight(1f)) { Text("Pack options") }
-                                OutlinedButton(enabled = !busy && stickers.isNotEmpty(), onClick = onShare, modifier = Modifier.weight(1f)) { Text("Share ZIP") }
-                            }
-                        }
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(enabled = !busy && stickers.size < 30, onClick = onImport, modifier = Modifier.weight(1f)) { Text("Import stickers") }
-                            OutlinedButton(enabled = !busy, onClick = onPackOptions, modifier = Modifier.weight(1f)) { Text("Pack options") }
-                            OutlinedButton(enabled = !busy && stickers.isNotEmpty(), onClick = onShare, modifier = Modifier.weight(1f)) { Text("Share ZIP") }
-                        }
-                    }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${stickers.size}/30 • ${if (pack.kind == StickerKind.ANIMATED) "Animated" else "Static"}",
+                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.weight(1f))
+                    if (pack.rating == PackRating.MATURE) Text("Private mature pack", style = MaterialTheme.typography.labelSmall)
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(enabled = !busy && stickers.size < 30, onClick = onImport, modifier = Modifier.weight(1f)) { Text("Import stickers") }
+                    TextButton(enabled = !busy, onClick = onPackOptions) { Text("Pack options") }
+                    TextButton(enabled = !busy && stickers.isNotEmpty(), onClick = onShare) { Text("Share ZIP") }
+                }
+            }
+            if (selectedStickerIds.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) { SelectionToolbar(selectedStickerIds.size, !busy, onClearSelection, onBulkTransfer, onBulkDelete) }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                StickerDockSectionHeader("Stickers", if (selectedStickerIds.isEmpty()) "Long-press a sticker to select multiple" else "Tap more stickers to add or remove them from selection")
+            }
+            if (stickers.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) { EmptyStateCard("This pack is empty", "Import images to build the pack. Static and animated stickers stay separated.", "Import stickers", onImport) }
+            } else {
+                gridItems(stickers, key = { it.id }) { item ->
+                    val selected = item.id in selectedStickerIds
+                    StickerTile(
+                        item, pack.kind, previewCache, files, !busy, selected, selectedStickerIds.isNotEmpty(),
+                        onClick = { if (selectedStickerIds.isNotEmpty()) onToggleSelection(item) else onManageSticker(item) },
+                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onStartSelection(item) }
+                    )
+                }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(20.dp)) }
+        }
+        Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), tonalElevation = 3.dp) {
+            Button(enabled = !busy, onClick = { showWhatsApp = true }, modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                Text("Use in WhatsApp")
+            }
+        }
+    }
+    if (showWhatsApp) {
+        ModalBottomSheet(onDismissRequest = { showWhatsApp = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Use in WhatsApp", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -544,29 +525,12 @@ fun PackDetailScreen(
                         }
                     }
                 }
+                TextButton(onClick = { showWhatsApp = false }, modifier = Modifier.align(Alignment.End)) { Text("Done") }
             }
-            if (selectedStickerIds.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) { SelectionToolbar(selectedStickerIds.size, !busy, onClearSelection, onBulkTransfer, onBulkDelete) }
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                StickerDockSectionHeader("Stickers", if (selectedStickerIds.isEmpty()) "Long-press a sticker to select multiple" else "Tap more stickers to add or remove them from selection")
-            }
-            if (stickers.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) { EmptyStateCard("This pack is empty", "Import images to build the pack. Static and animated stickers stay separated.", "Import stickers", onImport) }
-            } else {
-                gridItems(stickers, key = { it.id }) { item ->
-                    val selected = item.id in selectedStickerIds
-                    StickerTile(
-                        item, pack.kind, previewCache, files, !busy, selected, selectedStickerIds.isNotEmpty(),
-                        onClick = { if (selectedStickerIds.isNotEmpty()) onToggleSelection(item) else onManageSticker(item) },
-                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onStartSelection(item) }
-                    )
-                }
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(20.dp)) }
         }
     }
 }
+
 
 @Composable
 private fun SelectionToolbar(count: Int, enabled: Boolean, onClear: () -> Unit, onTransfer: () -> Unit, onDelete: () -> Unit) {
@@ -609,7 +573,7 @@ private fun StickerTile(
     onLongClick: () -> Unit
 ) {
     val path = files.stickerFile(item.packId, item.fileName).path
-    val image by produceState<ImageBitmap?>(null, path, kind) { value = withContext(Dispatchers.IO) { if (kind == StickerKind.STATIC) previewCache.load(path) else null } }
+    val image by produceState<ImageBitmap?>(null, path, kind) { value = withContext(Dispatchers.IO) { if (kind == StickerKind.STATIC) previewCache.load(path, 512) else null } }
     val animation by produceState<android.graphics.drawable.Drawable?>(null, path, kind) {
         value = withContext(Dispatchers.IO) { if (kind == StickerKind.ANIMATED) try { ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path))) } catch (_: Exception) { null } else null }
     }
@@ -679,8 +643,8 @@ fun StickerManageSheet(
     onDelete: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(item.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             StickerLargePreview(item, kind, files, previewCache)
             if (kind == StickerKind.STATIC) {
@@ -698,7 +662,7 @@ fun StickerManageSheet(
 @Composable
 private fun StickerLargePreview(item: StickerItem, kind: StickerKind, files: StickerFiles, previewCache: StickerPreviewCache) {
     val path = files.stickerFile(item.packId, item.fileName).path
-    val image by produceState<ImageBitmap?>(null, path, kind) { value = withContext(Dispatchers.IO) { if (kind == StickerKind.STATIC) previewCache.load(path) else null } }
+    val image by produceState<ImageBitmap?>(null, path, kind) { value = withContext(Dispatchers.IO) { if (kind == StickerKind.STATIC) previewCache.load(path, 512) else null } }
     val animation by produceState<android.graphics.drawable.Drawable?>(null, path, kind) {
         value = withContext(Dispatchers.IO) { if (kind == StickerKind.ANIMATED) try { ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path))) } catch (_: Exception) { null } else null }
     }
@@ -706,7 +670,7 @@ private fun StickerLargePreview(item: StickerItem, kind: StickerKind, files: Sti
         (animation as? AnimatedImageDrawable)?.start()
         onDispose { (animation as? AnimatedImageDrawable)?.stop() }
     }
-    Surface(Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 320.dp), MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
+    Surface(Modifier.fillMaxWidth().height(220.dp), MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
         Box(Modifier.fillMaxSize().padding(18.dp), contentAlignment = Alignment.Center) {
             when {
                 kind == StickerKind.ANIMATED && animation != null -> AndroidView(
@@ -734,7 +698,7 @@ fun StickerEditSheet(
     onSave: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Sticker details", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(label, onLabelChange, label = { Text("Label") }, supportingText = { Text("Readable name used in search") }, modifier = Modifier.fillMaxWidth())
@@ -760,7 +724,7 @@ fun StickerTransferSheet(
     onDismiss: () -> Unit
 ) {
     var newName by remember { mutableStateOf("") }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text("Choose a compatible pack. StickerDock prevents duplicates and never mixes static and animated stickers.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -783,7 +747,7 @@ fun StickerTransferSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PackOptionsSheet(pack: StickerPack, busy: Boolean, onRename: () -> Unit, onCategory: () -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(pack.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text("${pack.category.label} • ${if (pack.kind == StickerKind.ANIMATED) "Animated" else "Static"}", color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -69,6 +69,38 @@ class StickerArtworkFlowTest {
         assertEquals(item, store.listStickers(pack.id).single())
     }
 
+    @Test fun damagedSourceCannotBeMovedAndLost() {
+        val source = store.createPack("Source")
+        val target = store.createPack("Target")
+        files.importBytes(source.id, png(Color.GREEN))
+        val item = store.listStickers(source.id).single()
+        files.stickerFile(source.id, item.fileName).writeBytes(byteArrayOf())
+        val result = files.transferSticker(item, target.id, move = true)
+        assertTrue(result is ImportResult.Failed)
+        assertEquals(item, store.listStickers(source.id).single())
+        assertEquals(0, store.stickerCount(target.id))
+    }
+
+    @Test fun writeFailureKeepsOriginalArtworkAndDatabaseRow() {
+        val pack = store.createPack("Keep original")
+        files.importBytes(pack.id, png(Color.CYAN))
+        val item = store.listStickers(pack.id).single()
+        val original = files.stickerFile(pack.id, item.fileName)
+        val directory = original.parentFile!!
+        val blocked = File(directory.parentFile, "write-failure-${pack.id}")
+        assertTrue(directory.renameTo(blocked))
+        directory.writeText("not a directory")
+        try {
+            val bitmap = StickerArtwork.render(File(blocked, item.fileName).readBytes(), ArtworkEdit(topText = "Keep"))
+            val edited = try { StickerArtwork.encode(bitmap) } finally { bitmap.recycle() }
+            assertTrue(runCatching { files.replaceStaticArtwork(item, edited) }.isFailure)
+            assertEquals(item, store.listStickers(pack.id).single())
+            val digest = java.security.MessageDigest.getInstance("SHA-256").digest(File(blocked, item.fileName).readBytes())
+                .joinToString("") { "%02x".format(it) }
+            assertEquals(item.sha256, digest)
+        } finally { directory.delete(); assertTrue(blocked.renameTo(directory)) }
+    }
+
     @Test fun rotationMovesArtworkAndPreservesTransparency() {
         val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
         android.graphics.Canvas(bitmap).drawRect(0f, 0f, 256f, 256f, android.graphics.Paint().apply { color = Color.RED })
@@ -79,6 +111,25 @@ class StickerArtworkFlowTest {
             assertEquals(0, Color.alpha(result.getPixel(100, 100)))
             assertEquals(512, result.width)
             assertEquals(512, result.height)
+        } finally { result.recycle() }
+    }
+
+    @Test fun cutoutRemovesOutsideAndMovesWithMirroredSubject() {
+        val original = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.BLUE) }
+        val bytes = try { StickerArtwork.encode(original) } finally { original.recycle() }
+        val outline = listOf(CutoutPoint(0.1f, 0.1f), CutoutPoint(0.4f, 0.1f), CutoutPoint(0.4f, 0.9f), CutoutPoint(0.1f, 0.9f))
+        val result = StickerArtwork.render(bytes, ArtworkEdit(mirror = true, cutout = outline))
+        try {
+            assertEquals(0, Color.alpha(result.getPixel(100, 200)))
+            assertEquals(255, Color.alpha(result.getPixel(400, 200)))
+            assertTrue(Color.blue(result.getPixel(400, 200)) > 200)
+            val exported = StickerArtwork.encode(result)
+            val decoded = android.graphics.BitmapFactory.decodeByteArray(exported, 0, exported.size)
+            try {
+                assertEquals(0, Color.alpha(decoded.getPixel(100, 200)))
+                assertEquals(512, decoded.width)
+            }
+            finally { decoded.recycle() }
         } finally { result.recycle() }
     }
 

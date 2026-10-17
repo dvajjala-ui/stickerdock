@@ -5,7 +5,7 @@ import json
 import uuid
 import zipfile
 import hashlib
-from api._cloud import rows, identity, asset_path, now, check_artwork
+from api._cloud import rows, identity, asset_path, now, check_artwork, sharing_status
 from tools.supabase_factory import PRIVATE_BUCKET, catalog_lease
 
 
@@ -43,7 +43,11 @@ def dispatch(client, payload):
     from api._admin import store_draft, audit
     action = payload.get("action")
     if action == "community_list":
-        return {"submissions": rows(client, "community_submissions", "status=neq.withdrawn&order=updated_at.desc&limit=100"),
+        submissions = rows(client, "community_submissions", "status=neq.withdrawn&order=updated_at.desc&limit=100")
+        ids = ",".join(identity(s["admin_pack_id"]) for s in submissions if s.get("admin_pack_id"))
+        decisions = rows(client, "admin_packs", f"id=in.({ids})&select=id,status&limit=100") if ids else []
+        decision_map = {row["id"]: row for row in decisions}
+        return {"submissions": [{**s, "effective_status": sharing_status(client, s, decision_map)} for s in submissions],
                 "reports": rows(client, "community_reports", "status=eq.open&order=created_at.desc&limit=100")}
     if action == "report_resolve":
         report_id = identity(payload.get("id"))

@@ -1,5 +1,10 @@
 # Core product review — 2026-10-15
 
+> Historical review preceding the user's recovery request. Automatic library
+> delivery below was superseded by R22: opening/resuming never imports packs.
+> Current flows/gaps: [acceptance audit](REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
+> [product spec](PRODUCT_SPEC.md) and [recovery progress](RECOVERY_PROGRESS.md).
+
 This is a source audit and implementation record, not a device certification. The goal is a simpler Sticker.ly-style create/import/edit/use flow with automatic approved sticker delivery. It does not promise every feature of Sticker.ly or unrestricted access to another application's accounts/catalog.
 
 ## Review against the user's ten points

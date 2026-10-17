@@ -17,8 +17,8 @@ android {
         applicationId = "app.stickerdock.duo"
         minSdk = 30
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 13
+        versionName = "0.10.1"
         val defaultCatalog = "https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/"
         val catalogBase = providers.gradleProperty("catalogBaseUrl").orElse(defaultCatalog).get()
         require(catalogBase.startsWith("https://") && catalogBase.endsWith("/"))
@@ -57,6 +57,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":sticker-core"))
     implementation(platform("androidx.compose:compose-bom:2025.02.00"))
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.core:core:1.15.0")

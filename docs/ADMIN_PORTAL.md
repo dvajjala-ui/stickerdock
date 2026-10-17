@@ -41,7 +41,7 @@ Android account system.
 4. Owner selects Publish. Only reviewed GENERAL content enters the public catalog.
 5. The newly built APK reads that catalog automatically on open/resume; Refresh
    fetches it again while the app stays open. CDN propagation may add a short delay.
-6. The APK adds unseen approved revisions to the offline library automatically in bounded batches. Explicit Add to library remains available in the New tab.
+6. Discover shows reviewed packs and their small artwork previews. Users open a preview and explicitly choose **Save to library**; opening/resuming/refreshing never imports packs. Older catalog entries remain compatible and can preview their archive on request without saving.
 7. User selects Add to WhatsApp or WhatsApp Business and confirms in that app.
 
 Generation does not automatically approve content or silently install stickers

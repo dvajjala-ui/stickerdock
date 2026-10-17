@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 import zipfile
 
@@ -77,6 +78,47 @@ def pack_bytes(rating="GENERAL"):
 
 
 class ProductionWorkerTest(unittest.TestCase):
+    def test_provider_auth_failure_stays_failed_during_later_cooldown(self):
+        client = FakeSupabase()
+        config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60, "modes": ["illustration"]}
+        error = urllib.error.HTTPError("https://provider.invalid", 401, "do not expose details", {}, None)
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second, \
+                patch.dict(os.environ, {"GROQ_API_KEY": "fixture-key"}), \
+                patch("daily_stickers.groq_ideas", side_effect=error) as request:
+            with self.assertRaises(worker.ProviderError):
+                worker.run_production(config, Path(first), client, NOW)
+            self.assertEqual(client.rows[("factory_runs", DAY)]["status"], "failed")
+            summary = worker.run_production(config, Path(second), client, NOW + 60)
+            self.assertEqual(summary["status"], "failed")
+            self.assertIn("credentials", summary["result"])
+            self.assertEqual(request.call_count, 1)
+
+    def test_rate_limit_survives_new_runner_then_completes_after_cooldown(self):
+        config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60,
+                  "modes": ["illustration"]}
+        client = FakeSupabase()
+        error = urllib.error.HTTPError("https://provider.invalid", 429, "private response omitted",
+                                       {"Retry-After": "20000"}, None)
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second, \
+                tempfile.TemporaryDirectory() as third, patch.dict(os.environ, {"GROQ_API_KEY": "fixture-key"}):
+            with patch("daily_stickers.groq_ideas", side_effect=error) as request:
+                waiting = worker.run_production(config, Path(first), client, NOW)
+                self.assertEqual(waiting["status"], "waiting")
+                self.assertEqual(waiting["retry_at"], NOW + 20000)
+                worker.run_production(config, Path(second), client, NOW + 61)
+                self.assertEqual(request.call_count, 1)
+            row = client.rows[("factory_runs", DAY)]
+            self.assertEqual(row["status"], "running")
+            self.assertEqual(row["groq_metrics"]["recovery"], {"http_status": 429, "retry_at": NOW + 20000})
+            self.assertNotIn("private response", json.dumps(row))
+            ideas = [{"caption": f"Recovered reaction {i}", "mood": "happy", "color": "#FFD166", "source": None}
+                     for i in range(3)]
+            with patch("daily_stickers.groq_ideas", return_value=ideas) as request:
+                complete = worker.run_production(config, Path(third), client, NOW + 20001)
+                self.assertEqual(request.call_count, 1)
+            self.assertEqual((complete["status"], complete["generated"]), ("complete", 3))
+            self.assertNotIn("recovery", client.rows[("factory_runs", DAY)]["groq_metrics"])
+
     def test_real_media_mode_does_not_fall_back_to_template_faces(self):
         with tempfile.TemporaryDirectory() as temporary:
             config={"modes":["photo","clip"],"require_real_media":True,"vision_model":"test-vision"}

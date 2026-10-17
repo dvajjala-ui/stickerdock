@@ -1,0 +1,80 @@
+name: Apple app and shared-core verification
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - 'sticker-core/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'tools/apple_simulator_destination.py'
+      - '.github/workflows/apple-core.yml'
+permissions:
+  contents: read
+concurrency:
+  group: apple-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  framework:
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.11.1'
+      - name: Test common rules and compile device and simulator framework
+        run: |
+          xcodebuild -version
+          gradle --no-daemon -PstickerCoreOnly=true :sticker-core:jvmTest :sticker-core:assembleStickerDockCoreReleaseXCFramework
+      - name: Generate native iPhone project
+        run: |
+          brew install xcodegen
+          cd ios
+          xcodegen generate
+          mkdir -p StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+          cp Package.resolved StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+      - name: Resolve pinned packages and build unsigned iPhone app
+        run: |
+          xcodebuild -resolvePackageDependencies -onlyUsePackageVersionsFromResolvedFile -project ios/StickerDock.xcodeproj -scheme StickerDock
+          xcodebuild -disableAutomaticPackageResolution -project ios/StickerDock.xcodeproj -scheme StickerDock -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath work/apple-device build CODE_SIGNING_ALLOWED=NO
+      - name: Select available iPhone simulator
+        run: |
+          python3 tools/apple_simulator_destination.py >> "$GITHUB_ENV"
+      - name: Package unsigned iPhone testing artifact
+        run: |
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' work/apple-device/Build/Products/Release-iphoneos/StickerDock.app/Info.plist)" = '0.10.1'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' work/apple-device/Build/Products/Release-iphoneos/StickerDock.app/Info.plist)" = '13'
+          mkdir -p work/apple-package/Payload
+          ditto work/apple-device/Build/Products/Release-iphoneos/StickerDock.app work/apple-package/Payload/StickerDock.app
+          cd work/apple-package
+          zip -qr ../StickerDock-iOS-unsigned.ipa Payload
+      - name: Run native integration and navigation tests
+        run: |
+          xcodebuild -disableAutomaticPackageResolution -project ios/StickerDock.xcodeproj -scheme StickerDock -destination "platform=iOS Simulator,id=$STICKERDOCK_SIMULATOR_ID" -derivedDataPath work/apple-simulator -resultBundlePath work/apple-tests.xcresult test CODE_SIGNING_ALLOWED=NO
+      - name: Export simulator screenshots and test summary
+        if: always()
+        run: |
+          if test -d work/apple-tests.xcresult; then
+            xcrun xcresulttool export attachments --path work/apple-tests.xcresult --output-path work/apple-test-attachments
+            xcrun xcresulttool get test-results summary --path work/apple-tests.xcresult --compact > work/apple-test-summary.json
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: StickerDock-apple-verification
+          retention-days: 3
+          path: |
+            sticker-core/build/XCFrameworks/release/
+            sticker-core/build/test-results/
+            work/apple-device/Build/Products/Release-iphoneos/StickerDock.app
+            work/StickerDock-iOS-unsigned.ipa
+            work/apple-tests.xcresult
+            work/apple-test-attachments/
+            work/apple-test-summary.json
+            ios/StickerDock.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

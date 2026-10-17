@@ -31,7 +31,7 @@ class Client:
         self.uploads.append(path)
     def _request(self, method, path, data=None, headers=None):
         if method == "GET":
-            if "cloud_assets?" in path: return json.dumps([{"sha256": s} for s in self.assets]).encode()
+            if "cloud_assets?" in path: return json.dumps([{"sha256": s} for s, ready in self.assets.items() if ready]).encode()
             if "community_submissions?" in path: return b"[]"
             if "cloud_packs?" in path:
                 owner = path.split("owner_id=eq.")[1].split("&")[0]
@@ -43,6 +43,121 @@ class Client:
 
 
 class CloudLibraryTest(unittest.TestCase):
+    def test_inventory_is_authenticated_budgeted_and_owner_scoped_with_pagination(self):
+        client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
+        page = [{"id": str(uuid.uuid4()), "name": "My pack", "revision": 2, "fingerprint": "a" * 64} for _ in range(100)]
+        client._request.return_value = json.dumps(page).encode()
+        result = cloud.dispatch({"action": "inventory", "owner": OTHER, "offset": 100}, OWNER, client)
+        self.assertEqual(result, {"packs": page, "next_offset": 200})
+        query = client._request.call_args.args[1]
+        self.assertIn("owner_id=eq." + OWNER, query)
+        self.assertNotIn(OTHER, query)
+        self.assertIn("select=id,name,revision,fingerprint&order=id.asc&limit=100&offset=100", query)
+        client._request.return_value = b"[]"
+        self.assertIsNone(cloud.dispatch({"action": "inventory", "offset": 200}, OWNER, client)["next_offset"])
+        client.rpc.return_value = [{"allowed": False}]; client._request.reset_mock()
+        with self.assertRaisesRegex(StudioError, "hourly limit"):
+            cloud.dispatch({"action": "inventory"}, OWNER, client)
+        client._request.assert_not_called()
+
+    def test_sharing_status_routes_through_owner_scoped_dispatch_and_effective_review(self):
+        client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
+        client._request.return_value = json.dumps([{"status": "draft", "admin_pack_id": PACK}]).encode()
+        client.find.return_value = {"status": "published"}
+        result = cloud.dispatch({"action": "sharing_status", "owner": OTHER, "id": PACK}, OWNER, client)
+        self.assertEqual(result, {"status": "published"})
+        path = client._request.call_args.args[1]
+        self.assertIn("owner_id=eq." + OWNER + "&pack_id=eq." + PACK, path)
+        self.assertNotIn(OTHER, path)
+        client._request.return_value = b"[]"
+        self.assertEqual(cloud.dispatch({"action": "sharing_status", "id": PACK}, OWNER, client), {"status": "private"})
+
+    def test_inventory_and_sharing_status_http_requests_require_authentication(self):
+        from api.cloud import handler
+        for action in ("inventory", "sharing_status"):
+            with self.subTest(action=action):
+                request = handler.__new__(handler); request.headers = {}; request.wfile = io.BytesIO()
+                statuses = []; request.send_response = statuses.append
+                request.send_header = lambda *_: None; request.end_headers = lambda: None
+                with patch("api.cloud.read_json", return_value={"action": action, "id": PACK}), patch("api.cloud.authenticate", side_effect=PermissionError("Sign in")), patch("api.cloud.dispatch") as dispatch, patch("api.cloud.auth_action") as auth:
+                    request.do_POST()
+                self.assertEqual(statuses, [401]); dispatch.assert_not_called(); auth.assert_not_called()
+
+    def test_inventory_and_sharing_status_http_requests_reach_authenticated_dispatch(self):
+        from api.cloud import handler
+        for action in ("inventory", "sharing_status"):
+            with self.subTest(action=action):
+                request = handler.__new__(handler); request.headers = {}; request.wfile = io.BytesIO()
+                statuses = []; request.send_response = statuses.append
+                request.send_header = lambda *_: None; request.end_headers = lambda: None
+                client = MagicMock(); client.rpc.return_value = [{"allowed": True}]; client._request.return_value = b"[]"
+                with patch("api.cloud.read_json", return_value={"action": action, "id": PACK}), patch("api.cloud.authenticate", return_value=OWNER), patch.object(cloud, "SupabaseFactory", return_value=client), patch("api.cloud.auth_action") as auth:
+                    request.do_POST()
+                self.assertEqual(statuses, [200]); auth.assert_not_called()
+                self.assertEqual(json.loads(request.wfile.getvalue()), {"packs": [], "next_offset": None} if action == "inventory" else {"status": "private"})
+
+    def test_sync_plan_recovers_missing_backup_and_server_upload_receipts(self):
+        client = Client(); manifest = self.manifest()
+        digest = manifest["stickers"][0]["sha256"]
+        client.assets[digest] = True
+        cloud.dispatch({"action": "commit", "manifest": manifest}, OWNER, client)
+        current = cloud.dispatch({"action": "sync_plan", "manifest": dict(reversed(list(manifest.items()))), "revision": 0}, OWNER, client)
+        self.assertEqual(current["state"], "current", "A lost client checkpoint should adopt the matching server snapshot")
+        self.assertEqual(current["pack"]["revision"], 1)
+        client.data.clear(); client.assets[digest] = False
+        missing = cloud.dispatch({"action": "sync_plan", "manifest": manifest, "revision": 1}, OWNER, client)
+        self.assertEqual(missing, {"state": "upload", "revision": 0, "missing_hashes": [digest]})
+        self.assertEqual(client.data, {}, "Planning must never commit a pack with missing images")
+        client.assets[digest] = True
+        restored = cloud.dispatch({"action": "commit", "manifest": manifest, "revision": 0}, OWNER, client)
+        self.assertEqual(restored["pack"]["revision"], 1)
+
+    def test_plan_and_deletion_preserve_newer_cloud_edits(self):
+        client = Client(); manifest = self.manifest()
+        client.assets[manifest["stickers"][0]["sha256"]] = True
+        cloud.dispatch({"action": "commit", "manifest": manifest}, OWNER, client)
+        client.data[(OWNER, PACK)].update(revision=2, fingerprint="changed-on-other-phone")
+        for action in ("sync_plan", "delete"):
+            with self.assertRaises(cloud.CloudConflict):
+                cloud.dispatch({"action": action, "id": PACK, "manifest": manifest, "revision": 1}, OWNER, client)
+        self.assertEqual(client.data[(OWNER, PACK)]["revision"], 2)
+
+    def test_effective_sharing_status_follows_moderator_decision(self):
+        client = MagicMock()
+        submission = {"status": "draft", "admin_pack_id": str(uuid.uuid4())}
+        for status, expected in (("published", "published"), ("reviewed", "reviewed"), ("rejected", "rejected"), ("archived", "rejected")):
+            client.find.return_value = {"status": status}
+            self.assertEqual(cloud.sharing_status(client, submission), expected)
+        self.assertEqual(cloud.sharing_status(client, {**submission, "status": "withdrawn"}), "withdrawn")
+        self.assertEqual(cloud.sharing_status(client, None), "private")
+
+    def test_review_draft_rejection_allows_new_snapshot_but_stale_share_does_not(self):
+        client = MagicMock(); client.rpc.return_value = [{"allowed": True}]
+        client.find.return_value = {"status": "rejected"}
+        manifest = cloud.validate_manifest(self.manifest(stickers=[
+            {"sha256": hashlib.sha256(bytes([i])).hexdigest()} for i in range(3)]))
+        pack = {"id": PACK, "name": manifest["name"], "manifest": manifest, "fingerprint": "current"}
+        submission = {"status": "draft", "admin_pack_id": str(uuid.uuid4())}
+        def query(_client, table, _query): return [pack] if table == "cloud_packs" else [submission]
+        with patch.object(cloud, "rows", side_effect=query):
+            request = {"action": "share", "id": PACK, "rights_confirmed": True, "adult_confirmed": True, "fingerprint": "stale"}
+            with self.assertRaises(cloud.CloudConflict): cloud.dispatch(request, OWNER, client)
+            client.upsert.assert_not_called()
+            self.assertEqual(cloud.dispatch({**request, "fingerprint": "current"}, OWNER, client)["status"], "pending")
+        self.assertIsNone(client.upsert.call_args.args[1][0]["admin_pack_id"])
+
+    def test_revision_conflict_http_contract(self):
+        from api.cloud import handler
+        request = handler.__new__(handler)
+        request.headers = {}; request.wfile = io.BytesIO()
+        statuses = []
+        request.send_response = statuses.append
+        request.send_header = lambda *_: None
+        request.end_headers = lambda: None
+        with patch("api.cloud.read_json", return_value={"action": "commit"}), patch("api.cloud.authenticate", return_value=OWNER), patch("api.cloud.dispatch", side_effect=cloud.CloudConflict("Restore first")):
+            request.do_POST()
+        self.assertEqual(statuses, [409])
+        self.assertEqual(json.loads(request.wfile.getvalue())["code"], "revision_conflict")
     def test_submission_draft_is_private_valid_and_preserves_provenance(self):
         from test_admin_api import AdminStore
         from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET

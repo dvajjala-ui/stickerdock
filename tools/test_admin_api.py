@@ -78,6 +78,17 @@ class AdminApiTest(unittest.TestCase):
         self.assertEqual(result["access_mode"], "single-owner-token")
         self.assertEqual(self.client.objects, before)
 
+    def test_overview_exposes_cooldown_then_retry_due_without_changing_database_status(self):
+        row = {"day": DAY, "status": "running", "groq_metrics": {
+            "recovery": {"http_status": 429, "retry_at": NOW + 100}}}
+        self.client.rows[("factory_runs", DAY)] = row
+        with patch.object(admin.time, "time", return_value=NOW):
+            run = admin.overview(self.client)["runs"][0]
+            self.assertEqual((run["display_status"], run["retry_at"]), ("waiting", NOW + 100))
+        with patch.object(admin.time, "time", return_value=NOW + 101):
+            self.assertEqual(admin.overview(self.client)["runs"][0]["display_status"], "retry_due")
+        self.assertNotIn("display_status", row)
+
     def test_migration_is_idempotent_and_keeps_original_archive(self):
         before = dict(self.client.objects)
         row = self.migrate()
@@ -98,6 +109,13 @@ class AdminApiTest(unittest.TestCase):
         entry = catalog["packs"][0]
         self.assertEqual(entry["rating"], "GENERAL")
         self.assertEqual(entry["categories"], ["GENERAL"])
+        self.assertEqual(entry["sticker_count"], 3)
+        self.assertEqual(entry["kinds"], ["STATIC"])
+        thumbnail = self.client.objects[(PUBLIC_BUCKET, "catalog/previews/" + entry["preview"]["file"])]
+        self.assertEqual(__import__("hashlib").sha256(thumbnail).hexdigest(), entry["preview"]["sha256"])
+        with Image.open(io.BytesIO(thumbnail)) as image:
+            self.assertEqual(image.size, (576, 384))
+            self.assertFalse(getattr(image, "is_animated", False))
         self.assertEqual(__import__("hashlib").sha256(self.client.objects[(PUBLIC_BUCKET, "catalog/packs/" + entry["file"])]).hexdigest(), entry["sha256"])
         admin.dispatch({"action": "unpublish", "id": row["id"]}, self.client)
         self.assertEqual(json.loads(self.client.objects[(PUBLIC_BUCKET, "catalog/packs.json")])["packs"], [])

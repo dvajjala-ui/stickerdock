@@ -1,0 +1,84 @@
+name: StickerDock
+options:
+  bundleIdPrefix: app.stickerdock
+  deploymentTarget:
+    iOS: '17.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    MARKETING_VERSION: '0.10.1'
+    CURRENT_PROJECT_VERSION: '13'
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  SDWebImage:
+    url: https://github.com/SDWebImage/SDWebImage.git
+    exactVersion: 5.21.5
+  WebPCoder:
+    url: https://github.com/SDWebImage/SDWebImageWebPCoder.git
+    exactVersion: 0.15.0
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation.git
+    exactVersion: 0.9.20
+targets:
+  StickerDock:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - path: Resources
+        buildPhase: resources
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: StickerDock
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        LSApplicationQueriesSchemes: [whatsapp]
+        LSSupportsOpeningDocumentsInPlace: true
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Sticker archives
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.zip-archive]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        StickerDockCatalogBase: $(STICKERDOCK_CATALOG_BASE)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.stickerdock.duo
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/StickerDock-Bridging-Header.h
+        TARGETED_DEVICE_FAMILY: '1,2'
+        STICKERDOCK_CATALOG_BASE: https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/
+    dependencies:
+      - framework: ../sticker-core/build/XCFrameworks/release/StickerDockCore.xcframework
+        embed: false
+      - package: SDWebImage
+      - package: WebPCoder
+        product: SDWebImageWebPCoder
+      - package: ZIPFoundation
+  StickerDockTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: StickerDock
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  StickerDockUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: StickerDock
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  StickerDock:
+    build:
+      targets:
+        StickerDock: all
+    test:
+      targets: [StickerDockTests, StickerDockUITests]

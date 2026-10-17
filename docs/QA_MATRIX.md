@@ -1,5 +1,117 @@
 # StickerDock verification checklist
 
+## 0.10.1 — current Android artifact and archive acceptance
+
+- 97 Android + 12 shared tests and 178 Python/no skips pass. Release lint has
+  0 errors/43 warnings. APK/AAB signatures, integrity and 16 KB ZIP/ELF alignment pass.
+- Exact installed APK ACBB81AA… passes the creation/navigation/large-text checks
+  below, including moving MP4 preview, explicit save and restart: 10/33 to 10/34.
+- A real native Swift ZIP imports through Android's picker with exact bytes,
+  MATURE rating, GENERAL category and name retained. Every old row survives
+  restart; library becomes 11/35. Test fixture is synthetic integrity evidence.
+- Android CI: https://github.com/dvajjala-ui/stickerdock/actions/runs/38907007546.
+  The archive-export subtest passes in Apple run 38907007539; that whole run fails
+  a separate malformed rotation fixture and is not counted as a full Apple pass.
+- Current corrected Apple tests, signed iPhone distribution, physical WhatsApp,
+  populated-library performance, native AI/cloud/editor parity remain open.
+  Hash-bound evidence: work/release-0.10.1-acceptance/status.json and subfolders.
+
+## 0.10.0 — historical Android / first Apple acceptance
+
+- LOCAL ANDROID: 94 Android + 9 shared tests, 178 Python/no skips, lint
+  0 errors/43 warnings, signed APK/AAB, signature and 16 KB ZIP/ELF alignment pass.
+- NATIVE ANDROID: exact installed APK 640D715B… passes Create/import return
+  navigation with toolbar/system Back, 360dp/1.3x text, initial real-photo content,
+  disabled missing WhatsApp/Business target buttons, moving MP4 preview with no
+  library additions, explicit save and restart. Old rows retained, 9/31 → 9/32.
+  Reports/screenshots: work/release-0.10-acceptance/native/.
+- HOSTED FIRST CANDIDATE e2af790: [Android](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899086147)
+  and [Apple](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950)
+  pass. Apple builds device/simulator frameworks and unsigned iPhone app, then
+  passes 6 native integration tests and 1 navigation UI test. Tests cover actual
+  photo encoding, archive round trip/restart, duplicate/invalid import preservation,
+  traversal rejection, generic static/animated ZIP separation and WhatsApp payload.
+- NEWER CANDIDATE: native GIF/MP4/rotated-video tests, actual codec validation on
+  import, public-catalog integration and pinned SPM resolution need the matching
+  latest Apple result. Prior green CI is not proof of these newer changes.
+- NOT ACCEPTED: physical WhatsApp/Business/iPhone, Apple distribution signing,
+  huge real-phone libraries, native AI/cloud parity and production readiness.
+
+See REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md and RECOVERY_PROGRESS.md.
+
+## Shared core / expanded media — signed 0.9.1 local acceptance passed
+
+5 common tests + 94 Android tests, release lint (0 errors/43 warnings), signed
+APK/AAB builds, signature, 16 KB alignment and archive integrity pass. The shared
+mux reproduces five real native exports exactly.
+Core-only Gradle configuration passes; Apple targets are conditional on macOS
+and have not been compiled. No working-tree CI or iPhone client is claimed.
+Full Python suite: 176 passed/no skips, including focal-framing checks.
+
+The existing signed 0.9 APK separately imports 12 new real-photo/animated samples
+from three independent source works with credits. Four explicit imports add
+exactly four packs/12 stickers; exact saved hashes, decoded sizes/kinds, old-row
+preservation and force-stop persistence pass. Report:
+work/broader-reactions-emulator/acceptance/report.json.
+
+The exact signed 0.9.1 APK upgrade retains all these samples and prior rows.
+Real-photo grid/detail 512px preview inspection, new moving MP4 reaction creation,
+unchanged library during preview, explicit existing animated-pack save, saved
+bytes/dimensions/motion and force-stop persistence pass. Library: 9 packs/30
+stickers before save, 9/31 after. Accepted crash buffer is empty. The first
+picker-navigation automation failure remains a failed harness attempt.
+Hash-bound evidence: work/release-0.9.1-acceptance/status.json and native/report.json.
+This is Android 15 emulator acceptance; physical WhatsApp/Business, Apple and
+large real-phone libraries remain unverified.
+
+## Native creator 0.9.0 — signed local acceptance passed
+
+92 local Android tests pass, including WebP native decoder checks, exact saved
+preview bytes, duplicate/wrong-target guards, failed storage cleanup preserving
+existing packs and GIF resource bounds. Final signed APK/AAB build, signature,
+16 KB alignment and release lint (0 errors/39 warnings) pass. The exact installed
+APK passes native WebM/MP4/GIF preview/save/restart, unchanged library during
+preview, stale-caption preview invalidation, saved byte/hash/alpha/motion checks
+and rotated portrait pixels/margins. Reports are hash-bound in
+work/release-0.9-acceptance/status.json; see RECOVERY_PROGRESS.md. These are local
+emulator checks, not physical WhatsApp/Business or iPhone acceptance.
+The first signed creator
+candidate failed actual WebM motion because timestamp thumbnails repeated one
+frame; it is superseded by sequential decoding. Earlier System UI boot ANR prevented the first
+emulator attempt before creator entry; that attempt is not a passed app test.
+The first rotation fixture lacked metadata; its failed portrait assertion was
+a fixture problem and is not counted as passing. The corrected fixture has an
+actual display matrix and passes upright reference comparison.
+Real-media worker Python suite: 173 passed/no skips; no new deployment or CI.
+
+## Recovery 0.8.0 — local signed candidate verified
+
+Editable projects/drafts, manual cutout and additive SQLite v8 have local source
+coverage. The 78-test run covers legacy migration/scan metadata, transactional
+recipe/artifact rollback, draft persistence, copy/move/Undo, export privacy,
+bounded outlines and native alpha rendering. Final signed build, lint (0 errors/
+35 warnings) and emulator caption/keyboard, 360dp/130% text, cutout alpha and
+force-stop/cold-boot checks pass. Hash-bound reports and exact APK identity are
+recorded in RECOVERY_PROGRESS.md. These synthetic fixtures do not establish meme
+quality. Real photo/animated product evidence is the next scope under R29.
+Physical WhatsApp/Business and iPhone remain pending; no current working-tree CI.
+
+## Recovery 0.7.0 — local candidate
+
+Use [RECOVERY_PROGRESS.md](RECOVERY_PROGRESS.md) for current local checks and
+artifact identity. Automatic catalog import has been removed in source. New
+coverage checks read-only refresh, native legacy preview rendering/tamper
+rejection, optional public preview metadata, persistent provider cooldown/recovery
+and mobile admin status. No new CI or hosted deployment is implied. Physical
+Galaxy/WhatsApp checks remain pending; user currently has no phone available.
+
+The local candidate now passes 65 Android tests and signed-emulator editor
+undo/redo, discard protection, background process reclamation and saved artwork
+after cold boot. Byte/checksum/native-preview verification replaces earlier
+SQL-only save acceptance, which missed a zero-byte edited file. There is still
+no new CI run for this uncommitted candidate. Draft recovery does not yet cover
+force-stop/reboot, and saved editable originals remain pending.
+
 ## Final 0.6.0 candidate evidence
 
 - CODE CI SUCCESS at d9cba2b89d082482bb4e66aa57714248ee0d5ab6:

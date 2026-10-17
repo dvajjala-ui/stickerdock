@@ -6,6 +6,9 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import java.io.ByteArrayOutputStream
 
 data class ArtworkEdit(
@@ -15,7 +18,8 @@ data class ArtworkEdit(
     val horizontal: Float = 0f,
     val vertical: Float = 0f,
     val topText: String = "",
-    val bottomText: String = ""
+    val bottomText: String = "",
+    val cutout: List<CutoutPoint> = emptyList()
 )
 
 /** Local static artwork editor. Every render starts from the original, preventing preview recompression. */
@@ -25,22 +29,37 @@ object StickerArtwork {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(input, 0, input.size, bounds)
         require(bounds.outWidth == 512 && bounds.outHeight == 512) { "Invalid sticker dimensions" }
+        require(edit.cutout.isEmpty() || ArtworkCutout.isValid(edit.cutout)) { "Trace a wider outline around the subject" }
         val source = BitmapFactory.decodeByteArray(input, 0, input.size) ?: error("Could not open sticker")
         val result = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+        var cutout: Bitmap? = null
         try {
+            if (edit.cutout.isNotEmpty()) {
+                cutout = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+                val maskCanvas = Canvas(cutout)
+                val path = Path().apply {
+                    moveTo(edit.cutout.first().x * 512, edit.cutout.first().y * 512)
+                    edit.cutout.drop(1).forEach { lineTo(it.x * 512, it.y * 512) }
+                    close()
+                }
+                maskCanvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+                maskCanvas.drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+                })
+            }
             val canvas = Canvas(result)
             canvas.save()
             canvas.translate(256f + edit.horizontal.coerceIn(-1f, 1f) * 180f, 256f + edit.vertical.coerceIn(-1f, 1f) * 180f)
             canvas.rotate((edit.quarterTurns % 4) * 90f)
             val zoom = edit.zoom.coerceIn(1f, 3f)
             canvas.scale(if (edit.mirror) -zoom else zoom, zoom)
-            canvas.drawBitmap(source, -256f, -256f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            canvas.drawBitmap(cutout ?: source, -256f, -256f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
             canvas.restore()
             caption(canvas, edit.topText, false)
             caption(canvas, edit.bottomText, true)
             return result
         } catch (e: Exception) { result.recycle(); throw e }
-        finally { source.recycle() }
+        finally { cutout?.recycle(); source.recycle() }
     }
 
     fun encode(bitmap: Bitmap): ByteArray {
@@ -52,7 +71,7 @@ object StickerArtwork {
         error("This edit is too detailed for WhatsApp. Shorten the text or reduce zoom.")
     }
 
-    private fun caption(canvas: Canvas, raw: String, bottom: Boolean) {
+    internal fun caption(canvas: Canvas, raw: String, bottom: Boolean) {
         val text = raw.replace(Regex("\\s+"), " ").trim().take(100)
         if (text.isEmpty()) return
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

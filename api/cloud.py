@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler
 import logging
 from api._shared import StudioError, read_json, send_json
-from api._cloud import authenticate, auth_action, dispatch
+from api._cloud import authenticate, auth_action, dispatch, CloudConflict
 from tools.supabase_factory import SupabaseError
 
 
@@ -16,6 +16,8 @@ class handler(BaseHTTPRequestHandler):
                 send_json(self, 200, dispatch(payload, owner))
         except PermissionError as error:
             send_json(self, 401, {"error": str(error)})
+        except CloudConflict as error:
+            send_json(self, 409, {"error": str(error), "code": "revision_conflict"})
         except (StudioError, ValueError) as error:
             send_json(self, 400, {"error": str(error)})
         except SupabaseError:

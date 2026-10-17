@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -35,15 +36,17 @@ import kotlinx.coroutines.withContext
 
 private enum class PolishedHomeSection(val label: String, val mark: String) {
     LIBRARY("Library", "▦"),
+    CREATE("Create", "+"),
     IMPORT("Import", "⇩"),
-    FACTORY("New", "✦")
+    FACTORY("Discover", "✦")
 }
 
 private data class LibrarySnapshot(
     val packs: List<StickerPack>,
     val stickers: List<StickerItem>,
     val counts: Map<String, Int>,
-    val previews: Map<String, List<StickerItem>>
+    val previews: Map<String, List<StickerItem>>,
+    val drafts: List<StickerItem>
 )
 
 class StickerDockPolishedActivity : ComponentActivity() {
@@ -72,15 +75,19 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var reportReason by remember { mutableStateOf("") }
         val snackbar = remember { SnackbarHostState() }
         val previewCache = remember { StickerPreviewCache(64) }
+        val artworkProjects = remember { ArtworkProjects(applicationContext, store, files) }
         val pausePhoneImport = remember { AtomicBoolean(false) }
 
         var sectionName by rememberSaveable { mutableStateOf(PolishedHomeSection.LIBRARY.name) }
+        var importReturnSectionName by rememberSaveable { mutableStateOf(PolishedHomeSection.LIBRARY.name) }
         val section = PolishedHomeSection.valueOf(sectionName)
         var packs by remember { mutableStateOf<List<StickerPack>>(emptyList()) }
         var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
         var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
         var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var previewItems by remember { mutableStateOf<Map<String, List<StickerItem>>>(emptyMap()) }
+        var artworkDrafts by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
+        var clipUri by rememberSaveable { mutableStateOf<String?>(null) }
 
         var searchText by rememberSaveable { mutableStateOf("") }
         var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
@@ -112,6 +119,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
         var communityError by remember { mutableStateOf<String?>(null) }
         var catalogImportedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+        var previewingCatalogPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
+        var catalogSaveError by remember { mutableStateOf<String?>(null) }
+        var catalogArtworkRevision by remember { mutableStateOf(0) }
         var whatsAppStatus by remember { mutableStateOf<Map<WhatsAppTarget, WhatsAppPackStatus>>(emptyMap()) }
         var whatsAppStatusRefresh by remember { mutableStateOf(0) }
         var pendingWhatsAppTarget by remember { mutableStateOf<WhatsAppTarget?>(null) }
@@ -119,7 +129,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var showPackOptions by remember { mutableStateOf(false) }
         var managingSticker by remember { mutableStateOf<StickerItem?>(null) }
         var editingSticker by remember { mutableStateOf<StickerItem?>(null) }
-        var artworkSticker by remember { mutableStateOf<StickerItem?>(null) }
+        var artworkSticker by rememberSaveable(stateSaver = Saver<StickerItem?, String>(
+            save = { item -> item?.let { org.json.JSONArray().put(it.id).put(it.packId).put(it.fileName)
+                .put(it.sha256).put(it.createdAt).put(it.label).put(it.tags).toString() } },
+            restore = { raw -> runCatching { org.json.JSONArray(raw).let {
+                StickerItem(it.getString(0), it.getString(1), it.getString(2), it.getString(3), it.getLong(4), it.getString(5), it.getString(6))
+            } }.getOrNull() }
+        )) { mutableStateOf<StickerItem?>(null) }
         var refreshJob by remember { mutableStateOf<Job?>(null) }
         var stickerLabel by remember { mutableStateOf("") }
         var stickerTags by remember { mutableStateOf("") }
@@ -181,7 +197,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         packs = all,
                         stickers = requestedId?.let(store::listStickers).orEmpty(),
                         counts = store.stickerCounts(),
-                        previews = store.stickerPreviews()
+                        previews = store.stickerPreviews(),
+                        drafts = store.artworkDrafts()
                     )
                 }
                 packs = snapshot.packs
@@ -189,6 +206,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 if (selectedId == requestedId) stickers = snapshot.stickers
                 counts = snapshot.counts
                 previewItems = snapshot.previews
+                artworkDrafts = snapshot.drafts
                 if (selectedId != null && packs.none { it.id == selectedId }) selectedId = null
                 selectedStickerIds = selectedStickerIds.intersect(stickers.mapTo(mutableSetOf()) { it.id })
             }
@@ -219,11 +237,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
             busyLabel = "Removing sticker"
             scope.launch {
                 try {
-                    val bytes = withContext(Dispatchers.IO) {
+                    val deleted = withContext(Dispatchers.IO) {
                         val source = files.stickerFile(item.packId, item.fileName)
                         val snapshot = source.readBytes()
+                        val project = artworkProjects.snapshot(item)
                         files.deleteSticker(item)
-                        snapshot
+                        snapshot to project
                     }
                     refresh()
                     busyLabel = null
@@ -235,7 +254,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     if (result == SnackbarResult.ActionPerformed) {
                         busyLabel = "Restoring sticker"
                         val restored = withContext(Dispatchers.IO) {
-                            files.restoreBytes(item.packId, bytes, item.sha256, item.label, item.tags)
+                            files.restoreBytes(item.packId, deleted.first, item.sha256, item.label, item.tags) { restored ->
+                                deleted.second?.let { artworkProjects.restoreSnapshot(restored, it) }
+                            }
                         }
                         refresh()
                         snackbar.showSnackbar(if (restored == ImportResult.Added) "Sticker restored" else "Could not restore sticker")
@@ -256,25 +277,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 try {
                     val result = withContext(Dispatchers.IO) {
                         val community = CommunityCatalog(this@StickerDockPolishedActivity, backup)
-                        val catalog = community.browse()
-                        val imports = CatalogImports(this@StickerDockPolishedActivity, store)
-                        var automaticallyAdded = 0
-                        catalog.filterNot { imports.wasImported(it.id, it.sha256) }
-                            .take(3)
-                            .forEach { entry ->
-                                runCatching { community.downloadAndImport(entry) }
-                                    .onSuccess { if (it.packs > 0) automaticallyAdded += it.packs }
-                            }
-                        Triple(catalog, catalog.filter {
-                            imports.importedPackIds(it.id, it.sha256).isNotEmpty()
-                        }.mapTo(mutableSetOf()) { it.id }, automaticallyAdded)
+                        CatalogDiscovery(this@StickerDockPolishedActivity, store, community::browse).refresh()
                     }
-                    communityPacks = result.first
-                    catalogImportedIds = result.second
-                    if (result.third > 0) {
-                        refresh()
-                        snackbar.showSnackbar("${result.third} new sticker ${if (result.third == 1) "pack" else "packs"} added to your library")
-                    }
+                    communityPacks = result.packs
+                    catalogImportedIds = result.savedIds
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     communityError = e.message ?: "Unable to load new stickers"
                 } finally {
@@ -285,9 +293,15 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         fun importFactoryPack(entry: CommunityCatalog.Listing) {
             operation("Adding sticker pack") {
-                val summary = CommunityCatalog(this@StickerDockPolishedActivity, backup).downloadAndImport(entry)
+                val summary = try {
+                    CommunityCatalog(this@StickerDockPolishedActivity, backup).downloadAndImport(entry)
+                } catch (error: Exception) {
+                    runOnUiThread { catalogSaveError = error.message ?: "Couldn't save this pack. Please retry." }
+                    throw error
+                }
                 val importedIds = CatalogImports(this@StickerDockPolishedActivity, store).importedPackIds(entry.id, entry.sha256)
                 runOnUiThread {
+                    previewingCatalogPack = null
                     catalogImportedIds = catalogImportedIds + entry.id
                     selectedId = importedIds.firstOrNull()
                     sectionName = PolishedHomeSection.LIBRARY.name
@@ -340,6 +354,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
 
+        val clipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) {}
+                clipUri = uri.toString()
+            }
+        }
+
         val photoPackPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
             if (uris.isNotEmpty()) operation("Making stickers") {
                 val result = PhotoPackImporter(this@StickerDockPolishedActivity, store, files).import(uris)
@@ -368,21 +389,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 var added = 0
                 var skipped = 0
                 var failed = 0
+                var firstError: String? = null
                 uris.forEach { uri ->
                     try {
-                        val result = try {
-                            val restored = backup.restore(uri)
-                            Triple(restored.packs, restored.stickers, restored.rejected)
-                        } catch (_: Exception) {
-                            val imported = PackZipImporter(this@StickerDockPolishedActivity, store, files).import(uri)
-                            Triple(imported.packs, imported.imported, imported.skipped + imported.duplicates)
-                        }
+                        val imported = PackZipImporter(this@StickerDockPolishedActivity, store, files).import(uri)
+                        val result = Triple(imported.packs, imported.imported, imported.skipped + imported.duplicates)
                         packsCreated += result.first
                         added += result.second
                         skipped += result.third
-                    } catch (_: Exception) { failed++ }
+                    } catch (error: Exception) {
+                        failed++
+                        if (firstError == null) firstError = error.message?.take(160) ?: "Cannot read this archive"
+                    }
                 }
-                "${uris.size} ZIPs • $packsCreated packs • $added stickers • $skipped skipped • $failed failed"
+                "${uris.size} ZIPs • $packsCreated packs • $added stickers • $skipped skipped • $failed failed" + firstError?.let { ". $it" }.orEmpty()
             }
         }
 
@@ -475,8 +495,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
             lifecycle.addObserver(observer)
             onDispose { lifecycle.removeObserver(observer) }
         }
-        BackHandler(enabled = selectedStickerIds.isNotEmpty() || selectedId != null) {
-            if (selectedStickerIds.isNotEmpty()) selectedStickerIds = emptySet() else selectedId = null
+        BackHandler(enabled = selectedStickerIds.isNotEmpty() || selectedId != null || section == PolishedHomeSection.IMPORT) {
+            when {
+                selectedStickerIds.isNotEmpty() -> selectedStickerIds = emptySet()
+                selectedId != null -> selectedId = null
+                else -> sectionName = importReturnSectionName
+            }
         }
 
         Scaffold(
@@ -497,6 +521,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     },
                     navigationIcon = {
                         if (pack != null) TextButton(onClick = { selectedId = null }) { Text("Back") }
+                        else if (section == PolishedHomeSection.IMPORT) TextButton(onClick = { sectionName = importReturnSectionName }) { Text("Back") }
                     },
                     actions = { TextButton(onClick = { showCloud = true }) { Text(if (pack == null) "Cloud" else "Backup") } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -507,33 +532,17 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     BoxWithConstraints {
                         if (maxWidth < 720.dp) {
                             NavigationBar {
-                                PolishedHomeSection.entries.forEach { destination ->
+                                PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
                                     NavigationBarItem(
-                                        selected = section == destination,
+                                        selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
                                         onClick = { sectionName = destination.name },
-                                        icon = { Text(destination.mark, fontWeight = FontWeight.Bold) },
+                                        icon = { StickerDockNavIcon(destination.label) },
                                         label = { Text(destination.label) }
                                     )
                                 }
                             }
                         }
                     }
-                }
-            },
-            floatingActionButton = {
-                if (section == PolishedHomeSection.LIBRARY && pack == null) {
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            name = ""
-                            newPackKind = StickerKind.STATIC
-                            newPackRating = PackRating.GENERAL
-                            newPackCategory = PackCategory.GENERAL
-                            dialog = "create"
-                        },
-                        icon = { Text("+", style = MaterialTheme.typography.titleLarge) },
-                        text = { Text("New pack") },
-                        expanded = !busy
-                    )
                 }
             },
             snackbarHost = { SnackbarHost(snackbar) }
@@ -555,14 +564,14 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         if (rail) {
                             NavigationRail {
                                 Spacer(Modifier.height(12.dp))
-                                PolishedHomeSection.entries.forEach { destination ->
+                                PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
                                     NavigationRailItem(
-                                        selected = section == destination,
+                                        selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
                                         onClick = {
                                             sectionName = destination.name
                                             if (destination != PolishedHomeSection.LIBRARY) selectedId = null
                                         },
-                                        icon = { Text(destination.mark, fontWeight = FontWeight.Bold) },
+                                        icon = { StickerDockNavIcon(destination.label) },
                                         label = { Text(destination.label) }
                                     )
                                 }
@@ -582,9 +591,11 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                     name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL
                                                     newPackCategory = PackCategory.GENERAL; dialog = "create"
                                                 },
-                                                { sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
+                                                { importReturnSectionName = PolishedHomeSection.LIBRARY.name; sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
                                                 { selectedId = it },
-                                                { photoPackPicker.launch(arrayOf("image/*")) }
+                                                { photoPackPicker.launch(arrayOf("image/*")) },
+                                                artworkDrafts, { selectedId = it.packId; artworkSticker = it },
+                                                { clipPicker.launch(arrayOf("video/*", "image/gif")) }
                                             )
                                         }
                                         VerticalDivider()
@@ -655,10 +666,18 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL
                                             newPackCategory = PackCategory.GENERAL; dialog = "create"
                                         },
-                                        { sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
+                                        { importReturnSectionName = PolishedHomeSection.LIBRARY.name; sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
                                         { selectedId = it },
-                                        { photoPackPicker.launch(arrayOf("image/*")) }
+                                        { photoPackPicker.launch(arrayOf("image/*")) },
+                                        artworkDrafts, { selectedId = it.packId; artworkSticker = it },
+                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) }
                                     )
+                                }
+                                section == PolishedHomeSection.CREATE -> AnimatedScreenSwap("create") {
+                                    CreateScreen(busy,
+                                        { photoPackPicker.launch(arrayOf("image/*")) },
+                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) },
+                                        { importReturnSectionName = PolishedHomeSection.CREATE.name; sectionName = PolishedHomeSection.IMPORT.name })
                                 }
                                 section == PolishedHomeSection.IMPORT -> AnimatedScreenSwap("import") {
                                     ImportScreen(
@@ -685,11 +704,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             }
                                         },
                                         { loadBackup.launch(arrayOf("application/zip")) },
-                                        { photoPackPicker.launch(arrayOf("image/*")) }
+                                        { photoPackPicker.launch(arrayOf("image/*")) },
+                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) }
                                     )
                                 }
                                 else -> AnimatedScreenSwap("factory") {
-                                    FactoryScreen(communityLoading, communityPacks, communityError, catalogImportedIds, busy, ::refreshFactory, ::importFactoryPack,
+                                    FactoryScreen(communityLoading, communityPacks, communityError, catalogImportedIds, busy, ::refreshFactory,
+                                        onPack = {
+                                            catalogSaveError = null
+                                            if (it.id in catalogImportedIds) importFactoryPack(it) else previewingCatalogPack = it
+                                        },
+                                        onPreview = { entry -> withContext(Dispatchers.IO) {
+                                            CommunityCatalog(this@StickerDockPolishedActivity, backup).preview(entry)
+                                        } },
+                                        previewRevision = catalogArtworkRevision,
                                         onHide = { entry ->
                                             CommunityCatalog(this@StickerDockPolishedActivity, backup).hide(entry)
                                             refreshFactory()
@@ -705,6 +733,19 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
 
+        previewingCatalogPack?.let { entry ->
+            CatalogPackSheet(entry, entry.id in catalogImportedIds, busy, catalogSaveError,
+                onPreview = { listing ->
+                    val bytes = withContext(Dispatchers.IO) {
+                        CommunityCatalog(this@StickerDockPolishedActivity, backup).preview(listing, allowLegacyDownload = true)
+                    }
+                    if (bytes != null) catalogArtworkRevision++
+                    bytes
+                },
+                onSave = { catalogSaveError = null; importFactoryPack(entry) },
+                onDismiss = { if (!busy) previewingCatalogPack = null })
+        }
+
         if (showFilters) {
             LibraryFiltersSheet(
                 packFilter, packSort, categoryFilter,
@@ -713,6 +754,18 @@ class StickerDockPolishedActivity : ComponentActivity() {
             )
         }
 
+        clipUri?.let { chosen ->
+            ClipStickerEditor(android.net.Uri.parse(chosen), packs,
+                onSave = { bytes, caption, target, title ->
+                    val (saved, size) = withContext(Dispatchers.IO) {
+                        val created = ClipStickerSaver(store, files).save(bytes, caption, target, title)
+                        created to store.stickerCount(created.id)
+                    }
+                    clipUri = null; selectedId = saved.id; sectionName = PolishedHomeSection.LIBRARY.name
+                    refresh()
+                    scope.launch { snackbar.showSnackbar(if (size < 3) "Animation saved. Add ${3 - size} more to use this pack in WhatsApp." else "Animation saved. Your pack is ready to add to WhatsApp.") }
+                }, onDismiss = { clipUri = null })
+        }
         if (showCloud) CloudLibrarySheet(cloud, pack, { cloudRevision++; refresh() }, { showCloud = false })
         reportingPack?.let { entry ->
             AlertDialog(onDismissRequest = { reportingPack = null }, title = { Text("Report ${entry.name}") },
@@ -777,18 +830,14 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         artworkSticker?.let { item ->
-            StickerArtworkEditor(item, files,
-                onSave = { edit ->
+            StickerArtworkEditor(item, artworkProjects,
+                onSave = { history ->
+                    withContext(Dispatchers.IO) { artworkProjects.save(item, history) }
                     artworkSticker = null
-                    operation("Saving sticker artwork") {
-                        val input = files.stickerFile(item.packId, item.fileName).readBytes()
-                        val bitmap = StickerArtwork.render(input, edit)
-                        val encoded = try { StickerArtwork.encode(bitmap) } finally { bitmap.recycle() }
-                        files.replaceStaticArtwork(item, encoded)
-                        "Sticker updated. Open WhatsApp to refresh your pack."
-                    }
+                    refresh()
+                    scope.launch { snackbar.showSnackbar("Sticker updated. Open WhatsApp to refresh your pack.") }
                 },
-                onDismiss = { artworkSticker = null }
+                onDismiss = { artworkSticker = null; refresh() }
             )
         }
 

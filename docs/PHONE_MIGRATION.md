@@ -6,7 +6,7 @@ StickerDock can import local images you have access to, user-selected folders, Z
 
 ### Method A — Samsung / Android folder import (recommended)
 
-1. Open StickerDock → **Import phone sticker folder**.
+1. Open StickerDock → **Create** → **Import and backups** → **Import phone sticker folder**.
 2. In Android's system folder picker, browse to the stickers saved by **your** WhatsApp:
    - WhatsApp personal: `Internal storage/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers`
    - WhatsApp Business: often under `Internal storage/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Stickers`. Exact folder labels vary.
@@ -43,6 +43,28 @@ Put images under `StickerDock-Phone-Export/raw/personal/` or `raw/business/` fir
 From Sticker.ly, share a public pack link or code to StickerDock, or paste a list in **Saved Sticker.ly pack links**. StickerDock stores the links locally; tap a saved entry to open the official public pack page. This deliberately does not scrape/rehost a creator's image files.
 
 If an authorized export supplies **actual** image files, import them with the system picker or as a ZIP. If Sticker.ly exports stickers to WhatsApp and those stickers then appear in the WhatsApp media sticker folder, Method A may recover them. Not every exported pack is guaranteed to appear in the readable folder.
+
+### Method D — move your StickerDock packs between Android and iPhone
+
+The iPhone client is a tested-source candidate; a signed iPhone installation is
+still required. It cannot scan Android folders or another iPhone app's sandbox.
+
+1. On Android, open a pack → **Share ZIP**, or export a library backup from the
+   import/backup tools. Transfer the ZIP through a sharing service you choose.
+2. On iPhone, save that ZIP in Files. Open StickerDock → **Library** → settings
+   → **Import sticker ZIP**; the empty library also has an import action.
+3. Check the imported names, static/animated types and private ratings. Saved
+   media stays in StickerDock's private local library. Adding to WhatsApp is a
+   separate explicit action and requires 3–30 stickers in each pack.
+4. To return a pack to Android, use the iPhone pack's **Pack options** → **Share
+   ZIP**, then Android **Create** → **Import and backups** → **Sticker ZIPs**.
+
+StickerDock schema-5 ZIPs preserve media bytes and metadata; supported older
+schemas 1–4 remain readable. iPhone generic ZIP import currently supports WebP,
+not all Android PNG/JPEG/.wastickers or EXIF-grouping paths. Use a StickerDock
+export for that migration. Editing recipes/full-resolution originals are not
+included in portable backups. Unsigned IPA/CI results do not prove a physical
+iPhone or WhatsApp installation.
 
 ### Can the modified Sticker.ly APK supply everything?
 

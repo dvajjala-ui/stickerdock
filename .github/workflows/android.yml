@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - 'app/**'
+      - 'sticker-core/**'
       - 'api/**'
       - 'admin/**'
       - 'supabase/**'
@@ -22,6 +23,7 @@ on:
       - main
     paths:
       - 'app/**'
+      - 'sticker-core/**'
       - 'api/**'
       - 'admin/**'
       - 'supabase/**'
@@ -67,12 +69,14 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y ffmpeg fonts-dejavu-core
           fi
-          python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt
+          python3 -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt -r tools/requirements-checks.txt
+          python3 -m ruff check api tools --select F821,F822,F823
           python3 -m unittest discover -s tools -p 'test_*.py' -v
           node --check admin/app.js
       - name: Test, lint, and build APK plus release bundle
         run: |
           gradle --no-daemon \
+            :sticker-core:jvmTest \
             :app:testDebugUnitTest \
             :app:lintRelease \
             :app:assembleDebug \
@@ -115,3 +119,12 @@ jobs:
         with:
           name: stickerdock-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stickerdock-test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+            sticker-core/build/reports/tests/
+            sticker-core/build/test-results/
