@@ -48,6 +48,20 @@ class VideoStickerTest(unittest.TestCase):
             preview = reference_image(mp4)
             self.assertEqual(preview.mode, "RGB")
 
+    def test_vision_storyboard_contains_chronological_motion_not_only_first_frame(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = self.fixture(Path(temporary))
+            preview = reference_image(source)
+            self.assertEqual(preview.size, (512, 512))
+            # The first tile is red; the final tile is yellow. A first-frame-only
+            # vision preview cannot distinguish these two ends of the clip.
+            first = preview.getpixel((128, 70))
+            last = preview.getpixel((384, 410))
+            self.assertGreater(first[0], 200)
+            self.assertLess(first[1], 30)
+            self.assertGreater(last[0], 200)
+            self.assertGreater(last[1], 200)
+
     def test_non_media_and_corrupted_input_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "bad.gif"

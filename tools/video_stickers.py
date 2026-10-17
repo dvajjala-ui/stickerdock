@@ -40,26 +40,11 @@ def render_clip(path, idea, font_path):
 
 
 def render_clip_frames(originals, idea, font_path):
-    from daily_stickers import draw_caption
+    from reaction_media import compose, encode_animation
     if not 2 <= len(originals) <= 16:
         raise ValueError("Supply 2–16 decoded clip frames")
-    frames = []
-    for original in originals:
-        frame = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
-        frame.alpha_composite(original, ((512 - original.width) // 2, 20))
-        draw_caption(frame, idea["caption"], font_path)
-        frames.append(frame)
-    for quality in (85, 65, 45, 25):
-        output = io.BytesIO()
-        frames[0].save(output, format="WEBP", save_all=True, append_images=frames[1:],
-                       duration=125, loop=0, quality=quality, method=4)
-        data = output.getvalue()
-        with Image.open(io.BytesIO(data)) as check:
-            if not getattr(check, "is_animated", False):
-                raise ValueError("Clip has no visible motion after normalization")
-        if len(data) <= 500_000:
-            return data
-    raise ValueError("Clip cannot fit animated WhatsApp size limit")
+    frames = [compose(original, idea["caption"], font_path, fit="contain") for original in originals]
+    return encode_animation(frames, fps=8)
 
 
 if __name__ == "__main__":

@@ -157,6 +157,7 @@ def run_hosted(config: dict, runtime: Path, client) -> dict:
 
 
 def main():
+    raise SystemExit("Pin archiving is retired. Use python -m tools.pinterest_connection for official connection checks.")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--runtime", type=Path)

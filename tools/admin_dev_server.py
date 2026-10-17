@@ -11,6 +11,7 @@ from api.admin import handler as Admin
 from api.library import handler as Library
 from api.upload import handler as Upload
 from api.captions import handler as Captions
+from api.pinterest_callback import handler as PinterestCallback
 
 
 class Preview(SimpleHTTPRequestHandler):
@@ -19,9 +20,14 @@ class Preview(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == "/api/pinterest_callback":
+            PinterestCallback.do_GET(self)
+            return
         if path in ("/", "/admin", "/admin/"):
             self.path = "/admin/index.html"
-        elif not (path.startswith(("/admin/", "/studio/")) and ".." not in path and "%" not in path):
+        elif path in ("/about", "/support", "/privacy"):
+            self.path = {"/about":"/site/about.html", "/support":"/site/support.html", "/privacy":"/studio/privacy.html"}[path]
+        elif not (path.startswith(("/admin/", "/studio/", "/site/")) and ".." not in path and "%" not in path):
             self.send_error(404)
             return
         super().do_GET()

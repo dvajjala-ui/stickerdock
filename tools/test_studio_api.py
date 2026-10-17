@@ -17,6 +17,12 @@ def image_data_url():
 
 
 class StudioApiTest(unittest.TestCase):
+    def test_legacy_pinterest_source_cannot_enter_sticker_conversion(self):
+        with patch.object(studio,"source_metadata",return_value={"source":"pinterest-official"}), patch.object(studio,"supabase_request") as storage:
+            with self.assertRaisesRegex(studio.StudioError,"Pinterest references cannot"):
+                studio.fetch_inbox("inbox/"+"a"*64+".png")
+        storage.assert_not_called()
+
     def _supabase_headers_for(self, key):
         captured = {}
 

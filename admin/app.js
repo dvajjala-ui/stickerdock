@@ -5,9 +5,45 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
   const categories = ["GENERAL","REACTIONS","HINGLISH","MOVIES","NEWS","ANIMALS","LOVE","WORK","FESTIVALS","OTHER"];
   const contentCategories = ["TRENDING","POLITICS","CREATIVE","MOVIES","SERIES","INDIA","SPORTS","TECHNOLOGY","EVERYDAY","ADULT_HUMOR"];
-  const titles = {overview:"Overview",packs:"Sticker packs",media:"Media library",generate:"AI workbench",content:"Content planner",factory:"Factory & queue",catalog:"Public catalog",activity:"Activity log",settings:"Settings"};
+  const titles = {overview:"Overview",packs:"Sticker packs",media:"Media library",generate:"AI workbench",content:"Content planner",factory:"Factory & queue",catalog:"Public catalog",activity:"Activity log",settings:"Settings",health:"Setup & health"};
   let token = "", page = "overview", data, library = [], detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
   let pendingStickerEdits = new Map(), pendingPackName = null, pendingCreator = null;
+  let readiness = null, packBaseline = null, pendingCategory = "", appendPack = null;
+  let backgroundRefreshing = false, interactionVersion = 0, lastRefreshAt = 0;
+  let pinterest = null, pinterestItems = [], pinterestBoard = null, pinterestBookmark = null;
+  titles.pinterest = "Pinterest connection";
+  titles.community = "User submissions";
+  let community = {submissions:[],reports:[]};
+  function renderCommunity() {
+    return heading("User submissions", "Only opted-in snapshots appear here. Private synced libraries are not listed.", button("Refresh","community-refresh"))+
+      `<div class="notice">Review every image, general-audience suitability, personal data, and redistribution rights. Creating a draft does not approve or publish it. The user can withdraw consent.</div>`+
+      (community.submissions.length?`<div class="table-wrap"><table><thead><tr><th>Pack</th><th>Category / stickers</th><th>Status</th><th>Review</th></tr></thead><tbody>${community.submissions.map(s=>`<tr><td><strong>${esc(s.name)}</strong><small>${esc(s.id)}</small></td><td>${esc(s.manifest.category)} · ${s.manifest.stickers.length}</td><td>${badge(s.effective_status||s.status)}</td><td>${button("Preview","community-preview",s.id)}${s.admin_pack_id?button("Open review draft","open-pack",s.admin_pack_id):button("Create review draft","community-draft",s.id)}${!s.admin_pack_id?button("Reject","community-reject",s.id):""}</td></tr>`).join("")}</tbody></table></div>`:empty("No submissions", "Phone users can opt in after private sync and a rights confirmation."))+
+      `<section class="panel"><h2>Reports & takedowns</h2>${community.reports.length?community.reports.map(r=>`<div><strong>${esc(r.catalog_id)}</strong><p>${esc(r.reason)}</p><p class="hint">Find the pack in Public catalog and unpublish if needed. Existing downloads cannot be recalled.</p>${button("Mark resolved","community-report-resolve",r.id)}</div>`).join(""):"No open reports. Support/privacy requests are also accepted at dvjjala@gmail.com."}</section>`;
+  }
+  function renderPinterest() {
+    const status=pinterest||{status:"not_connected",message:"Connect an approved app to browse your own boards live.",oauth_ready:false};
+    return heading("Pinterest connection","Live references from your own authorized account. Your meme sources stay separate.",button("Check connection","pinterest-check","","primary"))+
+      `<section class="panel"><h2>${esc(status.status.replaceAll("_"," "))}</h2><p>${esc(status.message)}</p>${status.app_id?`<p>Application ID: ${esc(status.app_id)}. Check the developer dashboard for review status.</p>`:""}<p>Required scopes: boards:read, pins:read. No advertising or write access is requested.</p><div class="toolbar">${button("Connect with Pinterest","pinterest-connect","","primary")}${button("Browse my boards","pinterest-boards")}${button("Disconnect","pinterest-disconnect")}<a class="secondary" href="https://developers.pinterest.com/apps/" target="_blank" rel="noopener">Developer dashboard ↗</a></div></section>`+
+      `<section class="panel"><h3>Real application links</h3><p><a href="/about" target="_blank" rel="noopener">StickerDock website ↗</a> · <a href="/privacy" target="_blank" rel="noopener">Privacy policy ↗</a> · <a href="/support" target="_blank" rel="noopener">Support ↗</a></p><p class="hint">OAuth callback: https://stickerdock.vercel.app/api/pinterest_callback. Application approval and server app credentials are required before OAuth works.</p></section><div class="notice">Pinterest responses are fetched live and never archived or converted into sticker packs. For real-image memes, upload your own image in Media library or use independently licensed Factory media. Phone imports stay local; signed-in users can enable private cloud backup separately.</div>`+
+      `<section class="panel"><h3>${pinterestBoard?"Pins on this board":"Your boards"}</h3>${pinterestBoard?button("← Back to boards","pinterest-boards"):""}${pinterestItems.length?`<ul>${pinterestItems.map(i=>`<li>${pinterestBoard?`<a href="${esc(i.url)}" target="_blank" rel="noopener noreferrer">${esc(i.name||"Open Pin")} ↗</a>`:button(esc(i.name||"Untitled board"),"pinterest-board",i.id,"text-button")}</li>`).join("")}</ul>`:"<p>No live results loaded. Use Browse my boards after connection.</p>"}${pinterestBookmark?button("Load next page","pinterest-next"):""}</section>`;
+  }
+  function emptyLiveData() {return {packs:[],factory_packs:[],runs:[],requests:[],events:[],briefs:[],settings:null,catalog:{version:1,packs:[]},catalog_base:readiness?.catalog_base||"Server configuration required"};}
+  async function refreshHealth() {readiness=await api("/api/admin",{action:"health"});}
+  function renderHealth() {
+    const checks=readiness?.checks||[{name:"Live connection",status:"pending",message:"Connect your owner token to check the real database and catalog."}];
+    return heading("Setup & health","Read-only checks of the database and public catalog. Phone and worker acceptance remain separate.",button("Check again","health-refresh","","primary"))+
+      `<section class="panel"><h2>${readiness?.admin_ready?"Admin database is available":"Setup needs attention"}</h2><p>${Number(readiness?.published_packs||0)} published packs. A successful generation run does not automatically publish content.</p><div class="table-wrap"><table><thead><tr><th>Check</th><th>Status</th><th>Next step</th></tr></thead><tbody>${checks.map(c=>`<tr><td>${esc(c.name)}</td><td>${badge(c.status)}</td><td>${esc(c.message)}</td></tr>`).join("")}</tbody></table></div><p>If required tables are missing, execute the reviewed <a href="https://github.com/dvajjala-ui/stickerdock/blob/main/db.sql" target="_blank" rel="noopener">database setup SQL</a> in your Supabase project, then check again.</p><p>Android release signing, hosted worker configuration and actual WhatsApp acceptance are separate checks; this page does not certify them.</p></section>`;
+  }
+  function hasUnsavedPackEdits() {
+    const form=$("pack-form");
+    if(!form||!packBaseline||!$("pack-dialog").open)return false;
+    if(form.elements.name.value!==packBaseline.pack.name||form.elements.creator.value!==packBaseline.pack.creator)return true;
+    if($("pack-category")?.value)return true;
+    return Array.from(document.querySelectorAll(".sticker-edit")).some(row=>{
+      const original=packBaseline.stickers.find(s=>s.name===row.dataset.sticker);
+      return original && (row.querySelector('[data-field=label]').value!==(original.label||"")||row.querySelector('[data-field=tags]').value!==(original.tags||"")||row.querySelector('[data-field=remove]').checked);
+    });
+  }
   const colors = ["mint","lilac","peach",""];
   function sticker(caption, variant = 0) {
     const palette = ["#e3b2ee", "#f5bf71", "#b6d589", "#b8cbea"][variant % 4];
@@ -32,11 +68,24 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(()=>$("toast").hidden=true,5500);
   }
   async function api(path, body) {
-    if (!token) throw new Error("Connect your owner token first.");
-    const response = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json","X-StickerDock-Token":token},body:JSON.stringify(body)});
-    const result = await response.json().catch(()=>({}));
-    if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
-    return result;
+    if (!token) throw new Error("Sign in to your owner account first.");
+    const controller = new AbortController(), timeout = setTimeout(()=>controller.abort(),90000);
+    try {
+      const headers={"Content-Type":"application/json"};
+      if(token!=="cookie-session")headers["X-StickerDock-Token"]=token;
+      let response = await fetch(path,{method:"POST",headers,body:JSON.stringify(body),signal:controller.signal});
+      if(response.status===401&&token==="cookie-session") {
+        const session=await ownerSession({action:"status"});
+        if(!session.signed_in){token="";render();connectDialog();throw new Error("Please sign in again.");}
+        response=await fetch(path,{method:"POST",headers,body:JSON.stringify(body),signal:controller.signal});
+      }
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
+      return result;
+    } catch(error) {
+      if(controller.signal.aborted)throw new Error("Request timed out. Refresh to check whether it finished before retrying.");
+      throw error;
+    } finally {clearTimeout(timeout);}
   }
   function event(action,entity) {
     data.events.unshift({id:uid(),action,entity_id:entity,created_at:new Date().toISOString()});
@@ -62,17 +111,37 @@
     return {saved:true};
   }
   function connectionUi() {
-    $("preview-banner").hidden=live();
+    $("preview-banner").hidden=true;
     $("mode-pill").classList.toggle("live",live());
-    $("mode-pill").replaceChildren(); const dot=document.createElement("i");$("mode-pill").append(dot,document.createTextNode(live()?"Live backend":"Preview data"));
-    $("connection-label").textContent=live()?"Connected · owner access":"Preview mode";
-    $("connect-button").textContent=live()?"Connection":"Connect backend";
+    $("mode-pill").replaceChildren(); const dot=document.createElement("i");$("mode-pill").append(dot,document.createTextNode(live()?"Live backend":"Sign in required"));
+    $("connection-label").textContent=live()?"Signed in · owner access":"Sign in to manage";
+    $("connect-button").textContent=live()?"Account":"Sign in";
     $("pack-count").textContent=data.packs.filter(p=>p.status!=="archived").length;
   }
-  async function refresh() {if(live())data=await api("/api/admin",{action:"overview"});connectionUi();render();}
+  async function refresh(background=false) {
+    const version=interactionVersion, connection=token;
+    let nextData=data, nextReadiness=readiness;
+    if(live()) {
+      if(page==="health"||nextReadiness?.admin_ready===false)nextReadiness=await api("/api/admin",{action:"health"});
+      nextData=nextReadiness?.admin_ready===false?emptyLiveData():await api("/api/admin",{action:"overview"});
+    }
+    if(background&&(version!==interactionVersion||connection!==token||!canBackgroundRefresh()))return;
+    data=nextData;readiness=nextReadiness;lastRefreshAt=Date.now();
+    if(live()&&readiness?.admin_ready===false)page="health";
+    connectionUi();render();
+  }
+  function canBackgroundRefresh() {
+    return live()&&!document.hidden&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open)
+      &&!["settings","generate","pinterest"].includes(page)&&!document.activeElement?.matches("input, textarea, select");
+  }
+  async function backgroundRefresh() {
+    if(backgroundRefreshing||!canBackgroundRefresh()||Date.now()-lastRefreshAt<25000)return;
+    backgroundRefreshing=true;
+    try{await refresh(true);}catch(error){if(live())toast(error.message,true);}finally{backgroundRefreshing=false;}
+  }
   async function task(fn) {
     if(working)return;
-    working=true;
+    working=true;interactionVersion++;
     document.querySelectorAll("button[data-action], .dialog-actions button[type=submit]").forEach(b=>b.disabled=true);
     try {await fn();}catch(error){toast(error.message,true);}finally{working=false;document.querySelectorAll("button[data-action], .dialog-actions button[type=submit]").forEach(b=>b.disabled=false);}
   }
@@ -88,7 +157,7 @@
     return heading("Your sticker factory, at a glance.","A little creativity. A lot of reactions. Everything in one place.",button("＋ Create pack","create-pack","","primary"))+
     `<div class="stats-grid">${[["Total stickers",total,"✦","green","In your managed library"],["Sticker packs",visible.length,"▧","purple",`${pending} waiting for review`],["Published packs",published,"↗","blue","Available in the Android feed"],["Generation queue",queued,"◷","orange","Private AI requests"]].map(([label,value,icon,color,meta])=>`<div class="stat"><div class="stat-label">${label}<span class="stat-icon ${color}">${icon}</span></div><div class="stat-value">${value}</div><div class="stat-meta">${meta}</div></div>`).join("")}</div>
     <section class="hero"><div><div class="eyebrow">THE NEXT GREAT REACTION STARTS HERE</div><h2>Turn an idea into a sticker.</h2><p>Bring your memes, add a little AI, and make packs people actually want to send.</p>${button("Open AI workbench  ↗","navigate","generate","primary")}</div><div class="hero-art"><img src="${illustrations[0]}" alt="Original cat reaction illustration"><img src="${illustrations[1]}" alt="Chai first sticker illustration"></div></section>
-    <div class="content-grid"><section><div class="section-head"><h2>Your latest packs <small>${visible.length} packs</small></h2>${button("View all →","navigate","packs","text-button")}</div>${visible.length?`<div class="pack-grid">${visible.slice(0,6).map(packCard).join("")}</div>`:empty("Your library starts here","Migrate an existing Factory output or create a pack from your own images.")}</section><aside class="overview-side"><section class="panel"><div class="panel-title"><span class="live-dot"></span> Factory today ${badge(data.settings?.enabled===false?"paused":"running")}</div><div class="progress-caption"><span>Daily generation</span><strong>${run?.generated||0} / ${run?.target||data.settings?.daily_target||40}</strong></div><div class="progress-track"><progress class="progress-fill" max="${run?.target||40}" value="${run?.generated||0}"></progress></div><p class="run-summary">${esc(run?.day||"No run recorded")} · ${esc(run?.status||"Awaiting first batch")}</p><div class="run-item"><span class="status-dot">✓</span><div><strong>Generation</strong><small>${esc(run?.last_result||"No generation result yet")}</small></div></div><div class="run-item"><span class="status-dot">↗</span><div><strong>${published} packs on the app</strong><small>New approved packs appear on refresh</small></div></div>${button("View Factory activity →","navigate","factory","text-button")}</section><section class="panel phone-flow"><h3>From the Factory to WhatsApp.</h3><p>Review your pack, publish it, then open StickerDock on your phone. Import it from the Factory feed and tap Add to WhatsApp.</p><div class="flow-steps"><span>Generate</span>→<span>Review</span>→<span>Publish</span>→<span>Send</span></div></section></aside></div>`;
+    <div class="content-grid"><section><div class="section-head"><h2>Your latest packs <small>${visible.length} packs</small></h2>${button("View all →","navigate","packs","text-button")}</div>${visible.length?`<div class="pack-grid">${visible.slice(0,6).map(packCard).join("")}</div>`:empty("Your library starts here","Migrate an existing Factory output or create a pack from your own images.")}</section><aside class="overview-side"><section class="panel"><div class="panel-title"><span class="live-dot"></span> Factory today ${badge(data.settings?.enabled===false?"paused":"running")}</div><div class="progress-caption"><span>Daily generation</span><strong>${run?.generated||0} / ${run?.target||data.settings?.daily_target||40}</strong></div><div class="progress-track"><progress class="progress-fill" max="${run?.target||40}" value="${run?.generated||0}"></progress></div><p class="run-summary">${esc(run?.day||"No run recorded")} · ${esc(run?.status||"Awaiting first batch")}</p><div class="run-item"><span class="status-dot">✓</span><div><strong>Generation</strong><small>${esc(run?.last_result||"No generation result yet")}</small></div></div><div class="run-item"><span class="status-dot">↗</span><div><strong>${published} packs on the app</strong><small>New approved packs appear on refresh</small></div></div>${button("View Factory activity →","navigate","factory","text-button")}</section><section class="panel phone-flow"><h3>From the Factory to WhatsApp.</h3><p>Review your pack, publish it, then open StickerDock on your phone. Approved packs enter the library automatically; open a pack and tap Add to WhatsApp.</p><div class="flow-steps"><span>Generate</span>→<span>Review</span>→<span>Publish</span>→<span>Send</span></div></section></aside></div>`;
   }
   function renderPacks() {
     const packs=data.packs.filter(p=>(filter==="all"||p.status===filter)&&p.name.toLowerCase().includes(search.toLowerCase()));
@@ -104,54 +173,112 @@
   function renderContent() {const brief=(data.briefs||[])[0];return heading("Content planner","Daily researched ideas, custom topics, and category routing for the Factory.",button("Edit discovery settings","navigate","settings","primary"))+
     `<div class="notice">The worker creates one cited brief per UTC day. News and politics become original reaction concepts; factual headlines are not copied into stickers. Adult humor is private MATURE-only.</div>`+
     (brief?`<section class="panel"><div class="section-head"><h2>${esc(brief.day)} content brief</h2>${badge(brief.source_mode||brief.status)}</div><p class="hint">${Number(brief.item_count??brief.items?.length??0)} validated items · ${(brief.categories||[]).map(c=>esc(c.replaceAll("_"," "))).join(" · ")}</p>${brief.warnings?.length?`<div class="notice">${brief.warnings.map(esc).join(" ")}</div>`:""}<div class="idea-grid">${(brief.items||[]).map(item=>`<article class="idea-card"><div>${badge(item.category)}</div><h3>${esc(item.title)}</h3><p>${esc(item.sticker_angle)}</p><a href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a><small>${esc(item.published_at||"")}</small></article>`).join("")||empty("No researched items","Owner topics and safe evergreen reactions will still drive the next batch.")}</div></section>`:empty("No daily brief yet","The next enabled Factory invocation creates it and stores its source links privately."));}
+  function dailyRunCard(r) {
+    return `<article class="panel daily-run"><div class="section-head"><h3>${esc(r.day)}</h3>${badge(r.display_status||r.status)}</div><div class="progress-caption"><strong>${Number(r.generated)} / ${Number(r.target)} stickers</strong><span>${Number(r.attempts)} requests</span></div><progress value="${Number(r.generated)}" max="${Number(r.target)}" aria-label="Stickers generated"></progress><p>${esc(r.last_result||"Waiting for the next worker update.")}</p>${r.retry_at?`<p class="retry-hint">Provider cooldown ends ${esc(new Date(r.retry_at*1000).toLocaleString())}. The next scheduled worker will retry.</p>`:""}</article>`;
+  }
   function renderFactory() {return heading("Factory & queue","Track scheduled generation, recover failed requests, and watch daily progress.",button("Factory settings","navigate","settings"))+
-    `<div class="notice">Daily generation is ${data.settings?.enabled===false?"paused":"enabled"}. Settings are read at the next worker invocation. Publication always follows review.</div><h2>Daily runs</h2><div class="table-wrap"><table><thead><tr><th>Day</th><th>Progress</th><th>Status</th><th>Requests</th><th>Last result</th></tr></thead><tbody>${data.runs.map(r=>`<tr><td>${esc(r.day)}</td><td>${r.generated} / ${r.target}</td><td>${badge(r.status)}</td><td>${r.attempts}</td><td>${esc(r.last_result||"—")}</td></tr>`).join("")}</tbody></table></div><h2>Creator request queue</h2>`+
+    `<div class="notice">Daily generation is ${data.settings?.enabled===false?"paused":"enabled"}. Settings are read at the next worker invocation. Publication always follows review.</div><h2>Daily runs</h2><div class="daily-runs">${data.runs.map(dailyRunCard).join("")||empty("No scheduled runs yet","The first enabled Factory run will appear here.")}</div><h2>Creator request queue</h2>`+
     (data.requests.length?`<div class="table-wrap"><table><thead><tr><th>Creative direction</th><th>Status</th><th>Attempts</th><th>Action</th></tr></thead><tbody>${data.requests.map(r=>`<tr><td><strong>${esc(r.prompt?.slice(0,80))}</strong><small>${esc(r.error_message||r.id)}</small></td><td>${badge(r.status)}</td><td>${r.attempts||0}</td><td>${r.status==="queued"?button("Cancel","queue-cancel",r.id):["failed","cancelled"].includes(r.status)?button("Retry","queue-retry",r.id):r.result_path?button("View result","preview-source",r.result_path):"Worker is processing"}</td></tr>`).join("")}</tbody></table></div>`:empty("The queue is clear","Start a request in the AI workbench. Completed results appear in your private media library."));}
-  function renderCatalog() {return heading("Public catalog","These are the reviewed packs the Android app can discover.")+`<div class="notice">Factory drafts stay private. Published GENERAL packs appear in the app’s “From the Factory” feed. Users choose Import, then Add to WhatsApp.</div><section class="panel"><h3>Android catalog connection</h3><div class="catalog-url">${esc(data.catalog_base)}</div><p class="hint">The newly built APK uses the production Supabase catalog by default. Older APKs may still use the GitHub catalog.</p></section>`+(data.catalog.packs.length?`<div class="table-wrap"><table><thead><tr><th>Published pack</th><th>Creator</th><th>Audience</th><th>Management</th></tr></thead><tbody>${data.catalog.packs.map(p=>{const managed=data.packs.find(a=>"pack-"+a.id===p.id);return `<tr><td><strong>${esc(p.name)}</strong><small>${esc(p.id)}</small></td><td>${esc(p.creator)}</td><td>${badge("published")}</td><td>${managed?button("Manage pack","open-pack",managed.id):"Legacy Factory publication"}</td></tr>`;}).join("")}</tbody></table></div>`:empty("Nothing published yet","Migrate or create a pack, approve its content and rights, then publish it here."));}
-  function renderSettings() {const s=data.settings||{enabled:true,daily_target:40,batch_size:5,topics:[],content_categories:["EVERYDAY"],rating:"GENERAL"};return heading("Factory settings","Tune daily discovery and generation without exposing a secret.")+`<section class="panel"><form id="settings-form"><div class="settings-row"><input id="factory-enabled" name="enabled" type="checkbox" ${s.enabled?"checked":""}><label for="factory-enabled">Enable scheduled Factory generation</label></div><div class="settings-row"><input id="discovery-enabled" name="discovery_enabled" type="checkbox" ${s.discovery_enabled!==false?"checked":""}><label for="discovery-enabled">Research a fresh content brief once per UTC day</label></div><div class="settings-row"><input id="auto-migrate" name="auto_migrate_completed" type="checkbox" ${s.auto_migrate_completed!==false?"checked":""}><label for="auto-migrate">Place completed daily packs in Admin as private drafts</label></div><div class="form-grid"><label>Daily sticker target<input name="daily_target" type="number" min="3" max="100" value="${s.daily_target}" required></label><label>Stickers per request<input name="batch_size" type="number" min="1" max="10" value="${s.batch_size}" required></label></div><label>Audience for generated packs<select name="rating"><option value="GENERAL" ${s.rating!=="MATURE"?"selected":""}>General audience</option><option value="MATURE" ${s.rating==="MATURE"?"selected":""}>Private mature</option></select></label><fieldset class="category-picker"><legend>Daily content categories</legend>${contentCategories.map(c=>`<label><input type="checkbox" name="content_categories" value="${c}" ${(s.content_categories||[]).includes(c)?"checked":""}>${esc(c.replaceAll("_"," ").toLowerCase())}</label>`).join("")}</fieldset><label>Custom topic rotation · one per line<textarea name="topics" maxlength="5000">${esc((s.topics||[]).join("\n"))}</textarea></label><p class="hint">Optional format: CATEGORY | topic, for example INDIA | cricket group-chat reactions. ADULT_HUMOR requires Private mature. Cooldowns and request limits remain active.</p><button class="primary" type="submit">Save Factory settings</button></form></section><section class="panel"><h3>Deployment & access</h3><p>This first version uses one owner token. Keep Vercel deployment protection enabled. Team roles and MFA are the next authentication phase.</p><p>Server secrets: STUDIO_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Worker secrets: GROQ_API_KEY for captions and GROQ_TRENDS_API_KEY for daily browser search. Keys never appear here or in the APK.</p><a class="text-button" href="/studio/index.html" target="_blank" rel="noopener">Open existing Creator Studio ↗</a></section>`;}
+  function renderCatalog() {return heading("Public catalog","These are the reviewed packs the Android app can discover.")+`<div class="notice">Factory drafts stay private. Published GENERAL packs appear in Discover. Users preview and save the packs they want. Users open a pack and confirm Add to WhatsApp.</div><section class="panel"><h3>Android catalog connection</h3><div class="catalog-url">${esc(data.catalog_base)}</div><p class="hint">The newly built APK uses the production Supabase catalog by default. Older APKs may still use the GitHub catalog.</p></section>`+(data.catalog.packs.length?`<div class="table-wrap"><table><thead><tr><th>Published pack</th><th>Creator</th><th>Audience</th><th>Management</th></tr></thead><tbody>${data.catalog.packs.map(p=>{const managed=data.packs.find(a=>"pack-"+a.id===p.id);return `<tr><td><strong>${esc(p.name)}</strong><small>${esc(p.id)}</small></td><td>${esc(p.creator)}</td><td>${badge("published")}</td><td>${managed?button("Manage pack","open-pack",managed.id):"Legacy Factory publication"}</td></tr>`;}).join("")}</tbody></table></div>`:empty("Nothing published yet","Migrate or create a pack, approve its content and rights, then publish it here."));}
+  function renderSettings() {const s=data.settings||{enabled:true,daily_target:40,batch_size:5,topics:[],content_categories:["EVERYDAY"],rating:"GENERAL"};return heading("Factory settings","Tune daily discovery and generation without exposing a secret.")+`<section class="panel"><form id="settings-form"><div class="settings-row"><input id="factory-enabled" name="enabled" type="checkbox" ${s.enabled?"checked":""}><label for="factory-enabled">Enable scheduled Factory generation</label></div><div class="settings-row"><input id="discovery-enabled" name="discovery_enabled" type="checkbox" ${s.discovery_enabled!==false?"checked":""}><label for="discovery-enabled">Research a fresh content brief once per UTC day</label></div><div class="settings-row"><input id="auto-migrate" name="auto_migrate_completed" type="checkbox" ${s.auto_migrate_completed!==false?"checked":""}><label for="auto-migrate">Place completed daily packs in Admin as private drafts</label></div><div class="form-grid"><label>Daily sticker target<input name="daily_target" type="number" min="3" max="100" value="${s.daily_target}" required></label><label>Stickers per request<input name="batch_size" type="number" min="3" max="10" value="${s.batch_size}" required></label></div><label>Audience for generated packs<select name="rating"><option value="GENERAL" ${s.rating!=="MATURE"?"selected":""}>General audience</option><option value="MATURE" ${s.rating==="MATURE"?"selected":""}>Private mature</option></select></label><fieldset class="category-picker"><legend>Daily content categories</legend>${contentCategories.map(c=>`<label><input type="checkbox" name="content_categories" value="${c}" ${(s.content_categories||[]).includes(c)?"checked":""}>${esc(c.replaceAll("_"," ").toLowerCase())}</label>`).join("")}</fieldset><label>Custom topic rotation · one per line<textarea name="topics" maxlength="5000">${esc((s.topics||[]).join("\n"))}</textarea></label><p class="hint">Optional format: CATEGORY | topic, for example INDIA | cricket group-chat reactions. ADULT_HUMOR requires Private mature. Use batches of 3–10; eight batches run per day. Audience changes apply next UTC day if today's generation has started. Cooldowns and request limits remain active.</p><button class="primary" type="submit">Save Factory settings</button></form></section><section class="panel"><h3>Deployment & access</h3><p>Owner sign-in uses your verified email account and a secure browser session. No manual API token is needed. Team roles and MFA remain future additions.</p><p>Server secrets: STUDIO_ACCESS_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY. Worker secrets: GROQ_API_KEY for captions and GROQ_TRENDS_API_KEY for daily browser search. Keys never appear here or in the APK.</p><a class="text-button" href="/studio/index.html" target="_blank" rel="noopener">Open existing Creator Studio ↗</a></section>`;}
   function renderActivity() {return heading("Activity log","A record of pack edits, review decisions, publication, and Factory changes.")+(data.events.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Action</th><th>Entity</th></tr></thead><tbody>${data.events.map(e=>`<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td><strong>${esc(e.action)}</strong></td><td>${esc(e.entity_id||"Factory settings")}</td></tr>`).join("")}</tbody></table></div>`:empty("No activity yet","Changes in this workspace will appear here."));}
-  const pages={overview:renderOverview,packs:renderPacks,media:renderMedia,generate:renderGenerate,content:renderContent,factory:renderFactory,catalog:renderCatalog,settings:renderSettings,activity:renderActivity};
-  function render() {$("content").innerHTML=pages[page]();$("breadcrumb").textContent=titles[page];document.querySelectorAll("nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));connectionUi();}
+  const pages={community:renderCommunity,overview:renderOverview,packs:renderPacks,media:renderMedia,generate:renderGenerate,content:renderContent,factory:renderFactory,catalog:renderCatalog,settings:renderSettings,activity:renderActivity,health:renderHealth,pinterest:renderPinterest};
+  function render() {$("content").innerHTML=live()?pages[page]():heading("Your live StickerDock workspace","Sign in once to manage your app. Your browser keeps a secure session.",button("Sign in","owner-login","","primary"))+`<section class="panel"><h2>Everything in one place</h2><p>Manage sticker packs, AI generation, categories, the public feed, user submissions and content reports. Private phone backups stay isolated to each user's account.</p><p>No manual API token, backend key or preview setup is required.</p></section>`;$("breadcrumb").textContent=titles[page];document.querySelectorAll("nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));connectionUi();}
   async function loadLibrary() {if(live())library=(await api("/api/library",{action:"list"})).items;}
-  async function navigate(next) {if(!pages[next])return;page=next;$("sidebar").classList.remove("open");if(["media","generate"].includes(next))await loadLibrary();render();}
+  async function showCreatePack(selectedPath="") {
+    const selected=library.find(s=>s.path===selectedPath);
+    await loadLibrary();
+    if(selected&&!library.some(s=>s.path===selectedPath))library.unshift(selected);
+    $("create-form").reset();
+    $("create-category").innerHTML=categories.map(c=>`<option>${c}</option>`).join("");
+    $("create-sources").innerHTML=library.map(s=>`<label class="source-choice"><input type="checkbox" name="sources" value="${esc(s.path)}" ${s.path===selectedPath?"checked":""}>${s.preview?`<img src="${esc(s.preview)}" alt="">`:""}<span>${esc(s.name||s.path.slice(-20))}</span></label>`).join("")||'<p class="hint">Upload an image in Media library first.</p>';
+    $("create-dialog").showModal();
+  }
+  async function navigate(next) {if(!pages[next])return;if(live()&&readiness?.admin_ready===false)next="health";page=next;$("sidebar").classList.remove("open");if(["media","generate"].includes(next))await loadLibrary();if(next==="community"&&live())community=await command("community_list");render();}
   async function openPack(id,offset=0) {
     if(detail?.pack.id === id && $("pack-dialog").open) {
       const form = $("pack-form");
-      pendingPackName = form.elements.name.value; pendingCreator = form.elements.creator.value;
+      pendingPackName = form.elements.name.value; pendingCreator = form.elements.creator.value; pendingCategory = $("pack-category")?.value||"";
       document.querySelectorAll(".sticker-edit").forEach(row => pendingStickerEdits.set(row.dataset.sticker, {
         label:row.querySelector('[data-field=label]').value,
         tags:row.querySelector('[data-field=tags]').value,
         remove:row.querySelector('[data-field=remove]').checked
       }));
-    } else { pendingStickerEdits = new Map(); pendingPackName = null; pendingCreator = null; }
+    } else { pendingStickerEdits = new Map(); pendingPackName = null; pendingCreator = null; pendingCategory = ""; packBaseline=null; }
     detail=await command("pack_detail",{id,offset});
+    if(!packBaseline)packBaseline=structuredClone(detail);
     detail.stickers = detail.stickers.map(s => ({...s, ...pendingStickerEdits.get(s.name)}));
     const p=detail.pack;
     if(pendingPackName !== null) p.name = pendingPackName;
     if(pendingCreator !== null) p.creator = pendingCreator;
+    const addButton=p.status!=="published"&&(!live()||detail.target_packs?.some(p=>p.kind==="STATIC"&&p.count<30))?button("＋ Add stickers","add-sources",p.id):"";
     const actionButtons=p.status==="published"?button("Unpublish","unpublish",p.id):button("Archive","archive",p.id)+button("Reject","reject",p.id)+(p.status==="reviewed"?button("Publish to app ↗","publish",p.id,"primary"):p.status==="archived"?button("Restore draft","restore",p.id,"primary"):button("Approve review","review",p.id,"primary"));
-    $("pack-editor").innerHTML=`<div class="editor-head"><h2>Pack details ${badge(p.status)}</h2><button class="icon-button" data-close aria-label="Close">×</button></div><form id="pack-form"><div class="form-grid"><label>Pack name<input name="name" value="${esc(p.name)}" maxlength="60" required ${p.status==="published"?"disabled":""}></label><label>Creator<input name="creator" value="${esc(p.creator)}" maxlength="60" required ${p.status==="published"?"disabled":""}></label></div><div class="section-head"><h3>${detail.stickers.length} stickers · ${esc(p.rating)}</h3><span class="count-label">Preview ${offset+1}–${Math.min(offset+5,detail.stickers.length)}</span></div><div class="sticker-list">${detail.stickers.map((s,i)=>`<div class="sticker-edit" data-sticker="${esc(s.name)}">${s.preview?`<img src="${esc(s.preview)}" alt="${esc(s.label||"Sticker preview")}">`:`<div class="count-label">${i+1}<br>${esc(s.kind)}</div>`}<label>Label<input data-field="label" value="${esc(s.label||"")}" maxlength="80" ${p.status==="published"?"disabled":""}></label><label class="tags">Tags<input data-field="tags" value="${esc(s.tags||"")}" maxlength="400" ${p.status==="published"?"disabled":""}></label><label class="remove">Remove<input type="checkbox" data-field="remove" ${s.remove?"checked":""} ${p.status==="published"?"disabled":""}></label></div>`).join("")}</div><div class="toolbar">${offset>0?button("← Previous previews","pack-prev",p.id):""}${offset+5<detail.stickers.length?button("Next previews →","pack-next",p.id):""}${button("Download ZIP","download-pack",p.id)}</div><p class="hint">Editing returns a pack to draft. Published packs must be unpublished first. Original files and Factory output remain preserved.</p><div class="editor-actions">${p.status!=="published"?'<button class="secondary" type="submit">Save changes</button>':""}${actionButtons}</div></form>`;
+    $("pack-editor").innerHTML=`<div class="editor-head"><h2>Pack details ${badge(p.status)}</h2><button class="icon-button" data-close aria-label="Close">×</button></div><form id="pack-form"><div class="form-grid"><label>Pack name<input name="name" value="${esc(p.name)}" maxlength="60" required ${p.status==="published"?"disabled":""}></label><label>Creator<input name="creator" value="${esc(p.creator)}" maxlength="60" required ${p.status==="published"?"disabled":""}></label></div><label>Pack category<select id="pack-category" ${p.status==="published"?"disabled":""}><option value="">Keep existing categories</option>${categories.map(c=>`<option value="${c}" ${pendingCategory===c?"selected":""}>${c}</option>`).join("")}</select></label><div class="section-head"><h3>${detail.stickers.length} stickers · ${esc(p.rating)}</h3><span class="count-label">Preview ${offset+1}–${Math.min(offset+5,detail.stickers.length)}</span></div><div class="sticker-list">${detail.stickers.map((s,i)=>`<div class="sticker-edit" data-sticker="${esc(s.name)}">${s.preview?`<img src="${esc(s.preview)}" alt="${esc(s.label||"Sticker preview")}">`:`<div class="count-label">${i+1}<br>${esc(s.kind)}</div>`}<label>Label<input data-field="label" value="${esc(s.label||"")}" maxlength="80" ${p.status==="published"?"disabled":""}></label><label class="tags">Tags<input data-field="tags" value="${esc(s.tags||"")}" maxlength="400" ${p.status==="published"?"disabled":""}></label><label class="remove">Remove<input type="checkbox" data-field="remove" ${s.remove?"checked":""} ${p.status==="published"?"disabled":""}></label></div>`).join("")}</div><div class="toolbar">${offset>0?button("← Previous previews","pack-prev",p.id):""}${offset+5<detail.stickers.length?button("Next previews →","pack-next",p.id):""}${addButton}${button("Download ZIP","download-pack",p.id)}</div><p class="hint">Editing returns a pack to draft. Published packs must be unpublished first. Original files and Factory output remain preserved.</p><div class="editor-actions">${p.status!=="published"?'<button class="secondary" type="submit">Save changes</button>':""}${actionButtons}</div></form>`;
     if(!$("pack-dialog").open)$("pack-dialog").showModal();
   }
   function confirm(title,message,fn) {confirmation=fn;$("confirm-title").textContent=title;$("confirm-message").textContent=message;$("confirm-submit").textContent=title;$("confirm-dialog").showModal();}
+  $("pack-dialog").addEventListener("cancel",e=>{if(hasUnsavedPackEdits()){e.preventDefault();confirm("Discard unsaved changes","Your changes have not been saved. Close this editor?",async()=>$("pack-dialog").close());}});
   document.addEventListener("click",async(e)=>{
-    const close=e.target.closest("[data-close]");if(close){e.preventDefault();close.closest("dialog").close();return;}
+    const close=e.target.closest("[data-close]");if(close){e.preventDefault();const dialog=close.closest("dialog");if(dialog.id==="pack-dialog"&&hasUnsavedPackEdits()){confirm("Discard unsaved changes","Your changes have not been saved. Close this editor?",async()=>dialog.close());return;}dialog.close();return;}
     const nav=e.target.closest("[data-page]");if(nav){await task(()=>navigate(nav.dataset.page));return;}
     const b=e.target.closest("[data-action]");if(!b)return;e.preventDefault();
     const id=b.dataset.id,action=b.dataset.action;
     await task(async()=>{
       if(action==="navigate")return navigate(id);
-      if(action==="create-pack") {await loadLibrary();$("create-category").innerHTML=categories.map(c=>`<option>${c}</option>`).join("");$("create-sources").innerHTML=library.map(s=>`<label class="source-choice"><input type="checkbox" name="sources" value="${esc(s.path)}">${s.preview?`<img src="${esc(s.preview)}" alt="">`:""}<span>${esc(s.name||s.path.slice(-20))}</span></label>`).join("")||'<p class="hint">Upload an image in Media library first.</p>';$("create-dialog").showModal();return;}
+      if(action==="owner-login")return connectDialog();
+      if(action.startsWith("community-")) {
+        if(!live())return toast("Connect the owner workspace to review real submissions.");
+        if(action==="community-refresh"){community=await command("community_list");render();return;}
+        if(action==="community-preview") {
+          const offset=Number(b.dataset.offset||0),result=await command("community_detail",{id,offset});
+          $("result-image").src=result.stickers[0]?.preview||"";
+          $("result-actions").innerHTML=result.stickers.map((s,i)=>`<button class="secondary" data-action="community-image" data-id="${i}">Sticker ${offset+i+1}</button>`).join("")+
+            (offset>0?`<button class="secondary" data-action="community-preview" data-id="${esc(id)}" data-offset="${Math.max(0,offset-5)}">Previous five</button>`:"")+
+            (offset+5<result.submission.manifest.stickers.length?`<button class="secondary" data-action="community-preview" data-id="${esc(id)}" data-offset="${offset+5}">Next five</button>`:"");
+          $("result-dialog").dataset.communityImages=JSON.stringify(result.stickers.map(s=>s.preview));
+          if(!$("result-dialog").open)$("result-dialog").showModal();return;
+        }
+        if(action==="community-image"){$("result-image").src=JSON.parse($("result-dialog").dataset.communityImages)[Number(id)];return;}
+        if(action==="community-draft"){const result=await command("community_draft",{id});await refresh();community=await command("community_list");return openPack(result.id);}
+        if(action==="community-reject"||action==="community-report-resolve") {
+          confirm("Review decision",action==="community-reject"?"Reject this submission? The user's private library is preserved.":"Confirm you investigated and handled this report?",async()=>{await command(action==="community-reject"?"community_reject":"report_resolve",{id});community=await command("community_list");render();});return;
+        }
+      }
+      if(action.startsWith("pinterest-")) {
+        if(!live())return toast("Connect the owner workspace to use the official Pinterest integration.");
+        if(action==="pinterest-check"){pinterest=await command("pinterest_status",{check:true});render();return;}
+        if(action==="pinterest-connect"){const result=await command("pinterest_connect");if(!result.url.startsWith("https://www.pinterest.com/oauth/?"))throw new Error("Invalid authorization destination");window.location.assign(result.url);return;}
+        if(action==="pinterest-disconnect"){confirm("Disconnect Pinterest","Remove the server's saved Pinterest credential? You can also revoke access in Pinterest account settings.",async()=>{await command("pinterest_disconnect");pinterestItems=[];pinterest=null;pinterestBoard=null;pinterestBookmark=null;render();toast("Pinterest disconnected.");});return;}
+        if(action!=="pinterest-next"){pinterestBoard=action==="pinterest-board"?id:null;pinterestBookmark=null;}
+        const result=await command("pinterest_browse",{board_id:pinterestBoard||undefined,bookmark:pinterestBookmark||undefined});pinterestItems=result.items;pinterestBookmark=result.bookmark;render();return;
+      }
+      if(action==="health-refresh"){if(!live())return toast("Connect an owner token to check the live backend.");await refreshHealth();await refresh();return;}
+      if(action==="result-pack"){$("result-dialog").close();return showCreatePack(id);}
+      if(action==="result-generate"){$("result-dialog").close();await navigate("generate");document.querySelector('#generate-form select').value=id;return;}
+      if(action==="add-sources") {
+        if(hasUnsavedPackEdits())throw new Error("Save your current changes before adding more stickers.");
+        await loadLibrary();appendPack={id,version:detail.pack.version};
+        const targets=detail.target_packs||[{id:"preview-target",name:detail.pack.name,kind:"STATIC",count:detail.stickers.length}];
+        $("add-target").innerHTML=targets.filter(p=>p.kind==="STATIC"&&p.count<30).map(p=>`<option value="${esc(p.id)}">${esc(p.name)} · ${30-p.count} spaces</option>`).join("");
+        $("add-source-choices").innerHTML=library.map(source=>`<label class="source-choice"><input type="checkbox" name="sources" value="${esc(source.path)}"><span>${esc(source.name||source.path.slice(-20))}</span></label>`).join("")||"Upload images in Media library first.";
+        $("add-sources-dialog").showModal();return;
+      }
+      if(action==="create-pack")return showCreatePack();
       if(action==="open-pack")return openPack(id);
       if(action==="migrate") {const result=await command("migrate_factory",{id});await refresh();toast(live()?"Factory output migrated. Original archive preserved.":"Preview: Factory output migrated.");return openPack(result.id);}
       if(action==="pack-next"||action==="pack-prev")return openPack(id,Math.max(0,detail.offset+(action==="pack-next"?5:-5)));
       if(action==="upload-source")return $("source-upload").click();
-      if(action==="preview-source") {const image=live()?(await api("/api/library",{action:"fetch",path:id})).image:library.find(s=>s.path===id)?.preview||illustrations[0];const item=library.find(s=>s.path===id);if(item){item.preview=image;if(page==="media")render();}else{toast("AI result is ready in the private media library.");await navigate("media");}return;}
+      if(action==="preview-source") {
+        const image=live()?(await api("/api/library",{action:"fetch",path:id})).image:library.find(s=>s.path===id)?.preview||illustrations[0];
+        let item=library.find(s=>s.path===id);if(!item){item={path:id,name:"Generated AI result",size:0};library.unshift(item);}item.preview=image;
+        $("result-image").src=image;$("result-actions").innerHTML=button("Create a pack","result-pack",id,"primary")+button("Generate another version","result-generate",id);$("result-dialog").showModal();return;
+      }
       if(action==="use-source") {await navigate("generate");document.querySelector('#generate-form select').value=id;return;}
       if(action==="prompt-template") {document.querySelector('#generate-form textarea').value={reaction:"Create a short, funny Hinglish reaction to this image. Capture one clear emotion. Keep the caption under six words.",work:"Make this an office reaction meme about Monday meetings. Keep it friendly, original and readable on a phone.",chai:"Turn this into a playful Hinglish chai-time reaction. Use one short original caption and leave room around the subject."}[id];return;}
       if(action==="download-pack") {if(!live())return toast("Preview only. Connect the backend to download a real pack ZIP.");const result=await command("pack_download",{id});const a=document.createElement("a");a.href=result.url;a.rel="noopener";a.target="_blank";a.click();return;}
       if(action==="queue-cancel"||action==="queue-retry"){await command("queue_action",{id,operation:action==="queue-retry"?"retry":"cancel"});await refresh();toast("Queue updated.");return;}
       if(["review","archive","restore","reject","publish","unpublish"].includes(action)) {
+        if(hasUnsavedPackEdits())throw new Error("Save changes before reviewing or changing pack status.");
         const p=findPack(id),status={review:"reviewed",archive:"archived",restore:"draft",reject:"rejected"}[action];
         const explanation={review:"Confirm you reviewed every sticker and its source rights. All stickers must pass public pack validation.",archive:"Archive this pack from the working library. Its files remain stored and the draft can be restored.",restore:"Return this archived pack to the draft library.",reject:"Mark this draft as rejected. The original files are preserved.",publish:"Publish this reviewed GENERAL pack to the production catalog. It will be visible in the Android Factory feed.",unpublish:"Remove this pack from the public catalog. Existing phone downloads remain on those devices; the private original is preserved."}[action];
         confirm(action[0].toUpperCase()+action.slice(1)+" pack",(live()?"":"Preview simulation: ")+explanation,async()=>{await command(action==="publish"||action==="unpublish"?action:"pack_status",{id,version:p.version,status});$("pack-dialog").close();await refresh();toast(live()?"Pack updated.":"Preview: pack updated.");});
@@ -159,21 +286,44 @@
     });
   });
   document.addEventListener("submit",(e)=>{
-    if(e.target.id==="pack-form") {e.preventDefault();task(async()=>{const form=new FormData(e.target),stickers=Array.from(document.querySelectorAll(".sticker-edit")).map(row=>({name:row.dataset.sticker,label:row.querySelector('[data-field=label]').value,tags:row.querySelector('[data-field=tags]').value,remove:row.querySelector('[data-field=remove]').checked}));await command("pack_save",{id:detail.pack.id,version:detail.pack.version,name:form.get("name"),creator:form.get("creator"),stickers});$("pack-dialog").close();await refresh();toast("Pack saved as a private draft.");});}
+    if(e.target.id==="pack-form") {e.preventDefault();task(async()=>{const form=new FormData(e.target),stickers=Array.from(document.querySelectorAll(".sticker-edit")).map(row=>({name:row.dataset.sticker,label:row.querySelector('[data-field=label]').value,tags:row.querySelector('[data-field=tags]').value,remove:row.querySelector('[data-field=remove]').checked}));await command("pack_save",{id:detail.pack.id,version:detail.pack.version,name:form.get("name"),creator:form.get("creator"),category:$("pack-category").value||undefined,stickers});$("pack-dialog").close();await refresh();toast("Pack saved as a private draft.");});}
     if(e.target.id==="generate-form") {e.preventDefault();task(async()=>{const form=new FormData(e.target);if(live())await command("queue_create",{source_path:form.get("source_path"),prompt:form.get("prompt")});else data.requests.unshift({id:uid(),prompt:form.get("prompt"),status:"queued",attempts:0,created_at:new Date().toISOString()});await refresh();await navigate("factory");toast(live()?"AI request queued for the private worker.":"Preview: request queued. No AI service was called.");});}
     if(e.target.id==="settings-form") {e.preventDefault();task(async()=>{const form=new FormData(e.target),selected=form.getAll("content_categories"),rating=form.get("rating");if(!selected.length)throw new Error("Choose at least one content category.");if(selected.includes("ADULT_HUMOR")&&rating!=="MATURE")throw new Error("Adult humor requires Private mature.");await command("settings_save",{enabled:form.has("enabled"),discovery_enabled:form.has("discovery_enabled"),auto_migrate_completed:form.has("auto_migrate_completed"),daily_target:Number(form.get("daily_target")),batch_size:Number(form.get("batch_size")),rating,content_categories:selected,topics:String(form.get("topics")).split("\n").map(t=>t.trim()).filter(Boolean)});await refresh();toast(live()?"Settings saved for the next Factory run.":"Preview: settings updated.");});}
   });
   $("create-form").addEventListener("submit",e=>{e.preventDefault();task(async()=>{const form=new FormData(e.target),sources=form.getAll("sources");if(!sources.length||sources.length>30)throw new Error("Choose 1–30 source images.");const result=await command("pack_create",{name:form.get("name"),creator:form.get("creator"),category:form.get("category"),sources});$("create-dialog").close();await refresh();await openPack(result.id);toast("Private draft created.");});});
+  $("add-sources-form").addEventListener("submit",e=>{e.preventDefault();task(async()=>{
+    const form=new FormData(e.target),sources=form.getAll("sources");if(!sources.length||sources.length>30)throw new Error("Choose 1–30 images.");
+    if(live())await command("pack_add_sources",{...appendPack,target_pack_id:form.get("target_pack_id"),sources});
+    else {const p=findPack(appendPack.id);if(p.sticker_count+sources.length>30)throw new Error("This pack has space for "+(30-p.sticker_count)+" stickers.");p.demoStickers.push(...sources.map((path,i)=>({name:uid()+".webp",label:"",tags:"",kind:"STATIC",preview:library.find(s=>s.path===path)?.preview||illustrations[i%4]})));p.sticker_count=p.demoStickers.length;p.version++;p.status="draft";}
+    const id=appendPack.id;$("add-sources-dialog").close();$("pack-dialog").close();await refresh();await openPack(id);toast("Stickers added. Review the updated draft before publishing.");
+  });});
   $("confirm-form").addEventListener("submit",e=>{e.preventDefault();const fn=confirmation;confirmation=null;$("confirm-dialog").close();if(fn)task(fn);});
   document.addEventListener("change",e=>{if(e.target.id==="pack-filter"){filter=e.target.value;render();}if(e.target.id==="source-upload")task(async()=>{const file=e.target.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3_000_000)throw new Error("Choose a static PNG, JPEG or WebP under 3 MB.");const image=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error("Cannot read image"));r.readAsDataURL(file);});if(live())await command("source_upload",{image,title:file.name});else library.unshift({path:"preview/"+uid()+".png",name:file.name,size:file.size,preview:image});await loadLibrary();render();toast(live()?"Image saved in the private Factory inbox.":"Preview: image added locally.");});});
   document.addEventListener("input",e=>{if(e.target.id==="pack-search"){const pos=e.target.selectionStart;search=e.target.value;render();$("pack-search").focus();$("pack-search").setSelectionRange(pos,pos);}});
-  function connectDialog(){$("connect-error").textContent="";$("owner-token").value="";$("connect-dialog").showModal();}
+  function connectDialog(){$("connect-error").textContent="";$("owner-password").value="";if(!$("connect-dialog").open)$("connect-dialog").showModal();}
+  async function ownerSession(payload) {
+    const response=await fetch("/api/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const result=await response.json();if(!response.ok)throw new Error(result.error||"Sign-in unavailable");return result;
+  }
+  async function signInOwner(action) {
+    const password=$("owner-password").value;$("owner-password").value="";
+    const buttons=Array.from($("connect-form").querySelectorAll("button"));buttons.forEach(b=>b.disabled=true);
+    try {
+      const result=await ownerSession({action,email:$("owner-email").value,password});
+      if(!result.signed_in){$("connect-error").textContent=result.message||"Confirm your email, then sign in.";return;}
+      token="cookie-session";data=emptyLiveData();library=[];await refreshHealth();await refresh();
+      $("connect-dialog").close();await navigate(page);toast("Signed in to your live StickerDock workspace.");
+    } catch(error){$("connect-error").textContent=error.message;}finally{buttons.forEach(b=>b.disabled=false);}
+  }
   ["connect-button","connection-button","banner-connect"].forEach(id=>$(id).addEventListener("click",connectDialog));
-  $("connect-form").addEventListener("submit",async e=>{e.preventDefault();const candidate=$("owner-token").value.trim();if(candidate.length<32)return;const old=token;token=candidate;const submit=e.target.querySelector('[type=submit]');submit.disabled=true;try{data=await api("/api/admin",{action:"overview"});library=[];$("owner-token").value="";$("connect-dialog").close();connectionUi();await navigate(page);toast("Connected to your live Factory.");}catch(error){token=old;$("connect-error").textContent=error.message;}finally{submit.disabled=false;}});
-  $("disconnect-button").addEventListener("click",()=>{token="";data=previewData();library=illustrations.map((preview,i)=>({path:"preview/source-"+i+".png",name:"Original reaction "+(i+1),size:18000,preview}));document.querySelectorAll("dialog").forEach(d=>d.close());render();toast("Disconnected. Exploring preview data.");});
+  $("connect-form").addEventListener("submit",e=>{e.preventDefault();signInOwner("login");});
+  $("owner-signup").addEventListener("click",()=>{if($("connect-form").reportValidity())signInOwner("signup");});
+  $("owner-resend").addEventListener("click",()=>signInOwner("resend"));
+  $("disconnect-button").addEventListener("click",()=>task(async()=>{await ownerSession({action:"logout"});token="";readiness=null;data=emptyLiveData();library=[];document.querySelectorAll("dialog").forEach(d=>d.close());render();toast("Signed out.");}));
   $("refresh-button").addEventListener("click",()=>task(async()=>{if(["media","generate"].includes(page))await loadLibrary();await refresh();toast(live()?"Factory data refreshed.":"Preview refreshed.");}));
   $("menu-button").addEventListener("click",()=>$("sidebar").classList.toggle("open"));
-  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&live()&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open))task(refresh);});
-  setInterval(()=>{if(live()&&!document.hidden&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open))task(refresh);},30000);
-  render();
+  document.addEventListener("visibilitychange",backgroundRefresh);
+  setInterval(backgroundRefresh,30000);
+  data=emptyLiveData();library=[];render();
+  ownerSession({action:"status"}).then(async result=>{if(result.signed_in){token="cookie-session";await refreshHealth();await refresh();}}).catch(error=>toast(error.message,true));
 })();

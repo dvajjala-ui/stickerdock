@@ -57,8 +57,11 @@ class StickerBackupRoundTripTest {
         files.deletePack(originalPack.id)
         val summary = backup.restore(Uri.fromFile(archive))
 
-        assertEquals(StickerBackup.RestoreSummary(1, 1, 0), summary)
+        assertEquals(1, summary.packs)
+        assertEquals(1, summary.stickers)
+        assertEquals(0, summary.rejected)
         val restoredPack = store.listPacks().single()
+        assertEquals(listOf(restoredPack.id), summary.packIds)
         val restored = store.listStickers(restoredPack.id).single()
         assertEquals(PackCategory.REACTIONS, restoredPack.category)
         assertEquals("Surprised", restored.label)

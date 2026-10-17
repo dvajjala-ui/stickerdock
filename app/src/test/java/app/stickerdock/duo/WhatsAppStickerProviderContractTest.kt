@@ -16,6 +16,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class WhatsAppStickerProviderContractTest {
     @Test
+    fun whitelistQueriesIdentifyBothTheProviderAndRequestedPack() {
+        WhatsAppTarget.entries.forEach { target ->
+            val uri = WhatsAppIntegration.whitelistUri("pack with spaces", target)
+            assertEquals(target.packageName + ".provider.sticker_whitelist_check", uri.authority)
+            assertEquals("/is_whitelisted", uri.path)
+            assertEquals(WhatsAppStickerProvider.AUTHORITY, uri.getQueryParameter("authority"))
+            assertEquals("pack with spaces", uri.getQueryParameter("identifier"))
+        }
+    }
+
+    @Test
     fun exposesOfficialProviderMimeTypes() {
         val controller = Robolectric.buildContentProvider(WhatsAppStickerProvider::class.java).create()
         val provider = controller.get()

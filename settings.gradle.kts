@@ -13,4 +13,5 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "StickerDock"
-include(":app")
+include(":sticker-core")
+if (providers.gradleProperty("stickerCoreOnly").orNull != "true") include(":app")

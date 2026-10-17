@@ -24,6 +24,13 @@ def asset(url="https://example.org/photo.jpg", license_id="CC0"):
 
 
 class MediaLibraryTest(unittest.TestCase):
+    def test_discovery_failure_does_not_block_an_explicit_licensed_queue(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(library,"commons_candidates",side_effect=OSError()), patch.object(library,"fetch",return_value=photo_bytes()):
+            root=Path(temporary)
+            result=library.sync({"commons_queries":["cat"],"queue":[asset()]},root,NOW)
+            self.assertEqual(result["added"],1)
+            self.assertIn("explicit licensed queue",json.loads((root/"library.json").read_text())["last_warning"])
+
     def test_manual_manifest_can_be_extended_by_commons_sync(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(
                 library, "commons_candidates", return_value=[]):

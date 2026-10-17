@@ -71,8 +71,11 @@ class SupabaseFactory:
 
     def download(self, bucket, path, missing_ok=False):
         endpoint = self._object_path(bucket, path)
-        return self._request("GET", "/storage/v1/object/authenticated/" + endpoint,
-                             missing_ok=missing_ok)
+        # State, credentials and the catalog are mutable. An authenticated URL
+        # alone is not a freshness guarantee after an overwrite at the edge.
+        return self._request("GET", "/storage/v1/object/authenticated/" + endpoint +
+                             "?cacheNonce=" + uuid.uuid4().hex,
+                             headers={"Cache-Control": "no-cache"}, missing_ok=missing_ok)
 
     def download_public(self, path, missing_ok=False):
         endpoint = self._object_path(PUBLIC_BUCKET, path)
@@ -84,7 +87,8 @@ class SupabaseFactory:
             raise ValueError("Storage upload exceeds 75MB")
         endpoint = self._object_path(bucket, path)
         self._request("POST", "/storage/v1/object/" + endpoint, data=data, headers={
-            "Content-Type": content_type, "x-upsert": "true"})
+            "Content-Type": content_type, "x-upsert": "true",
+            "Cache-Control": "max-age=0" if path == "catalog/packs.json" else "max-age=3600"})
 
     def list_objects(self, bucket, prefix, limit=100, offset=0):
         payload = json.dumps({"prefix": prefix, "limit": min(limit, 100),

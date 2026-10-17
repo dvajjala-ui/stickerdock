@@ -10,7 +10,7 @@ import java.util.UUID
 enum class StickerKind { STATIC, ANIMATED }
 enum class PackRating { GENERAL, MATURE }
 enum class PackCategory(val label: String) {
-    GENERAL("General"), REACTIONS("Reactions"), HINGLISH("Hinglish"), MOVIES("Movies"),
+    GENERAL("All"), REACTIONS("Reactions"), HINGLISH("Hinglish"), MOVIES("Movies"),
     NEWS("News"), ANIMALS("Animals"), LOVE("Love"), WORK("Work"),
     FESTIVALS("Festivals"), OTHER("Other")
 }
@@ -29,6 +29,10 @@ data class StickerItem(
     val displayName: String get() = label.ifBlank { fileName }
 }
 data class StickerSearchResult(val item: StickerItem, val pack: StickerPack)
+data class ArtworkProjectRecord(
+    val stickerId: String, val sourceSha256: String, val savedSha256: String,
+    val savedHistory: String, val draftHistory: String?, val updatedAt: Long
+)
 data class FolderImportSession(val id: String, val treeUri: String, val fallbackName: String)
 data class FolderImportStats(
     val filesScanned: Int,
@@ -37,13 +41,15 @@ data class FolderImportStats(
     val totalBytes: Long
 )
 
-class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 7) {
+class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db", null, 8) {
+    private val resolver = context.applicationContext.contentResolver
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE packs (id TEXT PRIMARY KEY, name TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'STATIC', rating TEXT NOT NULL DEFAULT 'GENERAL', category TEXT NOT NULL DEFAULT 'GENERAL')")
         db.execSQL("CREATE TABLE stickers (id TEXT PRIMARY KEY, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, file_name TEXT NOT NULL, sha256 TEXT NOT NULL, created_at INTEGER NOT NULL, label TEXT NOT NULL DEFAULT '', tags TEXT NOT NULL DEFAULT '', UNIQUE(pack_id, sha256), UNIQUE(pack_id, file_name))")
         db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
         db.execSQL("CREATE INDEX idx_stickers_sha ON stickers(sha256)")
         createFolderImportTables(db)
+        createArtworkProjects(db)
     }
     override fun onConfigure(db: SQLiteDatabase) { super.onConfigure(db); db.setForeignKeyConstraintsEnabled(true) }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -56,6 +62,7 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
             db.execSQL("ALTER TABLE stickers ADD COLUMN tags TEXT NOT NULL DEFAULT ''")
         }
         if (oldVersion < 7 && newVersion >= 7) createFolderImportTables(db)
+        if (oldVersion < 8 && newVersion >= 8) createArtworkProjects(db)
     }
 
     fun listPacks(): List<StickerPack> {
@@ -112,6 +119,31 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         }
         return result
     }
+    fun stickerPreviews(perPack: Int = 4): Map<String, List<StickerItem>> {
+        val result = mutableMapOf<String, MutableList<StickerItem>>()
+        readableDatabase.rawQuery("""
+            SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM (
+                SELECT *, ROW_NUMBER() OVER (PARTITION BY pack_id ORDER BY created_at,id) AS position
+                FROM stickers
+            ) WHERE position<=CAST(? AS INTEGER) ORDER BY pack_id,created_at,id
+        """.trimIndent(), arrayOf(perPack.coerceIn(1, 4).toString())).use { cursor ->
+            while (cursor.moveToNext()) {
+                val item = readSticker(cursor, 0)
+                result.getOrPut(item.packId) { mutableListOf() }.add(item)
+            }
+        }
+        return result
+    }
+
+    fun replaceStickerArtwork(item: StickerItem, filename: String, hash: String) = transaction {
+        val current = getSticker(item.packId, item.fileName)
+        require(current?.id == item.id && current.sha256 == item.sha256) { "Sticker changed; reopen it before editing" }
+        require(!hasStickerHash(hash, item.packId) || hash == item.sha256) { "This artwork is already in the pack" }
+        require(writableDatabase.update("stickers", ContentValues().apply {
+            put("file_name", filename); put("sha256", hash)
+        }, "id=? AND pack_id=?", arrayOf(item.id, item.packId)) == 1)
+        bumpVersion(item.packId)
+    }
     fun getSticker(packId: String, filename: String): StickerItem? {
         readableDatabase.rawQuery("SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM stickers WHERE pack_id=? AND file_name=? LIMIT 1",
             arrayOf(packId, filename)).use { cursor ->
@@ -124,6 +156,34 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
             cursor.moveToFirst()
             return cursor.getInt(0)
         }
+    }
+    fun stickerById(id: String): StickerItem? = readableDatabase.rawQuery(
+        "SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM stickers WHERE id=? LIMIT 1", arrayOf(id)
+    ).use { if (it.moveToFirst()) readSticker(it, 0) else null }
+
+    fun artworkProject(stickerId: String): ArtworkProjectRecord? = readableDatabase.rawQuery(
+        "SELECT sticker_id,source_sha256,saved_sha256,saved_history,draft_history,updated_at FROM artwork_projects WHERE sticker_id=?",
+        arrayOf(stickerId)
+    ).use { if (it.moveToFirst()) ArtworkProjectRecord(it.getString(0), it.getString(1), it.getString(2),
+        it.getString(3), if (it.isNull(4)) null else it.getString(4), it.getLong(5)) else null }
+
+    internal fun putArtworkProject(project: ArtworkProjectRecord) {
+        require(project.savedHistory.length <= 100_000 && (project.draftHistory?.length ?: 0) <= 100_000)
+        writableDatabase.insertWithOnConflict("artwork_projects", null, ContentValues().apply {
+            put("sticker_id", project.stickerId); put("source_sha256", project.sourceSha256)
+            put("saved_sha256", project.savedSha256); put("saved_history", project.savedHistory)
+            put("draft_history", project.draftHistory); put("updated_at", project.updatedAt)
+        }, SQLiteDatabase.CONFLICT_REPLACE).also { check(it != -1L) { "Could not save editing project" } }
+    }
+
+    fun artworkDrafts(limit: Int = 50): List<StickerItem> {
+        val result = mutableListOf<StickerItem>()
+        readableDatabase.rawQuery("""
+            SELECT s.id,s.pack_id,s.file_name,s.sha256,s.created_at,s.label,s.tags FROM artwork_projects a
+            JOIN stickers s ON s.id=a.sticker_id WHERE a.draft_history IS NOT NULL
+            ORDER BY a.updated_at DESC,s.id LIMIT ${limit.coerceIn(1, 200)}
+        """.trimIndent(), null).use { while (it.moveToNext()) result += readSticker(it, 0) }
+        return result
     }
     fun hasStickerHash(hash: String, packId: String? = null): Boolean {
         val sql = if (packId == null) "SELECT 1 FROM stickers WHERE sha256=? LIMIT 1"
@@ -280,9 +340,19 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         cursor.getLong(offset + 3), StickerKind.valueOf(cursor.getString(offset + 4)),
         PackRating.valueOf(cursor.getString(offset + 5)), PackCategory.valueOf(cursor.getString(offset + 6))
     )
-    private fun bumpVersion(id: String) { writableDatabase.execSQL("UPDATE packs SET version=version+1 WHERE id=?", arrayOf(id)) }
+    private fun bumpVersion(id: String) {
+        writableDatabase.execSQL("UPDATE packs SET version=version+1 WHERE id=?", arrayOf(id))
+        val base = "content://${WhatsAppStickerProvider.AUTHORITY}"
+        resolver.notifyChange(android.net.Uri.parse("$base/metadata"), null)
+        resolver.notifyChange(android.net.Uri.parse("$base/metadata/$id"), null)
+        resolver.notifyChange(android.net.Uri.parse("$base/stickers/$id"), null)
+    }
 
     companion object {
+        private fun createArtworkProjects(db: SQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS artwork_projects (sticker_id TEXT PRIMARY KEY REFERENCES stickers(id) ON DELETE CASCADE, source_sha256 TEXT NOT NULL, saved_sha256 TEXT NOT NULL, saved_history TEXT NOT NULL, draft_history TEXT, updated_at INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_artwork_drafts ON artwork_projects(updated_at DESC) WHERE draft_history IS NOT NULL")
+        }
         private fun createFolderImportTables(db: SQLiteDatabase) {
             db.execSQL("CREATE TABLE IF NOT EXISTS folder_import_sessions (id TEXT PRIMARY KEY, tree_uri TEXT NOT NULL, fallback_name TEXT NOT NULL, created_at INTEGER NOT NULL)")
             db.execSQL("CREATE TABLE IF NOT EXISTS folder_import_packs (session_id TEXT NOT NULL REFERENCES folder_import_sessions(id) ON DELETE CASCADE, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, PRIMARY KEY(session_id, pack_id))")

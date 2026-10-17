@@ -21,12 +21,12 @@
         <p class="eyebrow">PRIVACY</p>
         <h1>Private first,<br><em>by design.</em></h1>
       </div>
-      <p class="intro-copy">Effective October 13, 2026. This page describes the data handling implemented by the current StickerDock Android app and the optional private Creator Studio web feature.</p>
+      <p class="intro-copy">Updated October 15, 2026. This page describes StickerDock Android, the private Creator Studio and the owner admin workspace.</p>
     </section>
 
     <section class="panel editor">
       <h2>Android app</h2>
-      <p>StickerDock is primarily a local sticker-library application. The current Android source does not include an account system, advertising SDK, analytics SDK, or background telemetry service.</p>
+      <p>StickerDock is primarily a local sticker-library application. Optional email/password accounts support private cloud sync. The app has no advertising SDK, analytics SDK, or background telemetry service.</p>
 
       <h2>Data stored on your device</h2>
       <p>The app can store sticker images, pack names, categories, labels/tags, import progress/checkpoints, bookmarked Sticker.ly share codes or links, and backup/restore metadata on the device. This information supports the local library, search, migration, sharing, and resume features.</p>
@@ -34,40 +34,44 @@
 
       <h2>Files and media access</h2>
       <p>StickerDock uses Android's system document/folder picker for files and folders selected by the user. It does not request broad storage access. Persisted folder access is used only when Android grants it and only to support the selected import/resume flow.</p>
-      <p>The app does not request camera, microphone, location, contacts, account, or advertising permissions. It requests Internet access for the reviewed public sticker catalog.</p>
+      <p>The app does not request camera, microphone, location, contacts, account, or advertising permissions. It requests Internet/network access for the reviewed public catalog and optional private sync. Android can schedule a network-constrained sync retry after reboot.</p>
 
       <h2>Network access</h2>
-      <p>The Android app rejects cleartext HTTP traffic. Public catalog requests use HTTPS and retrieve only the reviewed StickerDock catalog and pack archives chosen by the user. StickerDock does not upload the user's local sticker library, device media, or local database to the public catalog.</p>
+      <p>The Android app rejects cleartext HTTP traffic. It checks the reviewed public catalog on open/resume and can fetch small public artwork previews into a bounded cache. Opening or refreshing the app does not add packs to your library. Previewing an older pack may read its archive on request; saving requires a separate action. Phone imports remain local. If you sign in and enable Private cloud sync, the app uploads general-audience sticker images, pack names, categories, labels/tags and checksums to your isolated Supabase account library. Sync runs after local changes and periodically when Android permits. Mature packs remain offline. Other media and the raw local database are not uploaded. Passwords are handled by Supabase Auth; session credentials are encrypted with Android Keystore.</p>
       <p>Like ordinary HTTPS services, the hosting provider may receive technical network information such as the requesting IP address and normal connection metadata. StickerDock does not add an advertising or analytics identifier to catalog requests.</p>
       <p>The production catalog is hosted in a public Supabase Storage bucket. Only deliberately review-approved GENERAL packs are intended for public publication. The app validates catalog structure and archive checksums before import.</p>
 
-      <h2>Sharing and WhatsApp</h2>
+      <h2>Optional public sharing</h2><p>Private sync does not publish stickers or grant AI-training consent. A general-audience pack can be submitted using Share with everyone after adult and redistribution-rights confirmation. Reviewers can see only opted-in snapshots. Approved packs can be deliberately published to the general-audience catalog; your email is not public. Turning sharing off withdraws the pack from future catalog discovery, but existing downloads and public caches cannot be recalled. In-app reports and hide creator/pack controls support content safety; privacy, rights and removal requests can also be sent to dvjjala@gmail.com.</p><h2>Sharing and WhatsApp</h2>
       <p>Sharing/exporting a pack is user initiated. When a user chooses to share content or install a pack into WhatsApp or WhatsApp Business, the selected sticker content is made available to that receiving application through Android's sharing or sticker-provider mechanisms. The receiving application's privacy practices then apply.</p>
       <p>Sticker.ly links are kept as local bookmarks. Opening an external link is user initiated and is handled by the selected browser or application.</p>
 
       <h2>Deleting Android data</h2>
-      <p>Users can remove packs/stickers inside StickerDock or clear/uninstall the app to remove app-private local data. Files intentionally exported or shared outside StickerDock must be removed from their destination separately.</p>
+      <p>Users can remove packs/stickers inside StickerDock or clear/uninstall the app to remove app-private local data. Deleting a previously synced local pack removes its cloud metadata on the next successful sync. Turning sync off or uninstalling does not erase cloud copies. Request account deletion, full cloud-media erasure or access at dvjjala@gmail.com. Unreferenced images and review audit records require operator cleanup. Files intentionally exported or shared outside StickerDock must be removed from their destination separately.</p>
 
       <h2>Optional private Creator Studio</h2>
-      <p>Creator Studio is a separate browser-based maintainer/private feature and is not currently exposed through the Android <strong>AI meme creator — Coming soon</strong> entry.</p>
-      <p>Creator Studio is protected by a private access token. The browser stores that token only in the current tab's session storage. Supabase service credentials and the Groq API key stay server-side.</p>
+      <p>Creator Studio and Admin are separate browser-based private owner features. The current Android app does not expose a hosted AI-creation entry.</p>
+      <p>Creator Studio and Admin use owner sign-in with a secure HttpOnly browser session. API keys are not requested from users. Supabase service credentials and the Groq API key stay server-side.</p>
       <p>When a user intentionally uploads an image or requests an AI-assisted sticker, the selected source image and prompt can be sent to StickerDock's server-side API. Private source/result files and provenance metadata are stored in the StickerDock Supabase project. For an AI request, the configured Groq vision service receives the content required to produce caption/reaction guidance. StickerDock's private worker renders the result and stores it back in private Supabase storage.</p>
       <p>Private Creator/Factory source and provenance data are retained until explicit operator cleanup unless a narrower operational retention rule applies. Supabase and Groq process data under their own terms and privacy practices.</p>
 
       <h2>Private Sticker Factory</h2>
       <p>StickerDock also operates a private server-side Factory for producing candidate sticker packs. It can use licensed/public-domain reference media, authorized operator uploads, and configured third-party sources. Factory state, source files, pending packs, and provenance are private by default. Publication is a separate manual review step; the Android app receives only deliberately published public catalog artifacts.</p>
 
-      <h2>Security</h2>
-      <p>StickerDock uses measures intended to reduce unnecessary exposure, including HTTPS-only Android catalog URLs, cleartext-traffic blocking, private Supabase buckets, row-level database protections, server-side credentials, bounded uploads/queues, provenance validation, and a manual public-publication boundary. No software or storage system can guarantee absolute security.</p>
+      <h2>Optional Pinterest authorization</h2>
+      <p>After Pinterest approves an application, the owner can authorize read-only boards:read and pins:read through Pinterest's official OAuth page. We never request the owner's Pinterest password or session cookies. OAuth access/refresh credentials are stored only in protected server-side private Supabase storage; app credentials stay in Vercel secrets. Browser authorization state expires after ten minutes.</p>
+      <p>Admin fetches boards and Pin titles/links directly from the official API for the owner when requested. These responses are marked no-store and are not saved to the database, local storage, Factory inbox or daily archive. Pinterest content is not sent to Groq, used for training or converted into redistributable sticker packs. The daily job only checks connection availability. The owner can disconnect in Admin, revoke access in Pinterest settings, or contact us to request removal of stored credentials.</p>
+      <p>Separately supplied images are subject to their own source rights. Saving a Pin or importing a phone sticker does not establish ownership or permission to redistribute it.</p>
+      <h2>Hosting and processing</h2><p>Vercel hosts the web pages and APIs; Supabase stores private Studio assets and connection credentials plus reviewed public packs. GitHub Actions runs scheduled workers. Groq receives prompts and authorized images for explicit AI requests. Hosting providers may retain technical request logs under their own policies. Private source/result data is retained until operator cleanup or a deletion request; published copies may remain on recipient devices.</p>
+      <h2>Security</h2><p>StickerDock uses measures intended to reduce unnecessary exposure, including HTTPS-only Android catalog URLs, cleartext-traffic blocking, private Supabase buckets, row-level database protections, server-side credentials, bounded uploads/queues, provenance validation, and a manual public-publication boundary. No software or storage system can guarantee absolute security.</p>
 
       <h2>Children and public submissions</h2>
-      <p>The current product does not provide public user accounts or an open community upload service. Such a service must not be enabled without additional authentication, abuse/malware controls, rights review, moderation, and appropriate age/safety controls.</p>
+      <p>Optional accounts support private backup and rights-confirmed submissions for owner review. Submitting or syncing does not publish a pack. An unrestricted community service remains unavailable pending complete abuse/malware controls, moderation operations and age/safety protections.</p>
 
       <h2>Changes to this policy</h2>
       <p>This policy should be updated when StickerDock's data handling materially changes, including when Creator Studio becomes publicly accessible, analytics/telemetry is introduced, a public submission system is enabled, or hosting/providers change.</p>
 
       <h2>Contact</h2>
-      <p>Before public app-store release, the developer will add the chosen private support/privacy contact here and to the store listing. For non-sensitive development questions, the public repository issue tracker may be used. Do not post passwords, access tokens, private images, personal information, or privacy-request details in a public issue.</p>
+      <p>StickerDock is operated by Dwarkesh Vajjala. For support and private data-access/deletion requests contact <a href="mailto:dvjjala@gmail.com">dvjjala@gmail.com</a>. <a href="/support">Support details</a> · <a href="/about">About this project</a>. Do not post passwords, access tokens, private images or privacy-request details in a public issue.</p>
     </section>
   </main>
 </body>

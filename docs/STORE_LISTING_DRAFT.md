@@ -1,6 +1,6 @@
 # StickerDock store listing draft
 
-This is a release-preparation draft for Android version `0.3.0` (`versionCode 3`,
+This is a release-preparation draft for Android version `0.5.0` (`versionCode 5`,
 application ID `app.stickerdock.duo`). Re-check every statement against the final
 signed build before submitting it to an app store.
 
@@ -66,11 +66,16 @@ requests only Internet permission; it does not request camera, microphone,
 location, contacts, account or broad-storage permissions. Android backup is
 disabled and cleartext HTTP traffic is blocked.
 
-The Android **AI meme creator** entry remains marked Coming soon. Private Creator
+The private Creator Studio entry is hidden on Android. Private Creator
 Studio/Factory infrastructure is separate from the Android app and is not needed
 to use StickerDock's local library features.
 
-## Version 0.3.0 release notes
+## Version 0.5.0 release notes
+
+- Make packs directly from selected photos and create destination packs while copying/moving.
+- Edit static artwork with rotation, mirror, zoom/crop, positioning and outlined captions.
+- Faster large-library previews and clearer WhatsApp export diagnostics.
+- Approved new public packs enter the library automatically; availability depends on publication.
 
 - Added pack categories plus sticker-level labels/tags and search.
 - Improved folder/ZIP imports, deduplication and resumable large-folder migration.
@@ -112,8 +117,8 @@ current Android source for the person filling out the final questionnaire.
   local sticker database/library to that catalog.
 - Sharing and WhatsApp installation are explicit user actions that hand selected
   content to another app.
-- The AI/Creator Studio web service is not currently exposed through the Android
-  Coming soon entry; reassess disclosures if that changes.
+- The private AI/Creator Studio web service is not currently exposed in Android;
+  reassess disclosures if that changes.
 
 ## Store graphics still required
 

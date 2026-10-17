@@ -1,18 +1,40 @@
-# StickerDock — Android sticker manager
+# StickerDock — private sticker creator and library
 
-A Kotlin/Jetpack Compose Android app that keeps your own sticker library independently from WhatsApp and Sticker.ly. Source is actively developed; install the latest GitHub Actions debug APK for testing only.
+Android and iPhone clients keep your sticker library independently from WhatsApp
+and Sticker.ly. Android uses Kotlin/Compose; the native SwiftUI iPhone client
+shares Kotlin Multiplatform media rules/containers. Both remain testing candidates;
+physical WhatsApp acceptance and store distribution are separate gates.
+
+October 16: signed Android **0.10.1** passes 97 Android + 12 common tests; backend
+review fixes pass 182 Python
+tests and emulator creation/save/restart/navigation checks. It adds a Create tab,
+keeps import tools secondary and shows sticker content before export utilities.
+The [iPhone implementation](ios/README.md) now builds unsigned for a real device
+and passes six native integration tests plus one simulator navigation test in
+[the first Apple CI run](https://github.com/dvajjala-ui/stickerdock/actions/runs/38899085950).
+Additional motion/live-catalog tests and pinned dependencies run in CI; use the
+matching [PR checks](https://github.com/dvajjala-ui/stickerdock/pull/18/checks).
+The 0.10.1 archive path preserves private ratings and exact media across platforms;
+invalid manifest backups fail explicitly instead of falling back to image imports.
+It is **not an App Store/TestFlight release or complete Android feature parity**.
+See [the requirements audit](docs/REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
+[architecture](docs/CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md) and
+[artifact/evidence record](docs/RECOVERY_PROGRESS.md).
 
 ## Current source features
 - **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs, globally search stickers, edit per-sticker labels/tags, and filter by topic or Static/Animated.
+- **Make and edit stickers:** choose photos directly from Library or Import to create packs automatically (30 per pack, static/animated separated). Static artwork supports rotate, mirror, zoom/crop, positioning, outlined captions and manual traced cutout, with live preview and bounded undo/redo. Local editable projects retain the 512px starting sticker and recipes; reopening can replace captions or remove cutout, and Reset restores the starting bytes. Drafts autosave locally with a visible status and Library Resume edit action. Failed saves keep edits open for retry; new exports are synced/verified before the saved recipe and sticker row commit together. Originals/drafts stay on this device; ZIP/cloud backups contain saved stickers. Full-resolution photo retention, automatic background removal and animated artwork editing remain pending. See [editable artwork and acceptance limits](docs/LOCAL_ARTWORK_PROJECTS.md).
 - **Static and animated WebP:** WhatsApp-compliant separate pack types, 512×512 static conversion, animated frame/duration checks, animated previews (real-device QA pending).
+- **Native animated creator (0.9.0):** choose a video or GIF, select a short section, framing and motion rate, add an outlined caption, preview the moving result locally and explicitly save to an animated pack. No paid provider or AI key is required for conversion. GIF decode budgets, preview invalidation and safe save guards are included. The signed local build passes real WebM/MP4/GIF and rotated-portrait emulator checks; physical WhatsApp/iPhone remain unverified. Exact artifacts and limits are tracked in [recovery progress](docs/RECOVERY_PROGRESS.md).
 - **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, retain source filenames as searchable sticker labels when available, split into 30-sticker packs, and deduplicate across previously imported items. Large scans show progress and keep a SQLite resume journal with Pause/Resume/Discard controls. This is not access to other apps' private databases.
 - **Desktop ADB assistant:** `python tools/adb_sticker_export.py --account both` copies accessible WhatsApp sticker media folders from your own authorized phone and creates safe ZIP batches. No root, ADB requires your consent.
 - **Batch ZIP ingestion:** select up to 100 ZIP files; supports images from directories, simple generic ZIPs, Sticker Maker `.wastickers` archives and StickerDock archives. Source filenames are retained as sticker labels where possible. A separate guide covers limitations of Sticker.ly personal migration.
 - **Sticker.ly public links:** save/paste bulk pack URLs or share links into the app; follow back to Sticker.ly. **Does not mass-download or rehost Sticker.ly's catalog.**
 - **Sharing:** send a StickerDock pack as a portable ZIP through Android share sheet; import archives and received images.
 - **Two WhatsApp installations:** supports separate consumer WhatsApp and Business integration intents; Android's public API does not route to a specified account within one WhatsApp app.
-- **Factory feed:** reviewed GENERAL packs from the production Supabase catalog appear on the home screen when the app opens or resumes. Import a pack, then add it to WhatsApp/Business. Matching catalog hashes are tracked to avoid downloading the same pack again. Unreviewed output stays private; MATURE packs stay local/private.
-- **Persistence:** non-destructive SQLite migrations through schema v7, app-private storage, metadata-preserving backup schema v5 with restore support for schemas 1–4, no user account or paid cloud required. Public gallery is networked and opt-in.
+- **Discover and save:** reviewed GENERAL packs refresh on open/resume without adding anything to your library. Search packs/creators/topics, filter Static/Animated, preview artwork, then explicitly **Save to library**. New publications include small checksum-verified artwork previews; older packs can be previewed on request without saving. Add to WhatsApp/Business remains a separate action. MATURE packs stay local/private.
+- **WhatsApp status and sync:** separate personal/Business added checks, Add/Open actions, preflight media checks and export-result errors. Pack edits update the provider version and notify observers; refresh timing is controlled by WhatsApp and needs phone verification.
+- **Persistence:** non-destructive SQLite migrations through schema v8, app-private storage, metadata-preserving backup schema v5 with restore support for schemas 1–4. V8 adds private editing recipes/drafts without changing the portable ZIP contract. Local features require no account. Catalog metadata and small public previews use HTTPS; complete packs are saved only on request.
 
 ## Migrate your phone's stickers
 [Detailed phone/ADB/Sticker.ly guide](docs/PHONE_MIGRATION.md) · [Sticker.ly legal export limitations](docs/STICKERLY_MIGRATION.md)
@@ -29,6 +51,13 @@ Then transfer files from `StickerDock-Phone-Export/sticker_zips/` to the phone a
 
 ## Daily AI stickers
 
+October 15 update: production generation now requires real independent photos or
+clips and a vision model, rather than silently substituting emoji-face templates.
+Legacy illustration packs remain historical samples. Pinterest integration is
+being replaced with official live reference browsing, not Pin downloading or
+conversion. See [current integration status](docs/PINTEREST_RECONNECTION.md).
+Phone imports stay on-device by default. Optional account-based private sync needs explicit enablement; mature packs remain offline. See [cloud library](docs/CLOUD_LIBRARY.md).
+
 The optional [Groq daily generator](docs/DAILY_AI_STICKERS.md) targets **40 stickers
 per day in batches of five**, spaced three hours apart. It turns recent public
 RSS titles or supplied references into original Hinglish caption stickers, draws
@@ -41,8 +70,10 @@ validated on October 13, 2026; the recurring 40/day Factory schedule remains
 enabled by default in the current workflow unless `STICKER_FACTORY_ENABLED=false`.
 A successful scheduled run alone does not prove that a normal-cooldown 40/40 day
 has completed and been reviewed.
-This version uses template illustrations; custom AI image rendering needs a
-separate image provider.
+Legacy illustration modes remain available to development fixtures. Production
+real-photo/clip modes use source media with outlined captions; generating new
+image pixels from a prompt would require a separate image model. Groq provides
+the research/vision/caption assistance. See the [real-media creator direction](docs/REAL_MEDIA_CREATOR_PLAN_2026-10-16.md).
 
 The [free media input guide](docs/FREE_MEDIA_FACTORY.md) adds a scheduled CC0/
 public-domain Commons download queue, optional authorized Pinterest-board inputs,
@@ -57,7 +88,7 @@ are implemented. The private Studio → Factory AI queue, atomic claim path and
 Groq vision worker passed a real production smoke test. The Studio source now
 supports queue/status/result polling and the Creator worker checks the queue every
 10 minutes with a cheap idle preflight. Hosted Vercel deployment/environment
-configuration is still unverified, and the Android AI entry remains Coming soon.
+configuration is still unverified, and the private Studio entry is hidden on Android.
 Pinterest media is private-reference-only unless a specific reusable rights
 declaration is present.
 
@@ -105,7 +136,7 @@ the daily generator also accepts `--font`. Video tests require local FFmpeg.
 - **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
 - A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
 - Folder migration now journals progress in SQLite and can resume a persisted SAF folder after process death. Android picker/provider behavior and actual kill/restart recovery still need real-device QA, especially for enormous libraries.
-- The Creator Studio AI queue/worker has passed a real authenticated Supabase/Groq vision smoke test and the browser flow is covered in Chromium. Hosted Vercel deployment and its `STUDIO_ACCESS_TOKEN`/Supabase environment still need verification before treating Studio as a remotely available user feature; Android still shows Coming soon.
+- The Creator Studio AI queue/worker has passed a real authenticated Supabase/Groq vision smoke test and the browser flow is covered in Chromium. Hosted Vercel deployment and its `STUDIO_ACCESS_TOKEN`/Supabase environment still need verification before treating Studio as a remotely available user feature; the private Studio entry is hidden on Android.
 - GIF/MP4/WebM/MOV conversion is implemented in the production worker; live phone
   import still needs device QA. Public packs require an explicit review workflow.
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.

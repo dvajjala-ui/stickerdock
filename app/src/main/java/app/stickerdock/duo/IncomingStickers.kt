@@ -28,37 +28,28 @@ class IncomingStickers(
         if (uris.size > 100) return "Share at most 100 files at a time."
         var imported = 0
         var rejected = 0
-        val packs = mutableMapOf<StickerKind, StickerPack>()
+        val images = mutableListOf<Uri>()
         uris.forEach { uri ->
-            if (intent.type == "application/zip" || uri.toString().endsWith(".zip", true)) {
+            val filename = files.sourceLabel(uri).lowercase()
+            if (intent.type in setOf("application/zip", "application/x-zip-compressed", "application/x-wastickers") || filename.endsWith(".zip") || filename.endsWith(".wastickers")) {
                 try {
-                    val result = StickerBackup(context, store, files).restore(uri)
-                    imported += result.stickers
-                    rejected += result.rejected
-                } catch (_: Exception) {
-                    val report = PackZipImporter(context, store, files).import(uri, "Shared")
-                    imported += report.imported
-                    rejected += report.skipped + report.duplicates
-                }
-            } else {
-                try {
-                    val bytes = context.contentResolver.openInputStream(uri)?.use {
-                        StickerFiles.boundedRead(it, 1_000_000)
-                    } ?: error("Cannot read shared file")
-                    val kind = if (WebpSticker.isAnimatedHeader(bytes)) StickerKind.ANIMATED else StickerKind.STATIC
-                    var pack = packs[kind]
-                    if (pack == null || store.listStickers(pack.id).size >= 30) {
-                        pack = store.createPack("Shared ${if (kind == StickerKind.ANIMATED) "Animated" else "Static"}", kind)
-                        packs[kind] = pack
-                    }
-                    when (files.importBytes(pack.id, bytes)) {
-                        ImportResult.Added -> imported++
-                        else -> rejected++
+                    try {
+                        val result = StickerBackup(context, store, files).restore(uri)
+                        imported += result.stickers
+                        rejected += result.rejected
+                    } catch (_: Exception) {
+                        val report = PackZipImporter(context, store, files).import(uri, "Shared")
+                        imported += report.imported
+                        rejected += report.skipped + report.duplicates
                     }
                 } catch (_: Exception) { rejected++ }
+            } else {
+                images += uri
             }
         }
-        packs.values.filter { store.listStickers(it.id).isEmpty() }.forEach { files.deletePack(it.id) }
+        val photos = PhotoPackImporter(context, store, files).import(images, "Shared stickers")
+        imported += photos.added
+        rejected += photos.duplicates + photos.failed
         return "Shared import: $imported added, $rejected skipped"
     }
 }

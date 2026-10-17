@@ -15,7 +15,7 @@ import uuid
 from PIL import Image
 
 PRIVATE_BUCKET = "sticker-factory-private"
-MAX_REQUEST = 6_000_000
+MAX_REQUEST = 4_300_000  # Keep JSON/base64 below the hosted function request bound.
 MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
@@ -29,6 +29,17 @@ class StudioError(ValueError):
 
 
 def authorized(headers) -> bool:
+    # Browser owners use server-managed sessions. Legacy owner tokens remain
+    # supported only for existing operational scripts and smoke checks.
+    from api.session import cookies, same_origin, owner_user
+    session = cookies(headers).get("sd_owner", "")
+    if session and same_origin(headers):
+        try:
+            from api._cloud import auth_call
+            if owner_user(auth_call("user", token=session)):
+                return True
+        except StudioError:
+            pass
     expected = os.environ.get("STUDIO_ACCESS_TOKEN", "").strip()
     supplied = str(headers.get("X-StickerDock-Token", ""))
     if not (MIN_STUDIO_TOKEN_LENGTH <= len(expected) <= MAX_STUDIO_TOKEN_LENGTH):
@@ -54,12 +65,14 @@ def read_json(handler) -> dict:
     return value
 
 
-def send_json(handler, status: int, value: dict):
+def send_json(handler, status: int, value: dict, extra_headers=None):
     body = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Cache-Control", "no-store")
     handler.send_header("Content-Length", str(len(body)))
+    for key, value in (extra_headers or {}).items():
+        handler.send_header(key, value)
     handler.end_headers()
     handler.wfile.write(body)
 
@@ -95,7 +108,7 @@ def request(url: str, method="GET", data=None, headers=None, limit=MAX_PROVIDER_
     return body
 
 
-def decode_image(data_url: str, max_bytes=4_000_000) -> tuple[bytes, str, str]:
+def decode_image(data_url: str, max_bytes=3_000_000) -> tuple[bytes, str, str]:
     if not isinstance(data_url, str):
         raise StudioError("Expected a PNG, JPEG, or WebP image")
     match = re.fullmatch(r"data:(image/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\r\n]+)", data_url)
@@ -175,7 +188,7 @@ def source_metadata(source_path):
     if not isinstance(metadata, dict) or metadata.get("license") not in (
             "CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"):
         raise StudioError("Invalid source rights metadata")
-    return {key: metadata[key] for key in ("source_url", "download_url", "license", "credit")
+    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title")
             if key in metadata}
 
 
@@ -280,6 +293,8 @@ def list_inbox() -> list[dict]:
 def fetch_inbox(path: str) -> str:
     if not CREATOR_SOURCE_RE.fullmatch(str(path or "")):
         raise StudioError("Invalid inbox image path")
+    if str(source_metadata(path).get("source", "")).startswith("pinterest"):
+        raise StudioError("Pinterest references cannot be archived or converted. Upload an independent source image instead.")
     data = supabase_request("/storage/v1/object/authenticated/" + storage_path(path),
                             limit=3_000_000)
     extension = path.rsplit(".", 1)[-1]

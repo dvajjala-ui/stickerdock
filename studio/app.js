@@ -17,15 +17,18 @@
     $("status").textContent = message;
     $("status").classList.toggle("error", error);
   };
-  const token = () => $("token").value.trim();
-  $("token").value = sessionStorage.getItem("stickerdock-studio-token") || "";
+  let signedIn = false;
+  sessionStorage.removeItem("stickerdock-studio-token");
+  async function checkSession() {
+    const response=await fetch("/api/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status"})});
+    const result=await response.json();signedIn=Boolean(response.ok&&result.signed_in);
+    $("studio-account").textContent=signedIn?"Open owner workspace":"Sign in to owner workspace";
+    updateAiButton();return signedIn;
+  }
   const updateAiButton = () => {
-    $("generate").disabled = aiBusy || !ready || !token() || !$("prompt").value.trim();
+    $("generate").disabled = aiBusy || !ready || !signedIn || !$("prompt").value.trim();
   };
-  $("token").addEventListener("input", () => {
-    sessionStorage.setItem("stickerdock-studio-token", token());
-    updateAiButton();
-  });
+  checkSession().catch(() => status("Sign in through the owner workspace to use cloud and AI features."));
 
   function coverGeometry(width, height, fit) {
     const scale = fit === "contain" ? Math.min(512 / width, 512 / height) : Math.max(512 / width, 512 / height);
@@ -104,13 +107,14 @@
     reader.readAsDataURL(file);
   }
   async function api(path, body) {
-    if (!token()) throw new Error("Enter your creator token first.");
-    sessionStorage.setItem("stickerdock-studio-token", token());
-    const response = await fetch(path, {
+    if (!signedIn && !await checkSession()) throw new Error("Sign in through the owner workspace first. No API key is needed.");
+    const options = {
       method: "POST",
-      headers: {"Content-Type": "application/json", "X-StickerDock-Token": token()},
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
-    });
+    };
+    let response = await fetch(path, options);
+    if(response.status===401&&await checkSession())response=await fetch(path,options);
     const value = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
     return value;
@@ -119,7 +123,21 @@
     if (sourcePath) return sourcePath;
     if (!ready || !image.src.startsWith("data:image/")) throw new Error("Choose an image first.");
     status("Saving the source to the private factory inbox…");
-    const result = await api("/api/upload", {image: image.src, title: "Creator AI source"});
+    const upload = document.createElement("canvas");
+    const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
+    upload.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    upload.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = upload.getContext("2d");
+    context.drawImage(image, 0, 0, upload.width, upload.height);
+    let prepared = upload.toDataURL("image/png");
+    if (prepared.length > 4_000_000) {
+      const smaller = document.createElement("canvas");
+      smaller.width = Math.max(1, Math.round(upload.width * 0.7));
+      smaller.height = Math.max(1, Math.round(upload.height * 0.7));
+      smaller.getContext("2d").drawImage(upload, 0, 0, smaller.width, smaller.height);
+      prepared = smaller.toDataURL("image/png");
+    }
+    const result = await api("/api/upload", {image: prepared, title: "Creator AI source"});
     sourcePath = result.path;
     return sourcePath;
   }

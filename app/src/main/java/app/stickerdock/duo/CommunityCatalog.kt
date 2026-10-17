@@ -1,6 +1,7 @@
 package app.stickerdock.duo
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.net.Uri
 import org.json.JSONObject
 import java.io.File
@@ -22,7 +23,12 @@ class CommunityCatalog(
         val creator: String,
         val downloadUrl: String,
         val sha256: String,
-        val categories: List<PackCategory> = emptyList()
+        val categories: List<PackCategory> = emptyList(),
+        val publisherId: String = "",
+        val previewUrl: String? = null,
+        val previewSha256: String? = null,
+        val stickerCount: Int? = null,
+        val kinds: List<StickerKind> = emptyList()
     )
     private val base = CatalogUrls.normalizeBase(BuildConfig.COMMUNITY_CATALOG_BASE_URL)
 
@@ -32,14 +38,61 @@ class CommunityCatalog(
         // a broken app. All other HTTP errors and all pack downloads remain strict.
         val bytes = fetchOrNull(CatalogUrls.index(base), 512_000, allowMissing = true)
             ?: return emptyList()
-        return parseCatalog(bytes, base)
+        val blocked = context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE).getStringSet("blocked", emptySet()).orEmpty()
+        return parseCatalog(bytes, base).filter { (it.publisherId.ifBlank { it.id }) !in blocked }
     }
 
-    fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary {
+    fun hide(item: Listing) {
+        val prefs = context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE)
+        val blocked = prefs.getStringSet("blocked", emptySet()).orEmpty() + item.publisherId.ifBlank { item.id }
+        prefs.edit().putStringSet("blocked", blocked).apply()
+    }
+
+    fun clearHidden() { context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE).edit().remove("blocked").apply() }
+
+    /** Only a small public thumbnail is fetched during browsing. Old ZIPs are read on explicit preview. */
+    fun preview(item: Listing, allowLegacyDownload: Boolean = false): ByteArray? {
+        val directory = File(context.cacheDir, "catalog-previews").apply { mkdirs() }
+        val key = item.previewSha256 ?: "legacy-${item.sha256}"
+        require(Regex("(?:legacy-)?[0-9a-f]{64}").matches(key)) { "Invalid preview checksum" }
+        val cached = File(directory, "$key.webp")
+        if (cached.exists()) {
+            val bytes = cached.inputStream().use { StickerFiles.boundedRead(it, 320_000) }
+            if ((item.previewSha256 == null || sha256(bytes) == item.previewSha256) && validPreview(bytes)) return bytes
+            cached.delete()
+        }
+        if (item.previewUrl == null && !allowLegacyDownload) return null
+        val bytes = if (item.previewUrl != null) {
+            fetch(item.previewUrl, 320_000).also {
+                require(sha256(it) == item.previewSha256) { "Preview checksum mismatch" }
+            }
+        } else {
+            require(item.downloadUrl.startsWith(base + "packs/")) { "Invalid pack URL" }
+            val archive = fetch(item.downloadUrl, 25_000_000)
+            require(sha256(archive) == item.sha256) { "Public pack checksum mismatch" }
+            val temporary = File.createTempFile("catalog-preview-", ".zip", context.cacheDir)
+            try {
+                temporary.writeBytes(archive)
+                CatalogPreview.fromArchive(temporary)
+            } finally { temporary.delete() }
+        }
+        require(validPreview(bytes)) { "Invalid preview image" }
+        val temporary = File.createTempFile("preview-", ".tmp", directory)
+        try {
+            temporary.writeBytes(bytes)
+            // Cache writes are optional. Never expose a partially copied image to a second reader.
+            temporary.renameTo(cached)
+        } finally { temporary.delete() }
+        directory.listFiles()?.filter { it.extension == "webp" }?.sortedByDescending { it.lastModified() }
+            ?.drop(24)?.forEach { it.delete() }
+        return bytes
+    }
+
+    fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary = synchronized(importLock) {
         StickerStore(context.applicationContext).use { store ->
             val imported = CatalogImports(context, store)
             if (imported.importedPackIds(item.id, item.sha256).isNotEmpty()) {
-                return StickerBackup.RestoreSummary(0, 0, 0)
+                return@synchronized StickerBackup.RestoreSummary(0, 0, 0)
             }
         }
         require(CatalogUrls.isAllowed(base, item.downloadUrl) &&
@@ -48,12 +101,11 @@ class CommunityCatalog(
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         require(hash == item.sha256) { "Public pack checksum mismatch" }
         val tmp = File.createTempFile("catalog-", ".zip", context.cacheDir)
-        return try {
+        try {
             tmp.writeBytes(bytes)
             StickerStore(context.applicationContext).use { store ->
-                val before = store.listPacks().mapTo(mutableSetOf()) { it.id }
                 val summary = backup.restore(Uri.fromFile(tmp))
-                val added = store.listPacks().mapTo(mutableSetOf()) { it.id } - before
+                val added = summary.packIds.toSet()
                 if (added.isNotEmpty()) CatalogImports(context, store).record(item.id, item.sha256, added)
                 summary
             }
@@ -83,6 +135,16 @@ class CommunityCatalog(
     }
 
     companion object {
+        private val importLock = Any()
+        private fun sha256(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
+            .digest(bytes).joinToString("") { "%02x".format(it) }
+
+        private fun validPreview(bytes: ByteArray): Boolean {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            return bounds.outWidth == 576 && bounds.outHeight == 384 &&
+                WebpSticker.isWebpHeader(bytes) && !WebpSticker.isAnimatedHeader(bytes) && bytes.size <= 320_000
+        }
         internal fun isMissingObjectResponse(bytes: ByteArray): Boolean = runCatching {
             val error = JSONObject(bytes.toString(Charsets.UTF_8))
             error.optString("code") in setOf("NoSuchKey", "not_found") ||
@@ -137,7 +199,23 @@ class CommunityCatalog(
                 require(seenIds.add(id)) { "Duplicate public pack id" }
                 require(seenFiles.add(file)) { "Duplicate public pack file" }
 
-                Listing(id, name, creator, CatalogUrls.pack(normalizedBase, file), hash, categories)
+                val publisher = item.optString("publisher_id", "")
+                require(publisher.isEmpty() || Regex("[a-z0-9-]{1,64}").matches(publisher)) { "Invalid publisher" }
+                val preview = item.optJSONObject("preview")
+                val previewHash = preview?.getString("sha256")
+                val previewFile = preview?.getString("file")
+                require(previewHash == null || (Regex("[0-9a-f]{64}").matches(previewHash) &&
+                    previewFile == "$previewHash.webp")) { "Invalid preview checksum" }
+                val count = if (item.has("sticker_count")) item.getInt("sticker_count") else null
+                require(count == null || count in 3..100) { "Invalid public sticker count" }
+                val kinds = item.optJSONArray("kinds")?.let { values ->
+                    require(values.length() in 1..2) { "Invalid public sticker types" }
+                    (0 until values.length()).map { StickerKind.valueOf(values.getString(it)) }.also {
+                        require(it.distinct().size == it.size) { "Duplicate public sticker type" }
+                    }
+                }.orEmpty()
+                Listing(id, name, creator, CatalogUrls.pack(normalizedBase, file), hash, categories, publisher,
+                    previewFile?.let { CatalogUrls.preview(normalizedBase, it) }, previewHash, count, kinds)
             }
         }
     }

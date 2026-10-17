@@ -69,6 +69,26 @@ class AdminApiTest(unittest.TestCase):
         result = admin.dispatch({"action": "migrate_factory", "id": self.origin}, self.client)
         return self.client.find("admin_packs", "id", result["id"])
 
+    def test_overview_returns_live_data_and_empty_catalog_without_mutation(self):
+        before = copy.deepcopy(self.client.objects)
+        result = admin.overview(self.client)
+        self.assertEqual(result["factory_packs"][0]["id"], self.origin)
+        self.assertEqual(result["catalog"], {"version": 1, "packs": []})
+        self.assertEqual(result["packs"], [])
+        self.assertEqual(result["access_mode"], "single-owner-token")
+        self.assertEqual(self.client.objects, before)
+
+    def test_overview_exposes_cooldown_then_retry_due_without_changing_database_status(self):
+        row = {"day": DAY, "status": "running", "groq_metrics": {
+            "recovery": {"http_status": 429, "retry_at": NOW + 100}}}
+        self.client.rows[("factory_runs", DAY)] = row
+        with patch.object(admin.time, "time", return_value=NOW):
+            run = admin.overview(self.client)["runs"][0]
+            self.assertEqual((run["display_status"], run["retry_at"]), ("waiting", NOW + 100))
+        with patch.object(admin.time, "time", return_value=NOW + 101):
+            self.assertEqual(admin.overview(self.client)["runs"][0]["display_status"], "retry_due")
+        self.assertNotIn("display_status", row)
+
     def test_migration_is_idempotent_and_keeps_original_archive(self):
         before = dict(self.client.objects)
         row = self.migrate()
@@ -89,6 +109,13 @@ class AdminApiTest(unittest.TestCase):
         entry = catalog["packs"][0]
         self.assertEqual(entry["rating"], "GENERAL")
         self.assertEqual(entry["categories"], ["GENERAL"])
+        self.assertEqual(entry["sticker_count"], 3)
+        self.assertEqual(entry["kinds"], ["STATIC"])
+        thumbnail = self.client.objects[(PUBLIC_BUCKET, "catalog/previews/" + entry["preview"]["file"])]
+        self.assertEqual(__import__("hashlib").sha256(thumbnail).hexdigest(), entry["preview"]["sha256"])
+        with Image.open(io.BytesIO(thumbnail)) as image:
+            self.assertEqual(image.size, (576, 384))
+            self.assertFalse(getattr(image, "is_animated", False))
         self.assertEqual(__import__("hashlib").sha256(self.client.objects[(PUBLIC_BUCKET, "catalog/packs/" + entry["file"])]).hexdigest(), entry["sha256"])
         admin.dispatch({"action": "unpublish", "id": row["id"]}, self.client)
         self.assertEqual(json.loads(self.client.objects[(PUBLIC_BUCKET, "catalog/packs.json")])["packs"], [])
@@ -148,6 +175,34 @@ class AdminApiTest(unittest.TestCase):
         row = self.migrate()
         with self.assertRaisesRegex(ValueError, "refresh"):
             admin.pack_status(self.client, {"id": row["id"], "version": 0, "status": "reviewed"})
+
+    def test_adding_sources_preserves_originals_and_requires_fresh_review(self):
+        row = self.migrate()
+        old_archive = self.client.objects[(PRIVATE_BUCKET, row["private_path"])]
+        target = admin.pack_detail(self.client, {"id": row["id"]})["target_packs"][0]["id"]
+        source = "inbox/" + "b" * 64 + ".png"
+        image = "data:image/png;base64," + base64.b64encode(png_bytes("blue")).decode()
+        payload = {"id": row["id"], "version": 1, "target_pack_id": target, "sources": [source, source]}
+        with patch.object(_shared, "fetch_inbox", return_value=image), patch.object(_shared, "source_metadata", return_value={"license": "USER_OWNED"}):
+            self.assertEqual(admin.dispatch({"action": "pack_add_sources", **payload}, self.client), {"added": 1})
+        updated = self.client.find("admin_packs", "id", row["id"])
+        self.assertEqual((updated["status"], updated["version"], updated["sticker_count"]), ("draft", 2, 4))
+        self.assertEqual(updated["references"][-1]["media_credit"]["license"], "USER_OWNED")
+        self.assertEqual(old_archive, self.client.objects[(PRIVATE_BUCKET, row["private_path"])])
+        self.assertEqual(len(admin.pack_detail(self.client, {"id": row["id"]})["stickers"]), 4)
+        with self.assertRaisesRegex(ValueError, "refresh"):
+            admin.add_pack_sources(self.client, payload)
+
+    def test_category_change_is_in_the_exported_archive(self):
+        row = self.migrate()
+        admin.save_pack(self.client, {"id": row["id"], "version": 1, "name": row["name"],
+            "creator": row["creator"], "category": "WORK", "stickers": []})
+        self.assertEqual(admin.pack_detail(self.client, {"id": row["id"]})["categories"], ["WORK"])
+
+    def test_settings_reject_batches_the_generator_cannot_render(self):
+        for batch in (1, 2):
+            with self.assertRaisesRegex(ValueError, "3–10"):
+                admin.save_settings(self.client, {"enabled": True, "daily_target": 3, "batch_size": batch})
 
     def test_checksum_failure_prevents_migration(self):
         self.client.rows[("sticker_packs", self.origin)]["sha256"] = "a" * 64

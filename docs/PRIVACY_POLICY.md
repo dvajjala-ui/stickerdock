@@ -11,8 +11,8 @@ both this document and the store listing.
 ## Android app
 
 StickerDock is primarily a local sticker-library application. The current Android
-source does not include an account system, advertising SDK, analytics SDK, or
-background telemetry service.
+source includes optional email/password accounts for private cloud backup. It
+does not include an advertising SDK, analytics SDK, or background telemetry service.
 
 ### Data stored on the device
 
@@ -43,7 +43,20 @@ requests use HTTPS and fetch only the reviewed StickerDock catalog and selected
 pack archives. The catalog client does not upload the user's local sticker
 library, device media, or StickerDock database to the catalog service.
 The home screen refreshes this public catalog when the app opens or returns to
-the foreground. Pack images are downloaded only when the user chooses Import.
+the foreground. Discover may fetch small public artwork previews, cached in a
+bounded app cache, without adding packs to the user's library. A full older pack
+archive may be read when the user explicitly requests its preview. Saving a pack
+to the library requires a separate user action. These catalog requests do not
+upload local stickers or media.
+
+If the user signs in and enables Private cloud sync, the app copies
+general-audience sticker images, pack names, categories, labels, tags and
+checksums to that user's private account storage. Sync runs after local changes
+and periodically when Android allows it. Mature packs remain offline. Session
+credentials are encrypted with Android Keystore. This is private cloud storage,
+not a claim of end-to-end encryption. Turning sync off preserves existing cloud
+copies; full account/media deletion currently uses the support process described
+in the published policy.
 
 Like ordinary HTTPS requests, the hosting provider may receive technical network
 information such as the requesting IP address and standard connection metadata.
@@ -75,7 +88,7 @@ outside StickerDock must be deleted from their destination separately.
 ## Optional private Creator Studio web feature
 
 Creator Studio is a separate browser-based maintainer/private feature and is not
-currently exposed through the Android **AI meme creator — Coming soon** entry.
+currently exposed through the Android app.
 This section applies if the Creator Studio is deployed and used.
 
 Creator Studio is protected by a private access token. The browser stores that

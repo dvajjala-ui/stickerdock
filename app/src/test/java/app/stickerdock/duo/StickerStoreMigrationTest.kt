@@ -28,8 +28,8 @@ class StickerStoreMigrationTest {
     }
 
     @Test
-    fun upgradesEveryLegacySchemaToV7WithoutLosingPackOrSticker() {
-        for (legacyVersion in 1..6) {
+    fun upgradesEveryLegacySchemaToV8WithoutLosingPackOrSticker() {
+        for (legacyVersion in 1..7) {
             context.deleteDatabase(DB_NAME)
             seedLegacyDatabase(legacyVersion)
 
@@ -58,8 +58,8 @@ class StickerStoreMigrationTest {
                 assertEquals("v$legacyVersion sticker count", 1, stickers.size)
                 assertEquals("legacy.webp", stickers.single().fileName)
                 assertEquals("deadbeef", stickers.single().sha256)
-                assertEquals("", stickers.single().label)
-                assertEquals("", stickers.single().tags)
+                assertEquals(if (legacyVersion >= 6) "Kept label" else "", stickers.single().label)
+                assertEquals(if (legacyVersion >= 6) "kept tag" else "", stickers.single().tags)
                 assertTrue("v$legacyVersion global hash index/query", store.hasStickerHash("deadbeef"))
 
                 store.readableDatabase.rawQuery(
@@ -72,7 +72,15 @@ class StickerStoreMigrationTest {
                     "SELECT name FROM sqlite_master WHERE type='table' AND name='folder_import_items'",
                     null
                 ).use { cursor -> assertTrue("v$legacyVersion import journal", cursor.moveToFirst()) }
-                assertEquals(7, store.readableDatabase.version)
+                assertEquals(8, store.readableDatabase.version)
+                assertEquals(null, store.artworkProject(stickers.single().id))
+                assertTrue(store.artworkDrafts().isEmpty())
+                if (legacyVersion >= 7) {
+                    assertEquals("scan-7", store.pendingFolderImport()!!.id)
+                    assertEquals(setOf("legacy"), store.folderImportPackIds("scan-7"))
+                    assertEquals(setOf("content://kept.webp"), store.folderImportProcessedSources("scan-7"))
+                    assertEquals(FolderImportStats(1, 0, 0, 123), store.folderImportStats("scan-7"))
+                }
             } finally {
                 store.close()
             }
@@ -101,6 +109,11 @@ class StickerStoreMigrationTest {
             )
             db.execSQL("CREATE INDEX idx_stickers_pack ON stickers(pack_id)")
             if (version >= 4) db.execSQL("CREATE INDEX idx_stickers_sha ON stickers(sha256)")
+            if (version >= 7) {
+                db.execSQL("CREATE TABLE folder_import_sessions (id TEXT PRIMARY KEY, tree_uri TEXT NOT NULL, fallback_name TEXT NOT NULL, created_at INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE folder_import_packs (session_id TEXT NOT NULL REFERENCES folder_import_sessions(id) ON DELETE CASCADE, pack_id TEXT NOT NULL REFERENCES packs(id) ON DELETE CASCADE, PRIMARY KEY(session_id,pack_id))")
+                db.execSQL("CREATE TABLE folder_import_items (session_id TEXT NOT NULL REFERENCES folder_import_sessions(id) ON DELETE CASCADE, source_uri TEXT NOT NULL, outcome TEXT NOT NULL, source_bytes INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(session_id,source_uri))")
+            }
 
             val packColumnsForInsert = mutableListOf("id", "name", "version", "created_at")
             val values = mutableListOf("'legacy'", "'Legacy pack'", "7", "1234")
@@ -124,6 +137,12 @@ class StickerStoreMigrationTest {
                 "INSERT INTO stickers (id, pack_id, file_name, sha256, created_at) " +
                     "VALUES ('sticker-1', 'legacy', 'legacy.webp', 'deadbeef', 2345)"
             )
+            if (version >= 6) db.execSQL("UPDATE stickers SET label='Kept label', tags='kept tag'")
+            if (version >= 7) {
+                db.execSQL("INSERT INTO folder_import_sessions VALUES ('scan-7','content://tree/root','Kept scan',3456)")
+                db.execSQL("INSERT INTO folder_import_packs VALUES ('scan-7','legacy')")
+                db.execSQL("INSERT INTO folder_import_items VALUES ('scan-7','content://kept.webp','ADDED',123)")
+            }
             db.version = version
         } finally {
             db.close()

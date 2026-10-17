@@ -1,8 +1,24 @@
 # StickerDock implementation status
 
-Updated October 14, 2026. “Complete” means implemented and covered by automated
+> Historical October 15 baseline. For current source, exact accepted Android
+> artifacts and unfinished platform/provider work, use
+> [the October 16 acceptance audit](REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
+> [recovery progress](RECOVERY_PROGRESS.md) and [the ledger](REQUIREMENTS_LEDGER.md).
+> In particular: discovery no longer auto-imports, Android uses SQLite v8,
+> real-media creation has advanced, release signing exists, and iPhone source
+> is being built/tested through draft PR #18. Older deployment/credential claims
+> below are dated evidence, not current read-back.
+
+Updated October 15, 2026. “Complete” means implemented and covered by automated
 tests/builds; live-provider items are called out separately. It does not replace
 real-device acceptance or store-release testing.
+
+Android 0.5.0 adds direct photo-to-pack creation, local static artwork editing,
+inline destination-pack creation, bounded preview queries, safer catalog import
+tracking and WhatsApp preflight validation. The October 15 read-only production
+catalog check returned NoSuchKey; public delivery is still awaiting reviewed
+publication. See CORE_FLOW_REVIEW_2026-10-15.md for all ten user requirements and
+REQUIREMENTS_LEDGER.md for persistent status/history.
 
 ## Product split
 
@@ -15,7 +31,7 @@ real-device acceptance or store-release testing.
    a once-daily source-linked content brief, recent RSS titles, Commons media,
    manual uploads and Pinterest inputs, renders categorized batches, and stores
    state/pending packs in Supabase.
-3. **Creator Studio AI editor** — still shown as **Coming soon** in Android. The
+3. **Creator Studio AI editor** — private entry is hidden in the active Android UI. The
    private browser Studio supports manual editing plus an asynchronous
    Studio → Factory request/result queue. The real Supabase/Groq vision path has
    passed live testing. The browser AI control and queue-aware Creator worker are

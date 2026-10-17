@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 import zipfile
 
@@ -77,6 +78,60 @@ def pack_bytes(rating="GENERAL"):
 
 
 class ProductionWorkerTest(unittest.TestCase):
+    def test_provider_auth_failure_stays_failed_during_later_cooldown(self):
+        client = FakeSupabase()
+        config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60, "modes": ["illustration"]}
+        error = urllib.error.HTTPError("https://provider.invalid", 401, "do not expose details", {}, None)
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second, \
+                patch.dict(os.environ, {"GROQ_API_KEY": "fixture-key"}), \
+                patch("daily_stickers.groq_ideas", side_effect=error) as request:
+            with self.assertRaises(worker.ProviderError):
+                worker.run_production(config, Path(first), client, NOW)
+            self.assertEqual(client.rows[("factory_runs", DAY)]["status"], "failed")
+            summary = worker.run_production(config, Path(second), client, NOW + 60)
+            self.assertEqual(summary["status"], "failed")
+            self.assertIn("credentials", summary["result"])
+            self.assertEqual(request.call_count, 1)
+
+    def test_rate_limit_survives_new_runner_then_completes_after_cooldown(self):
+        config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60,
+                  "modes": ["illustration"]}
+        client = FakeSupabase()
+        error = urllib.error.HTTPError("https://provider.invalid", 429, "private response omitted",
+                                       {"Retry-After": "20000"}, None)
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second, \
+                tempfile.TemporaryDirectory() as third, patch.dict(os.environ, {"GROQ_API_KEY": "fixture-key"}):
+            with patch("daily_stickers.groq_ideas", side_effect=error) as request:
+                waiting = worker.run_production(config, Path(first), client, NOW)
+                self.assertEqual(waiting["status"], "waiting")
+                self.assertEqual(waiting["retry_at"], NOW + 20000)
+                worker.run_production(config, Path(second), client, NOW + 61)
+                self.assertEqual(request.call_count, 1)
+            row = client.rows[("factory_runs", DAY)]
+            self.assertEqual(row["status"], "running")
+            self.assertEqual(row["groq_metrics"]["recovery"], {"http_status": 429, "retry_at": NOW + 20000})
+            self.assertNotIn("private response", json.dumps(row))
+            ideas = [{"caption": f"Recovered reaction {i}", "mood": "happy", "color": "#FFD166", "source": None}
+                     for i in range(3)]
+            with patch("daily_stickers.groq_ideas", return_value=ideas) as request:
+                complete = worker.run_production(config, Path(third), client, NOW + 20001)
+                self.assertEqual(request.call_count, 1)
+            self.assertEqual((complete["status"], complete["generated"]), ("complete", 3))
+            self.assertNotIn("recovery", client.rows[("factory_runs", DAY)]["groq_metrics"])
+
+    def test_real_media_mode_does_not_fall_back_to_template_faces(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            config={"modes":["photo","clip"],"require_real_media":True,"vision_model":"test-vision"}
+            with self.assertRaisesRegex(ValueError,"template faces were not substituted"):
+                worker.configure(config,Path(temporary),NOW)
+            refs=Path(temporary)/"reference-images"
+            refs.mkdir(exist_ok=True)
+            (refs/"owned.png").write_bytes(png_bytes())
+            (refs/"library.json").write_text(json.dumps({"assets":[{"file":"owned.png","license":"CC0","source_url":"https://example.org/owned"}]}))
+            result=worker.configure(config,Path(temporary),NOW)
+            self.assertEqual(result["modes"],["photo"])
+            self.assertEqual(result["allowed_media_files"],["owned.png"])
+
     def test_daily_brief_drives_categories_and_complete_pack_auto_migrates(self):
         client = FakeSupabase()
         client.rows[("factory_settings", "default")] = {
@@ -113,6 +168,38 @@ class ProductionWorkerTest(unittest.TestCase):
         from publish_factory_pack import MAX_PUBLIC_PACK_BYTES, validate_pack
         with self.assertRaises(ValueError):
             validate_pack(b"x" * (MAX_PUBLIC_PACK_BYTES + 1))
+
+    def test_midday_audience_change_waits_for_next_utc_day(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {
+            "enabled": True, "daily_target": 3, "batch_size": 3,
+            "rating": "MATURE", "topics": ["ADULT_HUMOR | Private adult jokes"],
+            "content_categories": ["ADULT_HUMOR"], "auto_migrate_completed": False}
+        def generator(config, generated, font, now):
+            self.assertEqual(config["rating"], "GENERAL")
+            self.assertTrue(all(plan["category"] != "ADULT_HUMOR" for plan in config["topic_plans"]))
+            return "waiting"
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_TRENDS_API_KEY": ""}):
+            runtime = Path(temporary)
+            directory = runtime / "generated-stickers" / DAY
+            directory.mkdir(parents=True)
+            (directory / "state.json").write_text(json.dumps({"records": [
+                {"rating": "GENERAL", "file": "old.webp", "caption": "Previous"}]}))
+            summary = worker.run_production({"modes": ["illustration"]}, runtime, client, NOW, generator)
+        self.assertTrue(summary["warnings"])
+        self.assertEqual(client.rows[("factory_settings", "default")]["rating"], "MATURE")
+
+    def test_archive_rating_is_derived_from_its_content(self):
+        client = FakeSupabase()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / DAY
+            directory.mkdir()
+            (directory / "daily-complete.zip").write_bytes(pack_bytes("MATURE"))
+            (directory / "state.json").write_text(json.dumps({"records": [{}] * 3}))
+            worker.persist_run(client, root, {"rating": "GENERAL", "daily_target": 3, "modes": ["illustration"]}, NOW, "complete")
+        source = next(row for (table, _), row in client.rows.items() if table == "sticker_packs")
+        self.assertEqual(source["rating"], "MATURE")
 
     def test_animation_duration_matches_phone_import_rules(self):
         from publish_factory_pack import validate_animation
@@ -267,7 +354,7 @@ class ProductionWorkerTest(unittest.TestCase):
             library = json.loads((root / "reference-images/library.json").read_text())
             self.assertEqual(len(library["assets"]), 1)
 
-    def test_inbox_preserves_pinterest_reference_only_metadata(self):
+    def test_inbox_excludes_legacy_pinterest_content_without_deleting_remote_originals(self):
         client = FakeSupabase()
         data = png_bytes()
         digest = __import__("hashlib").sha256(data).hexdigest()
@@ -278,10 +365,9 @@ class ProductionWorkerTest(unittest.TestCase):
             "title": "Reference", "credit": "Pinterest source"}).encode()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            self.assertEqual(worker.sync_inbox(client, root), 1)
-            asset = json.loads((root / "reference-images/library.json").read_text())["assets"][0]
-        self.assertEqual(asset["license"], "REFERENCE_ONLY")
-        self.assertEqual(asset["source"], "pinterest-official")
+            self.assertEqual(worker.sync_inbox(client, root), 0)
+            self.assertEqual(json.loads((root / "reference-images/library.json").read_text())["assets"], [])
+        self.assertEqual(client.objects[(PRIVATE_BUCKET, "inbox/" + digest + ".png")], data)
 
     def test_worker_restores_generates_uploads_and_records_pending_pack(self):
         client = FakeSupabase()

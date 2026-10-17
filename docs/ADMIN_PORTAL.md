@@ -28,6 +28,9 @@ Android account system.
   completed-pack auto-migration controls. Content planner shows the latest
   source-linked brief and explicit fallback warnings.
 - Append-only owner audit events and server-only privileged credentials.
+- Add source images to an existing static subpack, deduplicate, preserve original bytes/rights and reset the revision to draft. Category edits are included in Android exports.
+- Direct AI-result preview and result-to-pack selection. Unsaved edits block review/status changes and prompt before closing the editor.
+- Setup & health distinguishes server configuration, required tables and catalog publication. An accepted owner token reaches setup guidance when migrations are missing; synthetic preview records are cleared before entering live mode.
 - Responsive desktop/mobile layout and a clearly marked synthetic local preview.
 
 ## User flow on the phone
@@ -38,7 +41,7 @@ Android account system.
 4. Owner selects Publish. Only reviewed GENERAL content enters the public catalog.
 5. The newly built APK reads that catalog automatically on open/resume; Refresh
    fetches it again while the app stays open. CDN propagation may add a short delay.
-6. User selects Import. The pack enters the offline local library.
+6. Discover shows reviewed packs and their small artwork previews. Users open a preview and explicitly choose **Save to library**; opening/resuming/refreshing never imports packs. Older catalog entries remain compatible and can preview their archive on request without saving.
 7. User selects Add to WhatsApp or WhatsApp Business and confirms in that app.
 
 Generation does not automatically approve content or silently install stickers
@@ -62,12 +65,18 @@ The token stays in tab memory and is cleared on reload/disconnect.
 
 ## Vercel and database setup
 
-This change has not been deployed and its migration has not been applied to
-production. Apply `supabase/migrations/202610140001_admin_control_plane.sql` after
-review and a database backup, before running this revision's admin API or manual
-CLI publisher. The new migration adds `admin_packs`, `factory_settings`,
-`content_briefs`, `admin_events` and a shared catalog publication lease. All are service-role-only;
-the existing Factory run/output/request data remains unchanged.
+The October 15 read-only production check confirmed all eight required tables
+and selected columns are available, including the admin/control-plane tables:
+https://github.com/dvajjala-ui/stickerdock/actions/runs/38703586594.
+Do not reapply SQL solely because older handoff notes said it was pending.
+For a fresh installation, `db.sql` and the additive migrations remain the setup
+sources. These create service-role-only admin tables and the shared catalog lease.
+
+The new Vercel Hobby project is deployed at https://stickerdock.vercel.app;
+`/admin` and Studio return HTTP 200. Protected API requests without an owner
+token return 401. Authenticated hosted owner login, health/overview, media listing,
+Factory migration, signed ZIP verification and review/publication now pass.
+One five-sticker GENERAL pack is published. Phone acceptance remains pending.
 
 The scheduled generator retains previous configuration when the admin table is
 absent. Once present, owner settings override workflow default targets/batches.
@@ -90,6 +99,13 @@ The web API only enqueues AI requests; it does not need Groq credentials. Verify
 the 10-minute Creator worker and three-hour Factory schedules are running on the
 same project. The GitHub emergency pause variable still overrides scheduled
 workflow invocation.
+
+Batch settings accept 3–10 stickers, matching the renderer. Audience changes apply
+next UTC day if today's generation already has records or saved ideas; today's
+audience remains stable and content rows derive their rating from the archive.
+Studio prepares large local images before AI upload so base64 requests stay under
+the hosted function payload bound. The readiness CLI/workflow uses read-only
+table/catalog requests and does not apply migrations or publish content.
 
 This MVP uses one owner token. Team roles, Supabase Auth/MFA, per-person auditing,
 malware scanning, larger uploads, richer prompt-template versions, image synthesis

@@ -15,7 +15,7 @@ import uuid
 import zipfile
 from PIL import Image
 
-from daily_stickers import atomic_json, run as run_generator
+from daily_stickers import atomic_json, run as run_generator, ProviderError
 from sticker_fonts import default_font
 from media_library import sync as sync_media
 from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, SupabaseError, require_production_environment
@@ -271,6 +271,8 @@ def sync_inbox(client, runtime, max_files=30):
         if digest not in known_hashes:
             try:
                 metadata = inbox_metadata(client, digest, remote_path)
+                if str(metadata.get("source", "")).startswith("pinterest"):
+                    raise ValueError("Pinterest content is not a Factory input")
                 local.write_bytes(data)
                 if suffix in CLIP_EXTENSIONS:
                     from video_stickers import clip_frames
@@ -321,10 +323,24 @@ def configure(config, runtime, now):
     has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
     has_clips = any(path.suffix.lower() in CLIP_EXTENSIONS for path in files)
     modes = list(config.get("modes", ["illustration", "animated"]))
+    if config.get("require_real_media"):
+        manifest_path = references / "library.json"
+        assets = json.loads(manifest_path.read_text()).get("assets", []) if manifest_path.exists() else []
+        allowed = [item["file"] for item in assets if item.get("license") in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
+                   and not str(item.get("source", "")).startswith("pinterest")
+                   and "pinterest.com" not in str(item.get("source_url", ""))]
+        config["allowed_media_files"] = allowed
+        files = [path for path in files if path.name in allowed]
+        has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
+        has_clips = any(path.suffix.lower() in CLIP_EXTENSIONS for path in files)
     if not vision or not has_images:
         modes = [mode for mode in modes if mode != "photo"]
     if not vision or not has_clips:
         modes = [mode for mode in modes if mode != "clip"]
+    if config.get("require_real_media"):
+        modes = [mode for mode in modes if mode in {"photo", "clip"}]
+        if not modes:
+            raise ValueError("Real-image generation needs licensed photos/clips and a vision model; template faces were not substituted")
     config["modes"] = modes or ["illustration", "animated"]
     rating = os.environ.get("FACTORY_RATING", config.get("rating", "GENERAL")).upper()
     if rating not in ("GENERAL", "MATURE"):
@@ -341,10 +357,13 @@ def persist_run(client, generated, config, now, result):
     count = len(state.get("records", []))
     complete = day_dir / "daily-complete.zip"
     status = "complete" if complete.exists() else "running"
+    if status != "complete" and state.get("provider_error", {}).get("http_status") in (401, 403):
+        status = "failed"
+        result = "Provider authentication rejected. Check worker credentials before retrying."
     client.upsert("factory_runs", [{
         "day": day, "status": status, "target": config["daily_target"],
         "generated": count, "attempts": int(state.get("requests", 0)),
-        "last_result": result[:500], "groq_metrics": state.get("last_groq_metrics", {})}], "day")
+        "last_result": result[:500], "groq_metrics": run_metrics(state)}], "day")
     if complete.exists():
         pack_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-production:" + day))
         remote = "generated/" + day + "/daily-complete.zip"
@@ -363,12 +382,19 @@ def persist_run(client, generated, config, now, result):
         categories = sorted({pack.get("category", "GENERAL") for pack in manifest.get("packs", [])})
         client.upsert("sticker_packs", [{
             "id": pack_id, "day": day, "name": "Daily " + day,
-            "creator": "StickerDock AI Factory", "rating": config["rating"],
+            "creator": "StickerDock AI Factory", "rating": "MATURE" if any(p.get("rating") == "MATURE" for p in manifest["packs"]) else "GENERAL",
             "status": pack_status, "private_path": remote, "sha256": digest,
             "sticker_count": count, "metadata": {"modes": config["modes"],
                                                     "categories": categories}}], "id")
     return {"day": day, "status": status, "generated": count,
             "target": config["daily_target"], "result": result}
+
+
+def run_metrics(state):
+    metrics = dict(state.get("last_groq_metrics", {}))
+    if state.get("provider_error"):
+        metrics["recovery"] = dict(state["provider_error"])
+    return metrics
 
 
 def persist_failure(client, config, now, error, generated=None):
@@ -379,11 +405,21 @@ def persist_failure(client, config, now, error, generated=None):
         state_path = generated / day / "state.json"
         if state_path.exists():
             state = json.loads(state_path.read_text())
-    client.upsert("factory_runs", [{
-        "day": day, "status": "failed", "target": target,
+    waiting = isinstance(error, ProviderError) and error.status == 429
+    if isinstance(error, ProviderError):
+        state["provider_error"] = {"http_status": error.status, "retry_at": error.retry_at}
+    result = ("Provider rate limit reached. Progress saved; the next scheduled worker retries after cooldown."
+              if waiting else "Provider authentication rejected. Check worker credentials before retrying."
+              if isinstance(error, ProviderError) and error.status in (401, 403)
+              else type(error).__name__ + ": worker failed; inspect Actions logs")
+    row = {
+        "day": day, "status": "running" if waiting else "failed", "target": target,
         "generated": len(state.get("records", [])), "attempts": int(state.get("requests", 0)),
-        "last_result": type(error).__name__ + ": worker failed; inspect Actions logs",
-        "groq_metrics": state.get("last_groq_metrics", {})}], "day")
+        "last_result": result, "groq_metrics": run_metrics(state)}
+    client.upsert("factory_runs", [row], "day")
+    return {"day": day, "status": "waiting" if waiting else "failed", "target": target,
+            "generated": row["generated"], "result": result,
+            **({"retry_at": error.retry_at} if isinstance(error, ProviderError) else {})}
 
 
 def run_production(config, runtime, client, now=None, generator=run_generator):
@@ -408,6 +444,25 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
     runtime.mkdir(parents=True, exist_ok=True)
     safe_restore(client.download(PRIVATE_BUCKET, STATE_OBJECT, missing_ok=True), runtime)
     relocate_state(runtime)
+    deferred = []
+    if controls:
+        # Audience changes wait until tomorrow once any ideas/artwork exist.
+        controls = dict(controls)
+        day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+        state_path = runtime / "generated-stickers" / day / "state.json"
+        state = json.loads(state_path.read_text()) if state_path.exists() else {}
+        ratings = {record.get("rating", "GENERAL") for record in state.get("records", [])}
+        if state.get("pending"):
+            ratings.add(state["pending"].get("rating", "GENERAL"))
+        if ratings:
+            active_rating = "MATURE" if "MATURE" in ratings else "GENERAL"
+            if active_rating != controls.get("rating", "GENERAL"):
+                deferred.append("Audience change applies next UTC day because today's generation already started")
+                controls["rating"] = active_rating
+                if active_rating == "GENERAL":
+                    controls["content_categories"] = [c for c in controls.get("content_categories", []) if c != "ADULT_HUMOR"] or ["EVERYDAY"]
+                    controls["topics"] = [topic for topic in controls.get("topics", []) if not topic.strip().upper().startswith("ADULT_HUMOR")]
+                    config["topics"] = controls["topics"] or ["EVERYDAY | Original everyday reactions in Hinglish"]
     try:
         generated = runtime / "generated-stickers"
         generated.mkdir(exist_ok=True)
@@ -418,6 +473,7 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             # Admin controls take precedence over workflow defaults.
             configured["daily_target"] = controls["daily_target"]
             configured["batch_size"] = controls["batch_size"]
+            configured["rating"] = controls.get("rating", configured["rating"])
             configured, brief = ensure_content_brief(client, configured, controls, now)
         mirror_licensed_inputs(client, runtime)
         result = generator(configured, generated,
@@ -426,15 +482,19 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         summary["inbox_added"] = inbox_added
         if controls:
             summary["content_source"] = brief["source_mode"]
+            summary["warnings"] = deferred
             if controls.get("auto_migrate_completed") is True:
                 summary["admin_draft_id"] = auto_migrate_completed(client, generated, summary)
         return summary
     except Exception as error:
+        recovery = None
         try:
-            persist_failure(client, locals().get("configured", config), now, error,
-                            runtime / "generated-stickers")
+            recovery = persist_failure(client, locals().get("configured", config), now, error,
+                                       runtime / "generated-stickers")
         except Exception:
             pass
+        if recovery and recovery["status"] == "waiting":
+            return recovery
         raise
     finally:
         client.upload(PRIVATE_BUCKET, STATE_OBJECT, state_archive(runtime), "application/zip")
