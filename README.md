@@ -13,6 +13,14 @@ emulator before advancing the download. Failed builds keep the previous release.
 The admin website follows the existing Vercel production deployment from `main`.
 See [installation, update and release verification](docs/ANDROID_RELEASES.md).
 
+October 18: the **0.11.0 pack-focused rebuild candidate** is in
+[PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21). It adds larger pack
+previews, pack-grouped search, explicit photo destinations, simpler discovery and
+contextual WhatsApp actions. The stable download above still points to 0.10.2
+until a release is published. Read the [product decisions and research](docs/PRODUCT_REBUILD_2026-10-18.md),
+[candidate verification](docs/QA_MATRIX.md) and [optional original-art worker](docs/ORIGINAL_ARTWORK_WORKER.md).
+Original image generation is prepared but disabled and not live-validated.
+
 Android and iPhone clients keep your sticker library independently from WhatsApp
 and Sticker.ly. Android uses Kotlin/Compose; the native SwiftUI iPhone client
 shares Kotlin Multiplatform media rules/containers. Both remain testing candidates;

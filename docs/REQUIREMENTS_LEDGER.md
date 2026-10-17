@@ -1,8 +1,15 @@
 # StickerDock requirements ledger
 
-Updated 2026-10-16. Preserve IDs and history. Add new user requests here before implementation. Never delete a requirement; mark it Updated (with a replacement ID) or Removed with the user's decision and date. Active means still required; Partial and Pending identify unfinished work. Source implementation is not device acceptance.
+Updated 2026-10-18. Preserve IDs and history. Add new user requests here before implementation. Never delete a requirement; mark it Updated (with a replacement ID) or Removed with the user's decision and date. Active means still required; Partial and Pending identify unfinished work. Source implementation is not device acceptance.
 
-Latest direction: [Product recovery plan, October 15](PRODUCT_RECOVERY_PLAN_2026-10-15.md). The user requests research/planning first, followed by verified feature-by-feature recovery and Android/iPhone support. Automatic library population is superseded by R22. Older automatic-delivery and fastest-release notes below are historical where they conflict with this update. This ledger update does not change app behavior.
+Latest direction: [Product rebuild, October 18](PRODUCT_REBUILD_2026-10-18.md), with [verbatim user requests](PRODUCT_REBUILD_REQUEST_2026-10-18.md). Reconsider the full product, remove clutter and implement pack-centered creation/discovery/WhatsApp use; the complaints are examples, not the entire scope. The October 15 recovery/data guarantees and Android/iPhone requirements remain active. Automatic library population is superseded by R22.
+
+## Product rebuild — October 18, 2026
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
+| R36 | Rebuild the product around professional pack browsing, explicit creation, useful features and easy WhatsApp use, informed by multiple platforms and repositories | Partial | Android 0.11.0 candidate adds larger pack previews, pack-grouped metadata search, named/existing photo destinations, simplified Discover/settings and contextual WhatsApp actions. Inactive duplicate activity removed; schema, backup and signing identities retained. Research/architecture decisions recorded. Candidate verification is in QA_MATRIX.md; physical acceptance, automatic cutout, richer reviewed catalog, pack links and iPhone parity remain. |
+| R37 | Prepare original AI artwork and coherent generated packs; keep working with existing Groq keys and no OpenAI key | Partial | Opt-in BFL original-image worker prepares separate reactions, durable request reservations, bounded submissions, source/artifact hashes and private review ZIPs with labels/tags. Mocked failure/recovery tests pass; no live provider call, purchase, key creation, deployment or public publication. Existing Groq path remains. Local 4 GB GPU is below the evaluated model's standard memory needs; quality/cost comparison and integration remain open. |
 
 | ID | Requirement | Status | Implementation and remaining work |
 | --- | --- | --- | --- |

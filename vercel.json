@@ -1,7 +1,8 @@
 {
   "git": {
     "deploymentEnabled": {
-      "codex/iphone-client-and-navigation": false
+      "codex/iphone-client-and-navigation": false,
+      "codex/sticker-first-redesign": false
     }
   },
   "rewrites": [

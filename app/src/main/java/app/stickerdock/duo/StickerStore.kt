@@ -211,6 +211,22 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         require(updated == 1) { "Sticker not found" }
         bumpVersion(packId)
     }
+    /** Pack discovery must not inherit the bounded sticker-preview query's limit. */
+    fun searchStickerPackIds(query: String): Set<String> {
+        val needle = StickerMetadata.cleanLabel(query)
+        if (needle.isBlank()) return emptySet()
+        val result = mutableSetOf<String>()
+        readableDatabase.rawQuery("""
+            SELECT DISTINCT pack_id FROM stickers
+            WHERE instr(lower(label), lower(?)) > 0
+               OR instr(lower(tags), lower(?)) > 0
+               OR instr(lower(file_name), lower(?)) > 0
+        """.trimIndent(), arrayOf(needle, needle, needle)).use { cursor ->
+            while (cursor.moveToNext()) result += cursor.getString(0)
+        }
+        return result
+    }
+
     fun searchStickers(query: String, limit: Int = 100): List<StickerSearchResult> {
         val needle = StickerMetadata.cleanLabel(query)
         if (needle.isBlank()) return emptyList()

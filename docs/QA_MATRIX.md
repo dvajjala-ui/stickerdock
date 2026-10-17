@@ -1,5 +1,34 @@
 # StickerDock verification checklist
 
+## 0.11.0 — pack-focused Android candidate, October 18
+
+- First native slice `2c6f9e8`: [debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39068155580)
+  and [signed APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39068160560)
+  pass. 105 Android + 12 shared tests; lint, signatures/alignment and Android 15
+  emulator checks. APK SHA-256 `2f61718879a3c9bf937faaa32a670928fa6039293dff1f7e7e3bf171dfa77319`.
+- That emulator run covers 334 packs/10,000 synthetic stickers, animated
+  poster/detail behavior, 360dp/200% text, tablet layout, scrollable controls,
+  restart preservation and actual MP4 preview without mutation. PSS grew from
+  32,146 to 63,996 KB during scrolling. Screenshots inspected for library,
+  large-text pack detail and WhatsApp target sheet. Flat-color performance
+  fixtures are not content-quality evidence.
+- Code slice `1ac4af2` adds the original-art worker and an emulator test
+  for photo selection → named destination → cancel/save → restart. Its
+  [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39069066380)
+  passed build/native/backend checks and the existing emulator checks, then
+  failed on a test locator: photo DocumentsUI says "Images in Downloads", not
+  "Files in Downloads". The locator is corrected; a rerun is required. This is
+  not a passing photo-flow claim. [Branch CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39069301039)
+  passes at `222cebd`.
+- Local full Python suite: **208 tests pass**, no skips. Original generation uses
+  mocked provider responses; spending-disabled dry run makes zero submissions.
+  No live image generation, background extraction or generated-art quality claim.
+- The photo fixture is the repository-owned app icon, not a user collection or
+  a claim of catalog quality. Physical WhatsApp/Business installations, personal
+  SAF folders, real-artwork product sign-off and iPhone parity remain separate.
+- Candidate source remains in [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21);
+  the stable release is still 0.10.2.
+
 ## 0.10.2 — published Android reliability release, October 17
 
 - [Signed release CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037711698)

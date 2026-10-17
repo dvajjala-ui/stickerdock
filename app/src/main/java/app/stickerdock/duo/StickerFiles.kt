@@ -263,7 +263,7 @@ class StickerFiles(private val context: Context, private val store: StickerStore
             }
         } catch (e: Exception) { destination.delete(); throw e }
     }
-    private fun normalize(bytes: ByteArray): ByteArray {
+    internal fun normalize(bytes: ByteArray): ByteArray {
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
         require(opts.outWidth in 1..16000 && opts.outHeight in 1..16000) { "Invalid image dimensions" }

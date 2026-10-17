@@ -67,6 +67,42 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert match, "No application memory report"
         return int(match.group(1))
 
+    def photo_destination(self):
+        # Repo-owned icon is a deterministic non-flat image, not a personal photo
+        # or claimed catalog-quality artwork. Exercise the real DocumentsUI picker.
+        fixture = Path(__file__).resolve().parents[1] / "ios/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+        self.adb("push", str(fixture), "/sdcard/Download/qa-photo.png")
+        before = self.counts()
+        for save in (False, True):
+            self.launch(restart=True)
+            self.wait_text("Search library"); self.tap("Create")
+            self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
+            self.wait_text("Show roots")
+            if not self.nodes("Images in Downloads"):
+                self.tap("Show roots"); self.wait_text("Downloads")
+                root = self.nodes("Downloads")[-1]
+                left, top, right, bottom = map(int, re.findall(r"\d+", root.get("bounds")))
+                self.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+                self.wait_text("Images in Downloads")
+            if self.nodes("List view"):
+                self.tap("List view")
+            self.wait_text("qa-photo.png"); self.tap("qa-photo.png")
+            self.wait_text("Save to a pack")
+            assert self.counts() == before, "Photo selection mutated the library before Save"
+            self.fill("Pack name", "My photo reactions")
+            self.screenshot("09-photo-destination")
+            if not save:
+                self.tap("Cancel")
+                self.wait_hidden("Save to a pack")
+                assert self.counts() == before, "Cancelling photos created a pack"
+            else:
+                self.tap("Save to pack"); self.wait_text("Pack options")
+                assert self.counts() == (before[0] + 1, before[1] + 1), "Explicit photo save did not create exactly one pack/sticker"
+                self.screenshot("10-saved-photo-pack")
+        self.launch(restart=True); self.wait_text("My photo reactions")
+        assert self.counts() == (before[0] + 1, before[1] + 1), "Photo pack did not survive restart"
+        self.screenshot("11-photo-pack-library")
+
     def seed(self):
         self.launch(restart=True)
         self.wait_text("Your library starts here")
@@ -185,12 +221,13 @@ class LibraryAcceptance(ClipCreatorSmoke):
         with sqlite3.connect(final_db) as connection:
             after = (connection.execute("SELECT count(*) FROM packs").fetchone()[0], connection.execute("SELECT count(*) FROM stickers").fetchone()[0])
         assert before == after, "Browsing or preview changed saved data"
+        self.photo_destination()
         crashes = self.adb("logcat", "-b", "crash", "-d")
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving"],
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart"],
                   "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)

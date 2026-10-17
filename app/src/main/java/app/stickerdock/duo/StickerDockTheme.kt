@@ -8,10 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val StickerDockLightColors = lightColorScheme(
-    primary = Color(0xFF4F46E5),
+    primary = Color(0xFF182820),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFEEECFF),
-    onPrimaryContainer = Color(0xFF282253),
+    primaryContainer = Color(0xFFE6F3EC),
+    onPrimaryContainer = Color(0xFF143D2B),
     secondary = Color(0xFF5D6676),
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFE9EDF4),
@@ -20,13 +20,13 @@ private val StickerDockLightColors = lightColorScheme(
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFFFD9DE),
     onTertiaryContainer = Color(0xFF40000D),
-    background = Color(0xFFF7F8FC),
-    onBackground = Color(0xFF202633),
+    background = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF18211C),
     surface = Color(0xFFFFFFFF),
-    surfaceContainerHigh = Color(0xFFEEF0F6),
-    surfaceContainer = Color(0xFFF2F4F8),
-    surfaceContainerLow = Color(0xFFF7F8FB),
-    surfaceContainerHighest = Color(0xFFE5E8EF),
+    surfaceContainerHigh = Color(0xFFEBEEEC),
+    surfaceContainer = Color(0xFFF0F3F1),
+    surfaceContainerLow = Color(0xFFF5F7F5),
+    surfaceContainerHighest = Color(0xFFE1E7E3),
     onSurface = Color(0xFF202633),
     surfaceVariant = Color(0xFFEEF0F6),
     onSurfaceVariant = Color(0xFF505969),
@@ -38,10 +38,10 @@ private val StickerDockLightColors = lightColorScheme(
 )
 
 private val StickerDockDarkColors = darkColorScheme(
-    primary = Color(0xFFC7C5FF),
-    onPrimary = Color(0xFF282253),
-    primaryContainer = Color(0xFF35315D),
-    onPrimaryContainer = Color(0xFFEEECFF),
+    primary = Color(0xFFB0DEC1),
+    onPrimary = Color(0xFF132A1D),
+    primaryContainer = Color(0xFF243D2E),
+    onPrimaryContainer = Color(0xFFDEF5E5),
     secondary = Color(0xFFB9C3D4),
     onSecondary = Color(0xFF253040),
     secondaryContainer = Color(0xFF303947),
