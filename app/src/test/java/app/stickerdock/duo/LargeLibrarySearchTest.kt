@@ -69,6 +69,11 @@ class LargeLibrarySearchTest {
         assertEquals("sticker-9999", store.searchStickers("needle-9999").single().item.id)
         val bounded = store.searchStickers("common")
         assertEquals(100, bounded.size)
+        assertEquals((0 until PACK_COUNT).map { "pack-$it" }.toSet(), store.searchStickerPackIds("common"))
+        assertEquals(setOf("pack-333"), store.searchStickerPackIds("needle-9999"))
+        assertEquals(setOf("pack-0"), store.searchStickerPackIds("0.webp").filter { it == "pack-0" }.toSet())
+        assertTrue(store.searchStickerPackIds("%_").isEmpty())
+        assertTrue(store.searchStickerPackIds("  ").isEmpty())
         assertTrue(bounded.zipWithNext().all { (left, right) ->
             left.item.createdAt >= right.item.createdAt
         })

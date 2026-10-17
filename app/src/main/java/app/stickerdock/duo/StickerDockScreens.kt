@@ -110,7 +110,7 @@ fun LibraryScreen(
                 VisualPackCard(pack, counts[pack.id] ?: 0,
                     if (searchText.isNotBlank() && matching.isNotEmpty()) matching.take(4).map { it.item } else previewItems[pack.id].orEmpty(),
                     files, previewCache, selectedPackId == pack.id,
-                    if (searchText.isNotBlank() && matching.isNotEmpty()) "${matching.size} matching stickers" else null,
+                    if (searchText.isNotBlank() && matching.isNotEmpty()) "Matching stickers" else null,
                     onClick = { onOpenPack(pack.id) })
             }
             if (filteredPacks.isEmpty()) item {

@@ -108,6 +108,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         var searchText by rememberSaveable { mutableStateOf("") }
         var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
+        var matchedStickerPackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         var packFilter by rememberSaveable { mutableStateOf("All") }
         var packSort by rememberSaveable { mutableStateOf("Newest") }
         var categoryName by rememberSaveable { mutableStateOf("") }
@@ -179,7 +180,6 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 }
             }
         }
-        val matchedStickerPackIds = stickerMatches.mapTo(mutableSetOf()) { it.pack.id }
         val filteredPacks = packs.filter {
             PackPresentation.matches(it, searchText, packFilter, categoryFilter, matchedStickerPackIds)
         }.let { filtered ->
@@ -482,14 +482,19 @@ class StickerDockPolishedActivity : ComponentActivity() {
             selectedStickerIds = emptySet()
             refresh()
         }
-        LaunchedEffect(searchText) {
+        LaunchedEffect(searchText, cloudFingerprint) {
             val requested = searchText
-            if (requested.isBlank()) stickerMatches = emptyList()
-            else {
-                stickerMatches = emptyList()
+            stickerMatches = emptyList()
+            matchedStickerPackIds = emptySet()
+            if (requested.isNotBlank()) {
                 delay(250)
-                val matches = withContext(Dispatchers.IO) { store.searchStickers(requested) }
-                if (searchText == requested) stickerMatches = matches
+                val (ids, matches) = withContext(Dispatchers.IO) {
+                    store.searchStickerPackIds(requested) to store.searchStickers(requested)
+                }
+                if (searchText == requested) {
+                    matchedStickerPackIds = ids
+                    stickerMatches = matches
+                }
             }
         }
         LaunchedEffect(pack?.id, pack?.version, whatsAppStatusRefresh) {
