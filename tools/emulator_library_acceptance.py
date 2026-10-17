@@ -23,6 +23,12 @@ ROOT = "/data/user/0/" + PACKAGE
 
 
 class LibraryAcceptance(ClipCreatorSmoke):
+    def launch(self, restart=False):
+        if restart:
+            self.adb("shell", "am", "force-stop", PACKAGE)
+        # Reset the task/navigation only; every saved pack and media file stays.
+        self.adb("shell", "am", "start", "-W", "-f", "0x10008000", "-n", PACKAGE + "/.StickerDockPolishedActivity")
+
     def adb(self, *args):
         try:
             return super().adb(*args)
@@ -207,4 +213,7 @@ if __name__ == "__main__":
         test.run_acceptance(args.apk)
     except Exception:
         test.screenshot("failure")
+        print("Visible controls at failure:", json.dumps([
+            node.get("text") or node.get("content-desc") for node in test.tree().iter("node")
+            if test.visible(node) and (node.get("text") or node.get("content-desc"))]), flush=True)
         raise
