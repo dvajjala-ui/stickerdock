@@ -78,12 +78,12 @@ class LibraryAcceptance(ClipCreatorSmoke):
             self.wait_text("Search library"); self.tap("Create")
             self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
             self.wait_text("Show roots")
-            if not self.nodes("Files in Downloads"):
+            if not self.nodes("Images in Downloads"):
                 self.tap("Show roots"); self.wait_text("Downloads")
                 root = self.nodes("Downloads")[-1]
                 left, top, right, bottom = map(int, re.findall(r"\d+", root.get("bounds")))
                 self.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
-                self.wait_text("Files in Downloads")
+                self.wait_text("Images in Downloads")
             if self.nodes("List view"):
                 self.tap("List view")
             self.wait_text("qa-photo.png"); self.tap("qa-photo.png")

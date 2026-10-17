@@ -1,4 +1,33 @@
-# StickerDock development handoff — updated October 17, 2026
+# StickerDock development handoff — updated October 18, 2026
+
+## Latest — pack-focused product rebuild candidate
+
+Branch `codex/sticker-first-redesign`, [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21).
+User explicitly rejects treating the prompt as isolated bug fixes; both full
+requests and their no-more-questions/AI preference are preserved in
+PRODUCT_REBUILD_REQUEST_2026-10-18.md. Product/reference/architecture decisions and
+remaining work are in PRODUCT_REBUILD_2026-10-18.md. Ledger R36/R37 track scope.
+
+0.11.0/build15 makes packs the browsing/search unit, enlarges artwork, simplifies
+Discover and secondary settings, stages photos in an explicit new/existing pack
+sheet and streamlines WhatsApp actions. Import retries retain failed selections;
+explicit photo creation can reuse photos across packs while migration keeps its
+global dedup. The unused legacy activity was removed. No schema reset, new
+signing key or public content publication occurred.
+
+`tools/original_artwork.py` is an optional BFL development worker with durable
+submission reservations, source hashes, per-folder request caps and private review
+archives. The Groq path remains. No image-model API key exists for this trial;
+no paid request, purchase or cloud deployment occurred. The BFL endpoint fields
+were checked read-only against its official OpenAPI schema. Mocked tests and a
+zero-submission dry run are not live model quality evidence. See
+ORIGINAL_ARTWORK_WORKER.md; do not expose provider keys in the native app or web UI.
+
+Use QA_MATRIX.md for exact source/run evidence. Physical WhatsApp/Business, S24
+SAF/process-death acceptance, automatic cutout, reviewed content breadth, sharing
+links and iPhone redesign parity remain open. Vercel preview is disabled for this
+branch. Stable production remains 0.10.2; do not mistake a branch artifact for the
+latest published download.
 
 ## Latest — Gmail account email connected
 
