@@ -7,7 +7,7 @@ from api._shared import StudioError, read_json, send_json
 
 
 def owner_email():
-    return os.environ.get("STUDIO_OWNER_EMAIL", "dvjjala@gmail.com").strip().lower()
+    return os.environ.get("STUDIO_OWNER_EMAIL", "dvajjala@gmail.com").strip().lower()
 
 
 def owner_user(user):

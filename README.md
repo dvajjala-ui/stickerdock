@@ -126,8 +126,10 @@ build setting; Groq and Supabase service keys never enter the APK.
 ## Factory admin portal
 
 Account email setup: [Gmail Apps Script sender and Supabase integration](docs/GMAIL_ACCOUNT_EMAIL.md).
-The send-only script and signed adapter are available; Google authorization,
-secret configuration and live delivery/timing verification are still required.
+The send-only Gmail script is connected to Supabase. Live test messages reach
+the owner inbox, signed delivery/retry checks pass, and unsigned mail requests
+are rejected. Owner password entry and real account-link acceptance remain
+with the account holder.
 
 The new independent `/admin` web app manages Factory output migration, editable
 pack drafts, sticker labels/tags/removal, review, publish/unpublish, inbox uploads,

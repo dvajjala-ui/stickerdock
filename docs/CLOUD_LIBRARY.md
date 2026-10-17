@@ -49,15 +49,14 @@ Signed-in reports appear in Admin; email support is also available without login
   or owner token ships in Android. Auth sessions use Android Keystore encryption.
 - `/api/cloud`: signup/login/refresh, private upload/commit/list/download,
   snapshot sharing/withdrawal, delete and reports. Responses never cache.
-- Email confirmation/SMTP must be configured for the intended user audience;
-  Supabase's default email sender is not a general production mail service.
-  The owner explicitly requested skipping SMTP setup on October 15; do not
-  disable confirmation to conceal this gate. The production Site URL is now
-  https://stickerdock.vercel.app/account, fixing the localhost redirect.
+- Account emails now use the owner's send-only Gmail Apps Script via the signed
+  Supabase Send Email hook. [Configuration and verified delivery](GMAIL_ACCOUNT_EMAIL.md).
+  Confirmation remains enabled. The production Site URL is
+  https://stickerdock.vercel.app/account.
 - Existing Vercel Production credentials support the new routes without new
   secrets. `/api/session` gives owner browser sign-in using Secure HttpOnly
   SameSite cookies, with refresh and logout. Owner allowlist defaults to the
-  user's confirmed dvjjala@gmail.com; STUDIO_OWNER_EMAIL can override it.
+  user's confirmed dvajjala@gmail.com; STUDIO_OWNER_EMAIL can override it.
 - Legacy owner-token authorization remains for operational scripts; the admin
   website never asks a user to paste a key and starts against live data.
 

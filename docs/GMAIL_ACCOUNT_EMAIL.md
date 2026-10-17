@@ -3,8 +3,8 @@
 This uses a small Google Apps Script owned by **dvajjala@gmail.com**. It uses
 `MailApp` with only `script.send_mail` permission: no inbox access and no Gmail
 password or app password. The sender address is the account authorizing the script.
-This is separate from the current Admin allowlist (`dvjjala@gmail.com` unless
-`STUDIO_OWNER_EMAIL` overrides it); do not silently change the owner account.
+The owner explicitly approved correcting the Admin allowlist/form to
+`dvajjala@gmail.com` on October 17. `STUDIO_OWNER_EMAIL` can override that default.
 
 ## Files and flow
 
@@ -61,6 +61,27 @@ before the sent-ID property is written; exactly-once email is not guaranteed.
 
 ## Verification
 
+October 17 live setup: Google send-only authorization completed, Apps Script
+deployment version 2 is active, all three connection variables are stored as
+Vercel Production secrets, and the Supabase Send Email HTTPS hook is enabled.
+No Gmail password is required. Two synthetic code-only test messages arrived
+in `dvajjala@gmail.com`; their codes are test fixtures, not usable login codes.
+
+- Direct Google cold delivery: 3.438 seconds; retry deduplicated in 3.234
+  seconds; expired request rejected.
+- Signed request through the production site: HTTP 200 in 2.735 seconds;
+  duplicate HTTP 200 in 1.640 seconds; unsigned request HTTP 401.
+- Actual `/api/account` recovery request for the owner was accepted (HTTP 200).
+  That response intentionally conceals account existence and does not by itself
+  prove reset-email delivery. Owner signup/password choice and real confirmation
+  or recovery-link acceptance still need the account holder.
+
+Secure email-change notifications use one signed two-recipient batch to avoid
+two Apps Script startup delays. Partial batch retries retain per-recipient
+deduplication. Tests cover the mapping and partial-send recovery; a live real
+email-change flow has not been performed. Observed timing is not a guarantee
+against future Google cold starts or service outages.
+
 ```powershell
 .\.venv\Scripts\python.exe -m unittest tools.test_auth_email tools.test_owner_session -v
 node tools/test_google_mail.cjs
@@ -69,13 +90,11 @@ node tools/test_google_mail.cjs
 Source tests use fake addresses, tokens and Google services. They do not prove
 Google authorization, inbox delivery or live Supabase hook latency.
 
-October 17 preparation: all 198 Python/backend tests, the real Apps Script
-source with Google-service fakes, Python undefined-name checks and whitespace
-validation pass locally. The [hosted build](https://github.com/dvajjala-ui/stickerdock/actions/runs/39041025722)
-also passes, including the mail relay checks and existing Android checks. Live
-configuration is pending because Chrome automation stopped responding while
-opening the new project. No Gmail send permission was granted, secret configured,
-Supabase hook enabled or real email sent during this preparation.
+The initial 198 Python/backend tests and [hosted build](https://github.com/dvajjala-ui/stickerdock/actions/runs/39041025722)
+pass. Subsequent latency/batch changes pass focused hook/session Python tests,
+the actual Apps Script source against Google-service fakes, undefined-name
+checks and whitespace validation. Secrets and test recovery links are excluded
+from source and public evidence.
 
 References: [Google MailApp](https://developers.google.com/apps-script/reference/mail/mail-app),
 [web app deployment](https://developers.google.com/apps-script/guides/web),

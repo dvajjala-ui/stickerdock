@@ -1,17 +1,24 @@
 # StickerDock development handoff — updated October 17, 2026
 
-## Latest — Gmail account email setup prepared
+## Latest — Gmail account email connected
 
 The user now requests Gmail/Apps Script setup for `dvajjala@gmail.com`, superseding
 the older SMTP deferral below. Chrome confirms that Google account is signed in.
-`integrations/google-mail/Code.gs` and the explicit send-only manifest are paired
-with `/api/auth_email`, a signed Supabase hook adapter. No email password is
-needed. Setup and limitations are in GMAIL_ACCOUNT_EMAIL.md. Secrets, Google's
-OAuth grant, deployment and end-to-end timing/delivery still require completion;
-do not mark email delivery operational from source tests. Supabase HTTP hooks
-have five seconds, so verify cold-start behavior before enabling this hook.
-The existing owner allowlist/form spelling `dvjjala@gmail.com` is a separate
-identity and has not been changed to the Gmail sender without confirmation.
+`integrations/google-mail/Code.gs` and its send-only manifest are paired with
+`/api/auth_email`, a signed Supabase hook adapter. The user completed Google's
+authorization and explicitly approved endpoint deployment, secrets and hookup.
+Apps Script version 2 is active; Vercel Production stores the three connection
+variables; Supabase Send Email hook is ENABLED. No email password is needed.
+Direct cold delivery took 3.438s, signed site delivery 2.735s, duplicate requests
+deduplicate and unsigned/expired requests reject. Both synthetic test emails
+arrived in dvajjala@gmail.com. Secure email-change messages share one invocation
+with per-recipient partial-send recovery. Future cold-start latency remains a
+limitation: Supabase HTTP hooks have five seconds. See GMAIL_ACCOUNT_EMAIL.md.
+The user separately approved correcting Admin owner/default form to
+`dvajjala@gmail.com`; the old `dvjjala@gmail.com` spelling is no longer the default.
+No real owner password was created or changed by the agent. An accepted recovery
+request conceals account existence; real signup/confirmation/reset-link acceptance
+still requires the account holder. Keep actual credentials/tokens out of logs.
 
 ## Latest — Android 0.10.2 published, release delivery and Factory recovery
 

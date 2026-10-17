@@ -5,6 +5,12 @@ from api import _shared
 
 
 class OwnerSessionTest(unittest.TestCase):
+    def test_default_owner_matches_authorized_gmail_account(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(session.owner_email(), "dvajjala@gmail.com")
+            self.assertTrue(session.owner_user({"email": "dvajjala@gmail.com", "email_confirmed_at": "now"}))
+            self.assertFalse(session.owner_user({"email": "dvjjala@gmail.com", "email_confirmed_at": "now"}))
+
     def test_only_confirmed_owner_email_is_allowed(self):
         with patch.dict("os.environ", {"STUDIO_OWNER_EMAIL": "owner@example.com"}):
             self.assertTrue(session.owner_user({"email": "OWNER@example.com", "email_confirmed_at": "now"}))
