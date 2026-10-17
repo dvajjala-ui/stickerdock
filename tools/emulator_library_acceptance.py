@@ -46,6 +46,14 @@ class LibraryAcceptance(ClipCreatorSmoke):
             return (connection.execute("SELECT count(*) FROM packs").fetchone()[0],
                     connection.execute("SELECT count(*) FROM stickers").fetchone()[0])
 
+    def wait_hidden(self, text):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if not self.nodes(text):
+                return
+            time.sleep(0.4)
+        raise AssertionError("Expected dismissed sheet: " + text)
+
     def memory(self):
         raw = self.adb("shell", "dumpsys", "meminfo", PACKAGE)
         (self.output / "meminfo.txt").write_text(raw)
@@ -131,11 +139,13 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.screenshot("05-360dp-font200")
         self.tap("Pack options"); self.wait_text("Rename pack")
         self.adb("shell", "input", "keyevent", "4")
+        self.wait_hidden("Rename pack")
         self.tap("Use in WhatsApp")
         self.wait_text("WhatsApp not installed"); self.wait_text("Business not installed")
         self.screenshot("06-targets-font200")
         self.adb("shell", "input", "keyevent", "4")
-        self.adb("shell", "input", "keyevent", "4")
+        self.wait_hidden("WhatsApp not installed")
+        self.tap("Back")
         self.wait_text("Search library"); self.tap("Filters")
         self.wait_text("Filter your library")
         self.scroll_to_text("Show results"); self.tap("Show results")
