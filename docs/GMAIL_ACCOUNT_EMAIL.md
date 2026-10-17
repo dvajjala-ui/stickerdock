@@ -44,8 +44,9 @@ the APK, page JavaScript, URLs, screenshots or chat.
    enabling the Supabase hook. HTTP hooks must finish within five seconds;
    Apps Script cold starts can exceed this. Do not enable a slow/unverified
    relay for real account recovery. Use SMTP or a durable delivery service if
-   repeat tests cannot fit that budget. The adapter uses the remaining portion
-   of a four-second network budget, including multi-email flows.
+   repeat tests cannot fit that budget. The adapter calculates a four-second
+   request timeout. Socket timeouts apply per network operation; slow redirects
+   or reads can still exceed the Supabase deadline.
 6. Enable only after the timing check, then request a real confirmation or
    recovery email for the intended owner. Verify inbox delivery and the
    `/account` redirect. The account holder enters/submits their new password.
@@ -93,8 +94,9 @@ Google authorization, inbox delivery or live Supabase hook latency.
 The initial 198 Python/backend tests and [hosted build](https://github.com/dvajjala-ui/stickerdock/actions/runs/39041025722)
 pass. Subsequent latency/batch changes pass focused hook/session Python tests,
 the actual Apps Script source against Google-service fakes, undefined-name
-checks and whitespace validation. Secrets and test recovery links are excluded
-from source and public evidence.
+checks and whitespace validation. The [final hosted build for d061cb1](https://github.com/dvajjala-ui/stickerdock/actions/runs/39049622843)
+passes the complete backend suite, mail script checks and Android build checks.
+Secrets and test recovery links are excluded from source and public evidence.
 
 References: [Google MailApp](https://developers.google.com/apps-script/reference/mail/mail-app),
 [web app deployment](https://developers.google.com/apps-script/guides/web),

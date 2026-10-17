@@ -19,6 +19,10 @@ The user separately approved correcting Admin owner/default form to
 No real owner password was created or changed by the agent. An accepted recovery
 request conceals account existence; real signup/confirmation/reset-link acceptance
 still requires the account holder. Keep actual credentials/tokens out of logs.
+The corrected owner email is verified in the live Admin form. Final hosted
+checks pass: https://github.com/dvajjala-ui/stickerdock/actions/runs/39049622843.
+Temporary local connection-secret file has been removed; production secrets
+remain only in the approved Google/Vercel/Supabase stores.
 
 ## Latest — Android 0.10.2 published, release delivery and Factory recovery
 
