@@ -14,6 +14,9 @@
     {"source": "/support", "destination": "/site/support.html"},
     {"source": "/", "destination": "/admin/index.html"}
   ],
+  "redirects": [
+    {"source": "/download", "destination": "https://github.com/dvajjala-ui/stickerdock/releases/latest/download/StickerDock.apk", "permanent": false}
+  ],
   "functions": {
     "api/account.py": {"includeFiles": "tools/**"},
     "api/session.py": {"includeFiles": "tools/**"},

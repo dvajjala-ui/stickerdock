@@ -15,7 +15,7 @@ import uuid
 import zipfile
 from PIL import Image
 
-from daily_stickers import atomic_json, run as run_generator, ProviderError
+from daily_stickers import atomic_json, run as run_generator, ProviderError, ProviderResponseError
 from sticker_fonts import default_font
 from media_library import sync as sync_media
 from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, SupabaseError, require_production_environment
@@ -360,6 +360,9 @@ def persist_run(client, generated, config, now, result):
     if status != "complete" and state.get("provider_error", {}).get("http_status") in (401, 403):
         status = "failed"
         result = "Provider authentication rejected. Check worker credentials before retrying."
+    if status != "complete" and int(state.get("requests", 0)) >= config.get("max_requests_per_day", 16) and not state.get("pending"):
+        status = "failed"
+        result = "Daily provider request budget exhausted. Saved stickers are kept; generation resumes next UTC day."
     client.upsert("factory_runs", [{
         "day": day, "status": status, "target": config["daily_target"],
         "generated": count, "attempts": int(state.get("requests", 0)),
@@ -392,6 +395,8 @@ def persist_run(client, generated, config, now, result):
 
 def run_metrics(state):
     metrics = dict(state.get("last_groq_metrics", {}))
+    metrics["next_request_at"] = state.get("next_request_at", 0)
+    metrics["pending_render"] = bool(state.get("pending"))
     if state.get("provider_error"):
         metrics["recovery"] = dict(state["provider_error"])
     return metrics
@@ -405,10 +410,17 @@ def persist_failure(client, config, now, error, generated=None):
         state_path = generated / day / "state.json"
         if state_path.exists():
             state = json.loads(state_path.read_text())
-    waiting = isinstance(error, ProviderError) and error.status == 429
+    waiting = isinstance(error, ProviderResponseError) or isinstance(error, ProviderError) and (error.status == 429 or error.status >= 500)
     if isinstance(error, ProviderError):
         state["provider_error"] = {"http_status": error.status, "retry_at": error.retry_at}
-    result = ("Provider rate limit reached. Progress saved; the next scheduled worker retries after cooldown."
+    exhausted = int(state.get("requests", 0)) >= int(config.get("max_requests_per_day", 16))
+    waiting = waiting and not exhausted
+    result = ("Daily provider request budget exhausted. Saved stickers are kept; generation resumes next UTC day."
+              if exhausted else "Provider returned an invalid response. Progress saved; a bounded retry is scheduled."
+              if isinstance(error, ProviderResponseError) and error.kind == "invalid_response"
+              else "Provider temporarily unavailable. Progress saved; retry is scheduled after cooldown."
+              if isinstance(error, ProviderResponseError) or isinstance(error, ProviderError) and error.status >= 500
+              else "Provider rate limit reached. Progress saved; the next scheduled worker retries after cooldown."
               if waiting else "Provider authentication rejected. Check worker credentials before retrying."
               if isinstance(error, ProviderError) and error.status in (401, 403)
               else type(error).__name__ + ": worker failed; inspect Actions logs")
@@ -419,7 +431,7 @@ def persist_failure(client, config, now, error, generated=None):
     client.upsert("factory_runs", [row], "day")
     return {"day": day, "status": "waiting" if waiting else "failed", "target": target,
             "generated": row["generated"], "result": result,
-            **({"retry_at": error.retry_at} if isinstance(error, ProviderError) else {})}
+            **({"retry_at": error.retry_at} if isinstance(error, (ProviderError, ProviderResponseError)) else {})}
 
 
 def run_production(config, runtime, client, now=None, generator=run_generator):

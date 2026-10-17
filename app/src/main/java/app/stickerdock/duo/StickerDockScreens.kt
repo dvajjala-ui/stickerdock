@@ -273,7 +273,7 @@ private fun StickerCollage(pack: StickerPack, previews: List<StickerItem>, files
 
 @Composable
 private fun PackPreviewImage(path: String, description: String, previewCache: StickerPreviewCache, modifier: Modifier = Modifier) {
-    val image by produceState<ImageBitmap?>(null, path) { value = withContext(Dispatchers.IO) { previewCache.load(path) } }
+    val image by produceState<ImageBitmap?>(null, path) { value = withContext(Dispatchers.IO) { previewCache.load(path, 128) } }
     Box(modifier.clip(MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
         if (image == null) Text("•", color = MaterialTheme.colorScheme.outline)
         else Image(image!!, description, Modifier.fillMaxSize().padding(2.dp), contentScale = ContentScale.Fit)
@@ -293,7 +293,7 @@ fun LibraryFiltersSheet(
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Filter your library", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             Text("Keep the main Library clean; narrow it down only when you need to.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Sticker type", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -410,7 +410,7 @@ fun ImportScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PackDetailScreen(
     pack: StickerPack,
@@ -451,8 +451,8 @@ fun PackDetailScreen(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Button(enabled = !busy && stickers.size < 30, onClick = onImport, modifier = Modifier.weight(1f)) { Text("Import stickers") }
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(enabled = !busy && stickers.size < 30, onClick = onImport) { Text("Import stickers") }
                     TextButton(enabled = !busy, onClick = onPackOptions) { Text("Pack options") }
                     TextButton(enabled = !busy && stickers.isNotEmpty(), onClick = onShare) { Text("Share ZIP") }
                 }
@@ -573,13 +573,10 @@ private fun StickerTile(
     onLongClick: () -> Unit
 ) {
     val path = files.stickerFile(item.packId, item.fileName).path
-    val image by produceState<ImageBitmap?>(null, path, kind) { value = withContext(Dispatchers.IO) { if (kind == StickerKind.STATIC) previewCache.load(path, 512) else null } }
-    val animation by produceState<android.graphics.drawable.Drawable?>(null, path, kind) {
-        value = withContext(Dispatchers.IO) { if (kind == StickerKind.ANIMATED) try { ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path))) } catch (_: Exception) { null } else null }
-    }
-    DisposableEffect(animation) {
-        (animation as? AnimatedImageDrawable)?.start()
-        onDispose { (animation as? AnimatedImageDrawable)?.stop() }
+    // BitmapFactory decodes a single poster for animated WebP too. Never hold
+    // one native animation decoder per tile in a large/scrolling library.
+    val image by produceState<ImageBitmap?>(null, path) {
+        value = withContext(Dispatchers.IO) { previewCache.load(path, 256) }
     }
     Card(
         modifier = Modifier.semantics {
@@ -594,12 +591,6 @@ private fun StickerTile(
                 Surface(Modifier.fillMaxSize(), MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
                     Box(Modifier.fillMaxSize().padding(6.dp), contentAlignment = Alignment.Center) {
                         when {
-                            kind == StickerKind.ANIMATED && animation != null -> AndroidView(
-                                factory = { context -> ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
-                                update = { it.setImageDrawable(animation) },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            kind == StickerKind.ANIMATED -> Text("Preview unavailable", style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
                             image != null -> Image(image!!, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                             else -> Text("Preview unavailable", style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
                         }
@@ -616,6 +607,7 @@ private fun StickerTile(
                 }
             }
             Text(item.displayName, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (kind == StickerKind.ANIMATED) Text("Tap to play", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             if (item.tags.isNotBlank()) Text(item.tags, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -666,15 +658,13 @@ private fun StickerLargePreview(item: StickerItem, kind: StickerKind, files: Sti
     val animation by produceState<android.graphics.drawable.Drawable?>(null, path, kind) {
         value = withContext(Dispatchers.IO) { if (kind == StickerKind.ANIMATED) try { ImageDecoder.decodeDrawable(ImageDecoder.createSource(File(path))) } catch (_: Exception) { null } else null }
     }
-    DisposableEffect(animation) {
-        (animation as? AnimatedImageDrawable)?.start()
-        onDispose { (animation as? AnimatedImageDrawable)?.stop() }
-    }
+    AnimateWhileResumed(animation as? AnimatedImageDrawable)
     Surface(Modifier.fillMaxWidth().height(220.dp), MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
         Box(Modifier.fillMaxSize().padding(18.dp), contentAlignment = Alignment.Center) {
             when {
                 kind == StickerKind.ANIMATED && animation != null -> AndroidView(
                     factory = { context -> ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+                    onRelease = { it.setImageDrawable(null) },
                     update = { it.setImageDrawable(animation) },
                     modifier = Modifier.fillMaxSize()
                 )

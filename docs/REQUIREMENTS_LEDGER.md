@@ -25,6 +25,13 @@ Latest direction: [Product recovery plan, October 15](PRODUCT_RECOVERY_PLAN_2026
 | R17 | Funny real-image meme/reaction stickers rather than generic face/emoji templates | Partial | Production requires independently licensed photos/clips without template fallback. Three independent licensed source photos seeded; live Groq photo result verified. Four-sticker photo pack published and emoji demo unpublished. Portrait crops fill the reaction area. Broader source variety/style acceptance remains ongoing. |
 | R18 | Review imported personal phone stickers privately to learn desired style; optionally sync selected reference assets to private backend | Pending | No ADB device connected. Updated by R19: optional account cloud copy now implemented, private by default; actual user sync/style review pending. Preserve pack metadata and provenance; personal references do not grant public redistribution rights or model-training consent. |
 
+## Android reliability and delivery — October 17, 2026
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
+| R34 | Prioritize Android reliability, daily generation recovery, populated-library memory/scrolling, conversion, low-storage failures and large-text layouts; deliver the signed APK and working admin website | Active | Audit and repair current source, run source-bound checks, preserve the existing signing identity and user libraries. Physical WhatsApp/Business acceptance requires a connected authorized phone and must be reported separately. |
+| R35 | Keep README APK and admin links current with every successful release | Active | User confirmed release-driven updates. Provide a stable latest-successful signed APK URL, version/checksum evidence and admin URL; publish updates only after release checks pass. |
+
 ## History
 
 - 2026-10-16 continuation: user asks to audit every Markdown requirement against

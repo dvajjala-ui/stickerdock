@@ -50,6 +50,7 @@ private data class LibrarySnapshot(
 )
 
 class StickerDockPolishedActivity : ComponentActivity() {
+    private val libraryPreviewCache = StickerPreviewCache(32)
     private lateinit var store: StickerStore
     private lateinit var files: StickerFiles
     private lateinit var backup: StickerBackup
@@ -63,6 +64,16 @@ class StickerDockPolishedActivity : ComponentActivity() {
         setContent { StickerDockTheme { StickerDockApp() } }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) libraryPreviewCache.clear()
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        libraryPreviewCache.clear()
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun StickerDockApp() {
@@ -74,7 +85,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var reportingPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
         var reportReason by remember { mutableStateOf("") }
         val snackbar = remember { SnackbarHostState() }
-        val previewCache = remember { StickerPreviewCache(64) }
+        val previewCache = remember { libraryPreviewCache }
         val artworkProjects = remember { ArtworkProjects(applicationContext, store, files) }
         val pausePhoneImport = remember { AtomicBoolean(false) }
 

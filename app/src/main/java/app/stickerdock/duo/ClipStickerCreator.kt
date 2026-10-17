@@ -28,34 +28,38 @@ class ClipStickerCreator private constructor(
         val recipe = ClipRecipe(edit.startMs, edit.durationMs, edit.caption, edit.cover, edit.fps)
         recipe.validate(durationMs)
         val count = recipe.frameCount
-        val frames = mutableListOf<Bitmap>()
-        try {
+        // Compress each composed bitmap immediately. Holding forty 512px
+        // bitmaps alongside the video decoder used tens of MB unnecessarily.
+        for (quality in listOf(85, 65, 45, 25)) {
+            val encoded = mutableListOf<ByteArray>()
             val coroutine = currentCoroutineContext()
-            if (videoBytes != null) VideoClipFrames.decode(videoBytes, edit.startMs, count, edit.fps, rotation,
-                { coroutine.ensureActive() }) { index, source ->
-                progress("Reading frame ${index + 1} of $count")
-                frames += compose(source, edit)
-            } else repeat(count) { index ->
+            fun encode(source: Bitmap, index: Int) {
                 coroutine.ensureActive()
                 progress("Reading frame ${index + 1} of $count")
+                val composed = compose(source, edit)
+                try {
+                    val output = ByteArrayOutputStream()
+                    check(composed.compress(Bitmap.CompressFormat.WEBP_LOSSY, quality, output))
+                    encoded += output.toByteArray()
+                } finally { composed.recycle() }
+            }
+            if (videoBytes != null) VideoClipFrames.decode(videoBytes, edit.startMs, count, edit.fps, rotation,
+                { coroutine.ensureActive() }) { index, source ->
+                encode(source, index)
+            } else repeat(count) { index ->
+                coroutine.ensureActive()
                 val source = frame(edit.startMs + index * 1000 / edit.fps)
-                try { frames += compose(source, edit) } finally { source.recycle() }
+                try { encode(source, index) } finally { source.recycle() }
             }
-            for (quality in listOf(85, 65, 45, 25)) {
-                currentCoroutineContext().ensureActive()
-                progress("Compressing animation")
-                val encoded = frames.map { bitmap ->
-                    currentCoroutineContext().ensureActive()
-                    ByteArrayOutputStream().also { check(bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, quality, it)) }.toByteArray()
-                }
-                val result = try { WebpAnimation.encode(encoded, 1000 / edit.fps) }
-                catch (e: IllegalArgumentException) {
-                    if (e.message?.startsWith("Animation is too detailed") == true) continue else throw e
-                }
-                return Result(result, frames.size, frames.size * (1000 / edit.fps))
+            coroutine.ensureActive()
+            progress("Compressing animation")
+            val result = try { WebpAnimation.encode(encoded, 1000 / edit.fps) }
+            catch (e: IllegalArgumentException) {
+                if (e.message?.startsWith("Animation is too detailed") == true) continue else throw e
             }
-            error("Animation is too detailed. Shorten the clip or choose 6 fps.")
-        } finally { frames.forEach(Bitmap::recycle) }
+            return Result(result, encoded.size, encoded.size * (1000 / edit.fps))
+        }
+        error("Animation is too detailed. Shorten the clip or choose 6 fps.")
     }
 
     @Synchronized private fun frame(atMs: Int): Bitmap {

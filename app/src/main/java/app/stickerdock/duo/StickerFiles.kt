@@ -21,7 +21,8 @@ sealed interface ImportResult {
     data class Failed(val reason: String) : ImportResult
 }
 
-class StickerFiles(private val context: Context, private val store: StickerStore) {
+class StickerFiles(private val context: Context, private val store: StickerStore,
+    private val availableSpace: () -> Long = { context.filesDir.usableSpace }) {
     private val stickersDir get() = File(context.filesDir, "stickers")
     private val traysDir get() = File(context.filesDir, "trays")
     fun stickerFile(packId: String, name: String) = File(File(stickersDir, packId), name)
@@ -250,6 +251,7 @@ class StickerFiles(private val context: Context, private val store: StickerStore
     private fun writeSticker(destination: File, bytes: ByteArray) {
         require(bytes.isNotEmpty()) { "Sticker is empty" }
         check(!destination.exists()) { "Sticker file already exists" }
+        StorageBudget.requireAvailable(availableSpace(), bytes.size.toLong())
         destination.parentFile?.let { check(it.isDirectory || it.mkdirs()) { "Could not create sticker folder" } }
         try {
             FileOutputStream(destination).use { output ->
