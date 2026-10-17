@@ -303,7 +303,7 @@
   function connectDialog(){$("connect-error").textContent="";$("owner-password").value="";if(!$("connect-dialog").open)$("connect-dialog").showModal();}
   async function ownerSession(payload) {
     const response=await fetch("/api/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    const result=await response.json();if(!response.ok)throw new Error(result.error||"Sign-in unavailable");return result;
+    const result=await response.json().catch(()=>{throw new Error("Sign-in is temporarily unavailable. Please retry shortly.");});if(!response.ok)throw new Error(result.error||"Sign-in unavailable");return result;
   }
   async function signInOwner(action) {
     const password=$("owner-password").value;$("owner-password").value="";

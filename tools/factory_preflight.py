@@ -26,7 +26,9 @@ def due(client, target=40, budget=16, now=None):
     if metrics.get("pending_render"):
         return True, "Resume saved artwork without a new caption request"
     if run.get("generated", 0) >= target:
-        return False, "Daily target already reached"
+        if run.get("status") == "complete" and metrics.get("postprocess_complete", True):
+            return False, "Daily target already reached"
+        return True, "Resume completed output storage/migration without a new AI request"
     if run.get("attempts", 0) >= budget:
         return False, "Daily request budget reached"
     recovery = metrics.get("recovery") or {}

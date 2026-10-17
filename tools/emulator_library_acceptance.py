@@ -23,6 +23,13 @@ ROOT = "/data/user/0/" + PACKAGE
 
 
 class LibraryAcceptance(ClipCreatorSmoke):
+    def adb(self, *args):
+        try:
+            return super().adb(*args)
+        except subprocess.CalledProcessError as error:
+            print(error.stderr.decode("utf-8", errors="replace"), flush=True)
+            raise
+
     def nodes(self, text):
         return [node for node in self.tree().iter("node") if self.visible(node) and
                 any(text in node.get(field, "") for field in ("text", "content-desc"))]
@@ -55,6 +62,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         connection = sqlite3.connect(database)
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
         media = self.output / "seed.tar"
+        artwork = {}
         with tarfile.open(media, "w") as archive:
             for pack_index in range(334):
                 pack_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"stickerdock-qa-pack:{pack_index}"))
@@ -63,13 +71,16 @@ class LibraryAcceptance(ClipCreatorSmoke):
                 connection.execute("INSERT INTO packs(id,name,version,created_at,kind,rating,category) VALUES(?,?,?,?,?,?,?)",
                                    (pack_id, name, 1, 10000 - pack_index, "ANIMATED" if animated else "STATIC", "GENERAL", "REACTIONS"))
                 for index in range(min(30, 10000 - pack_index * 30)):
-                    canvas = Image.new("RGBA", (512, 512), (20 + index * 7, 70, 180, 255))
-                    stream = io.BytesIO()
-                    options = {"format": "WEBP", "lossless": True}
-                    if animated:
-                        options.update(save_all=True, append_images=[Image.new("RGBA", (512, 512), (180, 40 + index * 5, 50, 255))], duration=200, loop=0)
-                    canvas.save(stream, **options)
-                    data = stream.getvalue()
+                    key = (animated, index)
+                    if key not in artwork:
+                        canvas = Image.new("RGBA", (512, 512), (20 + index * 7, 70, 180, 255))
+                        stream = io.BytesIO()
+                        options = {"format": "WEBP", "lossless": True}
+                        if animated:
+                            options.update(save_all=True, append_images=[Image.new("RGBA", (512, 512), (180, 40 + index * 5, 50, 255))], duration=200, loop=0)
+                        canvas.save(stream, **options)
+                        artwork[key] = stream.getvalue()
+                    data = artwork[key]
                     sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"stickerdock-qa-sticker:{pack_index}:{index}"))
                     filename = sticker_id + ".webp"
                     entry = tarfile.TarInfo(f"stickers/{pack_id}/{filename}")
@@ -80,7 +91,8 @@ class LibraryAcceptance(ClipCreatorSmoke):
         connection.commit(); connection.close()
         self.adb("push", str(database), ROOT + "/databases/stickerdock.db")
         self.adb("push", str(media), "/data/local/tmp/stickerdock-qa.tar")
-        self.adb("shell", "tar", "xf", "/data/local/tmp/stickerdock-qa.tar", "-C", ROOT + "/files")
+        self.adb("shell", "mkdir", "-p", ROOT + "/files")
+        self.adb("shell", "tar", "-xf", "/data/local/tmp/stickerdock-qa.tar", "-C", ROOT + "/files")
         uid = self.adb("shell", "stat", "-c", "%u", ROOT).strip()
         assert uid.isdigit()
         self.adb("shell", "chown", "-R", f"{uid}:{uid}", ROOT + "/files/stickers", ROOT + "/databases")

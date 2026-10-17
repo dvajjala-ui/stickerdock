@@ -66,6 +66,14 @@ class GeneratorRecoveryTest(unittest.TestCase):
         self.assertFalse(factory_preflight.due(client, now=NOW + 101)[0])
         run["groq_metrics"]["pending_render"] = True
         self.assertTrue(factory_preflight.due(client, now=NOW)[0])
+        run.update(generated=40, status="failed")
+        run["groq_metrics"]["pending_render"] = False
+        self.assertTrue(factory_preflight.due(client, now=NOW)[0])
+        run["status"] = "complete"
+        run["groq_metrics"]["postprocess_complete"] = False
+        self.assertTrue(factory_preflight.due(client, now=NOW)[0])
+        run["groq_metrics"]["postprocess_complete"] = True
+        self.assertFalse(factory_preflight.due(client, now=NOW)[0])
         client.rows[("factory_settings", "default")] = {"enabled": False}
         self.assertFalse(factory_preflight.due(client, now=NOW)[0])
 
@@ -100,3 +108,27 @@ class GeneratorRecoveryTest(unittest.TestCase):
         self.assertEqual((row["status"], row["generated"]), ("failed", 0))
         self.assertIn("budget exhausted", row["last_result"])
         self.assertNotIn("private text", json.dumps(row))
+
+    def test_completed_artwork_storage_failure_resumes_without_another_ai_call(self):
+        client = FakeSupabase()
+        upload = client.upload
+        failed = []
+
+        def fail_complete_once(bucket, path, data, content_type="application/octet-stream"):
+            if path.endswith("daily-complete.zip") and not failed:
+                failed.append(True)
+                raise OSError("simulated interrupted upload")
+            return upload(bucket, path, data, content_type)
+
+        config = {"daily_target": 3, "batch_size": 3, "modes": ["illustration"], "max_requests_per_day": 1}
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_API_KEY": "test"}), patch.object(client, "upload", side_effect=fail_complete_once):
+            with patch.object(generator, "groq_ideas", return_value=ideas(3)) as request:
+                with self.assertRaises(OSError):
+                    worker.run_production(config, Path(temporary) / "first", client, NOW)
+                self.assertEqual(request.call_count, 1)
+            self.assertTrue(factory_preflight.due(client, target=3, budget=1, now=NOW + 1)[0])
+            with patch.object(generator, "groq_ideas", side_effect=AssertionError("Must reuse saved output")):
+                result = worker.run_production(config, Path(temporary) / "fresh-runner", client, NOW + 1)
+            self.assertEqual((result["status"], result["generated"]), ("complete", 3))
+            self.assertTrue(client.rows[("factory_runs", DAY)]["groq_metrics"]["postprocess_complete"])
+            self.assertFalse(factory_preflight.due(client, target=3, budget=1, now=NOW + 1)[0])

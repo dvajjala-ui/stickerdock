@@ -363,10 +363,15 @@ def persist_run(client, generated, config, now, result):
     if status != "complete" and int(state.get("requests", 0)) >= config.get("max_requests_per_day", 16) and not state.get("pending"):
         status = "failed"
         result = "Daily provider request budget exhausted. Saved stickers are kept; generation resumes next UTC day."
+    metrics = run_metrics(state)
+    if status == "complete":
+        # The due check must resume failed ZIP uploads/admin migration even
+        # when the provider target has already been reached.
+        metrics["postprocess_complete"] = False
     client.upsert("factory_runs", [{
         "day": day, "status": status, "target": config["daily_target"],
         "generated": count, "attempts": int(state.get("requests", 0)),
-        "last_result": result[:500], "groq_metrics": run_metrics(state)}], "day")
+        "last_result": result[:500], "groq_metrics": metrics}], "day")
     if complete.exists():
         pack_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-production:" + day))
         remote = "generated/" + day + "/daily-complete.zip"
@@ -497,6 +502,13 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             summary["warnings"] = deferred
             if controls.get("auto_migrate_completed") is True:
                 summary["admin_draft_id"] = auto_migrate_completed(client, generated, summary)
+        if summary["status"] == "complete":
+            state = json.loads((generated / summary["day"] / "state.json").read_text())
+            client.upsert("factory_runs", [{
+                "day": summary["day"], "status": "complete", "target": configured["daily_target"],
+                "generated": summary["generated"], "attempts": int(state.get("requests", 0)),
+                "last_result": result[:500],
+                "groq_metrics": {**run_metrics(state), "postprocess_complete": True}}], "day")
         return summary
     except Exception as error:
         recovery = None
