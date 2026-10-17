@@ -141,8 +141,11 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.scroll_to_text("Show results"); self.tap("Show results")
         self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
         self.adb("shell", "wm", "density", "420")
+        # RUNNING_LOW can be injected while foreground. COMPLETE requires the
+        # process to reach a cached state; Home delivery alone does not prove
+        # that asynchronous transition has happened on an emulator.
+        self.adb("shell", "am", "send-trim-memory", PACKAGE, "RUNNING_LOW")
         self.adb("shell", "input", "keyevent", "3")
-        self.adb("shell", "am", "send-trim-memory", PACKAGE, "COMPLETE")
         self.launch(restart=True); self.wait_text("334 packs")
         # Exercise the new streaming conversion through Android's real picker.
         clip = self.output / "qa-motion.mp4"
