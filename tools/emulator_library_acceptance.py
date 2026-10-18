@@ -148,6 +148,57 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.adb("shell", "chown", "-R", f"{uid}:{uid}", ROOT + "/files/stickers", ROOT + "/databases")
         self.adb("shell", "restorecon", "-RF", ROOT + "/files", ROOT + "/databases")
 
+    def brush_refinement(self):
+        sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-qa-sticker:1:0"))
+
+        def saved_state():
+            database = self.output / "brush.db"
+            self.adb("pull", ROOT + "/databases/stickerdock.db", str(database))
+            with sqlite3.connect(database) as connection:
+                return connection.execute("SELECT s.sha256,a.draft_history FROM stickers s LEFT JOIN artwork_projects a ON a.sticker_id=s.id WHERE s.id=?", (sticker_id,)).fetchone()
+
+        def open_editor():
+            self.launch(restart=True)
+            self.wait_text("Search library"); self.fill("Search library", "QA pack 001")
+            self.wait_text("QA pack 001"); self.tap("QA pack 001")
+            self.wait_text("QA sticker 00"); self.tap("QA sticker 00")
+            self.wait_text("Edit artwork and captions"); self.tap("Edit artwork and captions")
+            self.wait_text("Edit sticker"); self.scroll_to_text("Refine edges"); self.wait_enabled("Refine edges")
+
+        def brush():
+            self.tap("Refine edges"); self.wait_text("Brush on sticker edges")
+            # Loading the retained image is asynchronous; Undo becomes available
+            # only after a real stroke. Retry an ignored loading-time gesture.
+            for _ in range(5):
+                node = self.nodes("Brush on sticker edges")[0]
+                left, top, right, bottom = map(int, re.findall(r"\d+", node.get("bounds")))
+                y = (top + bottom) // 2
+                self.adb("shell", "input", "swipe", str(left + (right - left) // 3), str(y), str(left + (right - left) * 2 // 3), str(y), "400")
+                if self.enabled("Undo"):
+                    break
+            self.wait_enabled("Apply")
+
+        original, _ = saved_state()
+        open_editor(); brush()
+        self.screenshot("12-brush-refinement")
+        self.tap("Undo"); assert not self.enabled("Apply"), "Undo retained a brush edit"
+        self.tap("Redo"); self.wait_enabled("Apply")
+        self.tap("Cancel refinement"); self.wait_hidden("Cancel refinement")
+        assert saved_state() == (original, None), "Cancelled refinement mutated the sticker or draft"
+        brush(); self.tap("Apply"); self.wait_hidden("Cancel refinement")
+        saved, draft = saved_state()
+        assert saved == original and draft, "Apply must retain a draft without overwriting the saved sticker"
+        self.screenshot("13-refined-draft")
+        # A force-stop exercises the persisted mask and draft, not Activity state.
+        open_editor(); self.wait_enabled("Save"); self.tap("Save")
+        self.wait_text("Pack options")
+        changed, draft = saved_state()
+        assert changed != original and draft is None, "Saved brush artwork was not committed"
+        open_editor(); self.scroll_to_text("Reset", forward=False); self.tap("Reset"); self.wait_enabled("Save"); self.tap("Save")
+        self.wait_text("Pack options")
+        assert saved_state() == (original, None), "Reset did not restore the exact original bytes"
+        self.screenshot("14-restored-original")
+
     def run_acceptance(self, apk):
         assert self.adb("shell", "getprop", "ro.kernel.qemu").strip() == "1", "Only a disposable emulator is allowed"
         self.adb("install", "-r", str(apk))
@@ -222,13 +273,14 @@ class LibraryAcceptance(ClipCreatorSmoke):
             after = (connection.execute("SELECT count(*) FROM packs").fetchone()[0], connection.execute("SELECT count(*) FROM stickers").fetchone()[0])
         assert before == after, "Browsing or preview changed saved data"
         self.photo_destination()
+        self.brush_refinement()
         crashes = self.adb("logcat", "-b", "crash", "-d")
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart"],
-                  "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests"]}
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset"],
+                  "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)
 
