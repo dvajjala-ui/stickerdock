@@ -163,6 +163,22 @@ billing guarantees. No image provider key or credits were provisioned here.
 
 ## Delivery gates
 
+The continued visual pass uses warm neutral surfaces, restrained green/lime
+accents, consistent rounded cards and a deliberate type scale. Library packs
+have distinct artwork cards. Create offers photo/video cards with one clear
+action each. The editor groups Cutout, Transform and Text around a larger
+checkerboard preview; draft status and original-preserving reset remain visible.
+UI acceptance uses actual APK screenshots, including large text, rather than
+only design mockups. Synthetic performance fixtures do not establish catalog
+artwork quality.
+
+Native public-pack codes/custom links now resolve through the reviewed catalog
+before preview; saving stays explicit. Received pack files open an import
+confirmation, and shared photos use the named destination sheet. Export filenames
+use the pack title and separate files per share so a later export cannot replace
+an earlier recipient's pending file. See PUBLIC_PACK_CODES.md for HTTPS/private
+link gaps and QA_MATRIX.md for matching verification.
+
 1. Native unit tests, backend regressions, lint, signed build, exact-APK emulator
    navigation/creation/preservation. Inspect actual screenshots, including a
    real-artwork fixture; flat-color performance fixtures are not visual sign-off.

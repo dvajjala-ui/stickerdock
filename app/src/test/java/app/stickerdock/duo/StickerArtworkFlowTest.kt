@@ -192,8 +192,12 @@ class StickerArtworkFlowTest {
     }
 
     @Test fun corruptSharedZipDoesNotStopFollowingPhotos() {
-        val badArchive = Uri.fromFile(File(context.cacheDir, "broken.zip").apply { writeText("broken archive") })
-        val photo = Uri.fromFile(File(context.cacheDir, "shared-photo.png").apply { writeBytes(png(Color.CYAN)) })
+        val badArchive = Uri.parse("content://shared.test/broken.zip")
+        val photo = Uri.parse("content://shared.test/shared-photo.png")
+        org.robolectric.Shadows.shadowOf(context.contentResolver).registerInputStream(badArchive,
+            java.io.ByteArrayInputStream("broken archive".toByteArray()))
+        org.robolectric.Shadows.shadowOf(context.contentResolver).registerInputStream(photo,
+            java.io.ByteArrayInputStream(png(Color.CYAN)))
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
             type = "*/*"
             putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, arrayListOf(badArchive, photo))

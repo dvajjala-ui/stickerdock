@@ -2,6 +2,14 @@
 
 ## 0.11.0 — pack-focused Android candidate, October 18
 
+- Design and public-code source `1d1d95c` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39138509715).
+  The earlier design [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39138121727)
+  reached the brush scenario but its exact-match scroll helper skipped the sticker
+  whose accessibility label includes tags. The test now selects that visible
+  sticker directly. Library/large-text screenshots from that run were inspected;
+  this is not a successful brush scenario. Received-file changes at `4945ce0`
+  and their complete signed acceptance are pending.
+
 - Automatic-cutout source `377b97a` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39133885444):
   build, tests, lint and native alignment. Mask tests cover soft alpha, original
   transparency, retained recipes, draft/copy/deletion recovery and damaged-mask
