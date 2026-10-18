@@ -19,21 +19,25 @@ data class ArtworkEdit(
     val vertical: Float = 0f,
     val topText: String = "",
     val bottomText: String = "",
-    val cutout: List<CutoutPoint> = emptyList()
+    val cutout: List<CutoutPoint> = emptyList(),
+    val maskHash: String = ""
 )
 
 /** Local static artwork editor. Every render starts from the original, preventing preview recompression. */
 object StickerArtwork {
-    fun render(input: ByteArray, edit: ArtworkEdit): Bitmap {
+    fun render(input: ByteArray, edit: ArtworkEdit, mask: ByteArray? = null): Bitmap {
         require(input.size <= 100_000 && WebpSticker.isWebpHeader(input) && !WebpSticker.isAnimatedHeader(input)) { "Choose a static sticker" }
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(input, 0, input.size, bounds)
         require(bounds.outWidth == 512 && bounds.outHeight == 512) { "Invalid sticker dimensions" }
         require(edit.cutout.isEmpty() || ArtworkCutout.isValid(edit.cutout)) { "Trace a wider outline around the subject" }
+        require(edit.maskHash.isEmpty() || (mask != null && StickerFiles.sha256(mask) == edit.maskHash)) { "Cutout mask is missing or changed" }
         val source = BitmapFactory.decodeByteArray(input, 0, input.size) ?: error("Could not open sticker")
         val result = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
         var cutout: Bitmap? = null
+        var masked: Bitmap? = null
         try {
+            if (edit.maskHash.isNotEmpty()) masked = ArtworkMasks.apply(source, mask!!)
             if (edit.cutout.isNotEmpty()) {
                 cutout = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
                 val maskCanvas = Canvas(cutout)
@@ -43,7 +47,7 @@ object StickerArtwork {
                     close()
                 }
                 maskCanvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
-                maskCanvas.drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                maskCanvas.drawBitmap(masked ?: source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
                 })
             }
@@ -53,13 +57,13 @@ object StickerArtwork {
             canvas.rotate((edit.quarterTurns % 4) * 90f)
             val zoom = edit.zoom.coerceIn(1f, 3f)
             canvas.scale(if (edit.mirror) -zoom else zoom, zoom)
-            canvas.drawBitmap(cutout ?: source, -256f, -256f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            canvas.drawBitmap(cutout ?: masked ?: source, -256f, -256f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
             canvas.restore()
             caption(canvas, edit.topText, false)
             caption(canvas, edit.bottomText, true)
             return result
         } catch (e: Exception) { result.recycle(); throw e }
-        finally { cutout?.recycle(); source.recycle() }
+        finally { cutout?.recycle(); masked?.recycle(); source.recycle() }
     }
 
     fun encode(bitmap: Bitmap): ByteArray {

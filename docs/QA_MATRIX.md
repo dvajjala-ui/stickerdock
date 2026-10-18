@@ -2,6 +2,17 @@
 
 ## 0.11.0 — pack-focused Android candidate, October 18
 
+- **Verified core checkpoint `db6c979`:** [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070097918)
+  and [signed APK emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070094081)
+  both pass: 105 Android/12 shared/208 Python tests, lint and signature/alignment.
+  SHA-256 `a80e6ee90f4ddd2747e6fddd1860114d3d34e2333bcae29766984ec47afd8151`.
+  The corrected photo test proves picker selection/cancel do not save, explicit
+  named-pack save adds one pack/sticker, and restart preserves it. The 10k search
+  regression proves pack matching is not capped by the 100-thumbnail query.
+  Scrolling PSS 31,626→60,579 KB. The local ADB device list is empty; physical
+  S24/WhatsApp acceptance remains unavailable. This evidence does not cover
+  subsequent work beyond this exact commit.
+
 - First native slice `2c6f9e8`: [debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39068155580)
   and [signed APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39068160560)
   pass. 105 Android + 12 shared tests; lint, signatures/alignment and Android 15

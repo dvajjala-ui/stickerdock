@@ -32,7 +32,7 @@ class ArtworkHistory private constructor(
             .put(value.zoom.toDouble()).put(value.horizontal.toDouble()).put(value.vertical.toDouble())
             .put(value.topText).put(value.bottomText).put(JSONArray().apply {
                 value.cutout.forEach { point -> put((point.x * 1024).roundToInt()); put((point.y * 1024).roundToInt()) }
-            })) }
+            }).put(value.maskHash)) }
     }).toString()
 
     companion object {
@@ -52,10 +52,12 @@ class ArtworkHistory private constructor(
                     (0 until coordinates.length() step 2).map { CutoutPoint(coordinates.getInt(it) / 1024f, coordinates.getInt(it + 1) / 1024f) }
                 } else emptyList()
                 ArtworkEdit(value.getInt(0), value.getBoolean(1), value.getDouble(2).toFloat(),
-                    value.getDouble(3).toFloat(), value.getDouble(4).toFloat(), value.getString(5), value.getString(6), points).also {
+                    value.getDouble(3).toFloat(), value.getDouble(4).toFloat(), value.getString(5), value.getString(6), points,
+                    if (value.length() >= 9) value.getString(8) else "").also {
                     require(it.quarterTurns in 0..3 && it.zoom in 1f..3f && it.horizontal in -1f..1f && it.vertical in -1f..1f)
                     require(it.topText.length <= 100 && it.bottomText.length <= 100)
                     require(it.cutout.isEmpty() || ArtworkCutout.isValid(it.cutout))
+                    require(it.maskHash.isEmpty() || it.maskHash.matches(Regex("[0-9a-f]{64}")))
                 }
             }
             val position = root.getInt(0)

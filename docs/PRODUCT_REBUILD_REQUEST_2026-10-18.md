@@ -24,6 +24,13 @@ Continuation and credential preference:
 
 ## Interpretation for implementation
 
+Further clarification:
+
+> COMTINUR actullly i want u to cleat all the requitmetns and like see wwhat u build and replvica nd fucnuitity anf e rhting wise stickerly\
+
+This reinforces full requirement reconciliation and functionality comparison, not
+permission to mark unfinished features complete after a visual refresh.
+
 - Reconsider the product, navigation, architecture, content supply and quality gates.
 - Research multiple sticker products and primary-source repositories; do not only
   optimize the user's illustrative complaints.

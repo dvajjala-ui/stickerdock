@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ArtworkHistoryTest {
+    @Test fun masksUseCompactReferencesAndLegacyRecipesStillOpen() {
+        val old = "[0,[[0,false,1,0,0,\"Old caption\",\"\",[]]]]"
+        assertEquals("", ArtworkHistory.decodeStrict(old).edit.maskHash)
+        var history = ArtworkHistory.decodeStrict(old)
+        repeat(60) { index -> history = history.update(history.edit.copy(maskHash = index.toString(16).padStart(64, '0'))) }
+        val reopened = ArtworkHistory.decodeStrict(history.encode())
+        assertEquals(history.edit, reopened.edit)
+        assertTrue(history.encode().length < 100_000)
+        assertTrue(runCatching { ArtworkHistory.decodeStrict(history.update(history.edit.copy(maskHash = "../outside")).encode()) }.isFailure)
+    }
+
     @Test fun sliderDragAndCaptionBurstUndoAsSingleCommands() {
         var history = ArtworkHistory()
         for (i in 1..20) history = history.update(history.edit.copy(zoom = 1f + i / 10f), "zoom")

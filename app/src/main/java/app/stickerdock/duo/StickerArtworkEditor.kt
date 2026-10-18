@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -41,12 +42,18 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
     var initialized by rememberSaveable(item.id, item.fileName) { mutableStateOf(false) }
     var session by remember(item.id, item.fileName) { mutableStateOf<ArtworkProjects.Session?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var automaticBusy by remember { mutableStateOf(false) }
+    var automaticJob by remember { mutableStateOf<Job?>(null) }
+    var automaticGeneration by remember { mutableIntStateOf(0) }
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
     var showCutout by remember { mutableStateOf(false) }
     var draftMessage by remember { mutableStateOf("Opening project…") }
     val hasChanges = session?.let { edit != it.savedHistory.edit } ?: false
-    val dismiss = { if (!saving) { if (hasChanges) confirmDiscard = true else onDismiss() } }
+    val dismiss = {
+        automaticGeneration++; automaticJob?.cancel(); automaticBusy = false
+        if (!saving) { if (hasChanges) confirmDiscard = true else onDismiss() }
+    }
     var preview by remember { mutableStateOf<ImageBitmap?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var rendering by remember { mutableStateOf(true) }
@@ -78,7 +85,8 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
         rendering = true
         delay(120)
         try {
-            preview = withContext(Dispatchers.Default) { StickerArtwork.render(original, edit).asImageBitmap() }
+            val mask = withContext(Dispatchers.IO) { projects.mask(item, edit) }
+            preview = withContext(Dispatchers.Default) { StickerArtwork.render(original, edit, mask).asImageBitmap() }
             error = null
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) { error = e.message ?: "Preview unavailable" }
@@ -93,7 +101,7 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
             Column(Modifier.fillMaxSize().windowInsetsPadding(ownerInsets.union(WindowInsets.safeDrawing)).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(enabled = !saving, onClick = dismiss) { Text("Cancel") }
-                    Button(enabled = input != null && error == null && !rendering && !saving && hasChanges, onClick = {
+                    Button(enabled = input != null && error == null && !rendering && !saving && !automaticBusy && hasChanges, onClick = {
                         saving = true
                         saveError = null
                         scope.launch {
@@ -108,10 +116,10 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
                     Text("Edit sticker", style = MaterialTheme.typography.headlineSmall)
                     Text(draftMessage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = history.canUndo && !saving, onClick = { history = history.undo() }) { Text("Undo") }
-                        OutlinedButton(enabled = history.canRedo && !saving, onClick = { history = history.redo() }) { Text("Redo") }
+                        OutlinedButton(enabled = history.canUndo && !saving && !automaticBusy, onClick = { history = history.undo() }) { Text("Undo") }
+                        OutlinedButton(enabled = history.canRedo && !saving && !automaticBusy, onClick = { history = history.redo() }) { Text("Redo") }
                         Spacer(Modifier.weight(1f))
-                        TextButton(enabled = input != null && edit != ArtworkEdit() && !saving, onClick = { history = history.update(ArtworkEdit()) }) { Text("Reset") }
+                        TextButton(enabled = input != null && edit != ArtworkEdit() && !saving && !automaticBusy, onClick = { history = history.update(ArtworkEdit()) }) { Text("Reset") }
                     }
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val side = minOf(maxWidth, 240.dp)
@@ -121,8 +129,28 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
                     }
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    Button(enabled = input != null && !saving && !automaticBusy, modifier = Modifier.fillMaxWidth(), onClick = {
+                        val original = input ?: return@Button
+                        automaticBusy = true
+                        automaticGeneration++
+                        val request = automaticGeneration
+                        saveError = null
+                        automaticJob = scope.launch {
+                            try {
+                                val mask = AutomaticCutout.createMask(original)
+                                val hash = projectLock.withLock { withContext(Dispatchers.IO) { projects.retainMask(item, mask) } }
+                                history = history.update(history.edit.copy(maskHash = hash))
+                            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                            catch (e: Exception) { saveError = e.message ?: "Could not remove the background. Try Manual cutout." }
+                            finally { if (automaticGeneration == request) automaticBusy = false }
+                        }
+                    }) { Text(if (automaticBusy) "Finding subject…" else "Remove background") }
+                    if (automaticBusy) TextButton(onClick = { automaticGeneration++; automaticJob?.cancel(); automaticBusy = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancel removal") }
+                    Text("Runs on this device. First use may need a model download.", style = MaterialTheme.typography.bodySmall)
+                    if (edit.maskHash.isNotEmpty()) TextButton(enabled = !saving && !automaticBusy,
+                        onClick = { history = history.update(edit.copy(maskHash = "", cutout = emptyList())) }) { Text("Restore background") }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = input != null && !saving, onClick = { showCutout = true }) { Text("Cutout") }
+                        OutlinedButton(enabled = input != null && !saving && !automaticBusy, onClick = { showCutout = true }) { Text("Cutout") }
                         OutlinedButton(enabled = input != null && !saving, onClick = { history = history.update(edit.copy(quarterTurns = (edit.quarterTurns + 1) % 4)) }, modifier = Modifier.weight(1f)) { Text("Rotate") }
                         FilterChip(enabled = input != null && !saving, selected = edit.mirror, onClick = { history = history.update(edit.copy(mirror = !edit.mirror)) }, label = { Text("Mirror") })
                     }
