@@ -48,6 +48,7 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
     var showCutout by remember { mutableStateOf(false) }
+    var showRefinement by rememberSaveable { mutableStateOf(false) }
     var draftMessage by remember { mutableStateOf("Opening project…") }
     val hasChanges = session?.let { edit != it.savedHistory.edit } ?: false
     val dismiss = {
@@ -147,6 +148,7 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
                     }) { Text(if (automaticBusy) "Finding subject…" else "Remove background") }
                     if (automaticBusy) TextButton(onClick = { automaticGeneration++; automaticJob?.cancel(); automaticBusy = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancel removal") }
                     Text("Runs on this device. First use may need a model download.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(enabled = input != null && !saving && !automaticBusy, modifier = Modifier.fillMaxWidth(), onClick = { showRefinement = true }) { Text("Refine edges") }
                     if (edit.maskHash.isNotEmpty()) TextButton(enabled = !saving && !automaticBusy,
                         onClick = { history = history.update(edit.copy(maskHash = "", cutout = emptyList())) }) { Text("Restore background") }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -176,6 +178,20 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
             history = ArtworkHistory.decodeStrict(updated.encode())
             showCutout = false
         }, onDismiss = { showCutout = false })
+    if (showRefinement && input != null) StickerMaskEditor(input,
+        loadMask = { withContext(Dispatchers.IO) { projects.mask(item, edit) } }, outline = edit.cutout,
+        onApply = { bytes ->
+            projectLock.withLock {
+                val updated = withContext(Dispatchers.IO) {
+                    val hash = projects.retainMask(item, bytes)
+                    val next = history.update(history.edit.copy(maskHash = hash, cutout = emptyList()))
+                    projects.saveDraft(item, next)
+                    next
+                }
+                history = updated
+            }
+            showRefinement = false
+        }, onDismiss = { showRefinement = false })
     if (confirmDiscard) AlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text("Discard your edits?") },
         text = { Text("Your saved sticker will stay as it was.") },
         confirmButton = { TextButton(enabled = !saving, onClick = {
