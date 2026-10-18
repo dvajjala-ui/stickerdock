@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -108,7 +109,8 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
             Column(Modifier.fillMaxSize().windowInsetsPadding(ownerInsets.union(WindowInsets.safeDrawing)).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(enabled = !saving, onClick = dismiss) { Text("Cancel") }
-                    Text("Edit sticker", style = MaterialTheme.typography.titleMedium)
+                    Text("Edit sticker", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Button(enabled = input != null && error == null && !rendering && !saving && !automaticBusy && hasChanges, onClick = {
                         saving = true
                         saveError = null

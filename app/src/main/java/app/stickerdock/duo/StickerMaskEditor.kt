@@ -9,6 +9,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
@@ -30,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 fun StickerMaskEditor(original: ByteArray, loadMask: suspend () -> ByteArray?, outline: List<CutoutPoint>,
                       onApply: suspend (ByteArray) -> Unit, onDismiss: () -> Unit) {
     val ownerInsets = WindowInsets.safeDrawing
@@ -74,10 +77,10 @@ fun StickerMaskEditor(original: ByteArray, loadMask: suspend () -> ByteArray?, o
     }
     Dialog(onDismissRequest = { if (!saving) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(ownerInsets.union(WindowInsets.safeDrawing)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(ownerInsets.union(WindowInsets.safeDrawing)).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(enabled = !saving, onClick = onDismiss) { Text("Cancel refinement") }
-                    Button(enabled = images != null && strokes.isNotEmpty() && !saving && !drawing, onClick = {
+                    TextButton(enabled = !saving, onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel refinement") }
+                    Button(enabled = images != null && strokes.isNotEmpty() && !saving && !drawing, modifier = Modifier.weight(1f), onClick = {
                         saving = true; error = null
                         scope.launch {
                             try {
@@ -91,14 +94,14 @@ fun StickerMaskEditor(original: ByteArray, loadMask: suspend () -> ByteArray?, o
                 }
                 Text("Refine edges", style = MaterialTheme.typography.headlineSmall)
                 Text("Erase background or restore parts of the original. Apply keeps these edits in your sticker draft.", style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !restore, enabled = !saving, onClick = { restore = false }, label = { Text("Erase") })
                     FilterChip(selected = restore, enabled = !saving, onClick = { restore = true }, label = { Text("Restore") })
                     TextButton(enabled = strokes.isNotEmpty() && !saving && !drawing, onClick = { redo = redo + strokes.last(); strokes = strokes.dropLast(1); limit = false }) { Text("Undo") }
                     TextButton(enabled = redo.isNotEmpty() && !saving && !drawing, onClick = { strokes = strokes + redo.last(); redo = redo.dropLast(1) }) { Text("Redo") }
                 }
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    val side = minOf(maxWidth, maxHeight, 480.dp)
+                BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    val side = minOf(maxWidth, 380.dp)
                     Canvas(Modifier.size(side).semantics { contentDescription = "Brush on sticker edges" }
                         .pointerInput(restore, radius, saving, images) {
                             detectTapGestures { offset -> begin(CutoutPoint((offset.x / size.width).coerceIn(0f, 1f), (offset.y / size.height).coerceIn(0f, 1f))); drawing = false }
