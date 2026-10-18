@@ -41,7 +41,8 @@ fun FactoryScreen(
     previewRevision: Int = 0,
     onHide: ((CommunityCatalog.Listing) -> Unit)? = null,
     onReport: ((CommunityCatalog.Listing) -> Unit)? = null,
-    onShowHidden: (() -> Unit)? = null
+    onShowHidden: (() -> Unit)? = null,
+    onOpenCode: (() -> Unit)? = null
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var selectedKindName by rememberSaveable { mutableStateOf("") }
@@ -64,6 +65,7 @@ fun FactoryScreen(
                         Box {
                             IconButton(onClick = { showOptions = true }, modifier = Modifier.semantics { contentDescription = "Discover options" }) { StickerDockNavIcon("More") }
                             DropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
+                                if (onOpenCode != null) DropdownMenuItem(text = { Text("Open pack code") }, onClick = { showOptions = false; onOpenCode() })
                                 DropdownMenuItem(text = { Text("Refresh") }, enabled = !loading, onClick = { showOptions = false; onRefresh() })
                                 if (onShowHidden != null) DropdownMenuItem(text = { Text("Show hidden packs & creators") }, onClick = { showOptions = false; onShowHidden() })
                             }
@@ -162,7 +164,8 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Boolean, saveError: String?,
-    onPreview: suspend (CommunityCatalog.Listing) -> ByteArray?, onSave: () -> Unit, onDismiss: () -> Unit) {
+    onPreview: suspend (CommunityCatalog.Listing) -> ByteArray?, onSave: () -> Unit, onDismiss: () -> Unit,
+    onShare: (() -> Unit)? = null) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -176,6 +179,7 @@ fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Bool
             Button(enabled = !busy, onClick = onSave, modifier = Modifier.fillMaxWidth()) {
                 Text(if (busy) "Saving pack…" else if (saved) "Open in library" else "Save to library")
             }
+            if (onShare != null) OutlinedButton(enabled = !busy, onClick = onShare, modifier = Modifier.fillMaxWidth()) { Text("Share pack code") }
             TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Keep browsing") }
         }
     }

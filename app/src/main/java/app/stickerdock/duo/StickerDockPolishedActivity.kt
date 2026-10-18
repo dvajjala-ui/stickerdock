@@ -57,6 +57,21 @@ class StickerDockPolishedActivity : ComponentActivity() {
     private lateinit var store: StickerStore
     private lateinit var files: StickerFiles
     private lateinit var backup: StickerBackup
+    private var incomingPackCode by mutableStateOf<String?>(null)
+    private var incomingShare by mutableStateOf<Intent?>(null)
+
+    private fun packCode(intent: Intent): String? = when (intent.action) {
+        Intent.ACTION_VIEW -> intent.dataString?.let(PublicPackLinks::parse)
+        Intent.ACTION_SEND -> if (intent.type == "text/plain") intent.getStringExtra(Intent.EXTRA_TEXT)?.let(PublicPackLinks::fromSharedText) else null
+        else -> null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingPackCode = packCode(intent)
+        incomingShare = intent
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +79,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         store = StickerStore(applicationContext)
         files = StickerFiles(applicationContext, store)
         backup = StickerBackup(applicationContext, store, files)
+        if (savedInstanceState == null) { incomingPackCode = packCode(intent); incomingShare = intent }
         setContent { StickerDockTheme { StickerDockApp() } }
     }
 
@@ -134,12 +150,17 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var savedLinks by remember { mutableStateOf<List<StickerlyLinks.Link>>(emptyList()) }
 
         var communityLoading by remember { mutableStateOf(false) }
+        var communityLoaded by remember { mutableStateOf(false) }
         var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
         var communityError by remember { mutableStateOf<String?>(null) }
         var catalogImportedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         var previewingCatalogPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
         var catalogSaveError by remember { mutableStateOf<String?>(null) }
         var catalogArtworkRevision by remember { mutableStateOf(0) }
+        var showPackCode by rememberSaveable { mutableStateOf(false) }
+        var packCodeInput by rememberSaveable { mutableStateOf("") }
+        var packCodeError by remember { mutableStateOf<String?>(null) }
+        var pendingPackCode by rememberSaveable { mutableStateOf<String?>(null) }
         var whatsAppStatus by remember { mutableStateOf<Map<WhatsAppTarget, WhatsAppPackStatus>>(emptyMap()) }
         var whatsAppStatusRefresh by remember { mutableStateOf(0) }
         var pendingWhatsAppTargetName by rememberSaveable { mutableStateOf<String?>(null) }
@@ -300,6 +321,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 } catch (e: Exception) {
                     communityError = e.message ?: "Unable to load new stickers"
                 } finally {
+                    communityLoaded = true
                     communityLoading = false
                 }
             }
@@ -322,6 +344,36 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 }
                 if (summary.stickers == 0) "Pack already in your library" else "Imported ${summary.stickers} stickers"
             }
+        }
+
+        fun openPublicPackCode(raw: String) {
+            val id = PublicPackLinks.parse(raw)
+            if (id == null) { packCodeError = "Enter a StickerDock code starting with SD: or a StickerDock pack link."; return }
+            packCodeError = null
+            selectedId = null
+            sectionName = PolishedHomeSection.FACTORY.name
+            refreshFactory()
+            pendingPackCode = id
+        }
+
+        LaunchedEffect(incomingPackCode) {
+            incomingPackCode?.let { id ->
+                packCodeInput = PublicPackLinks.code(id)
+                showPackCode = true
+                openPublicPackCode(packCodeInput)
+                incomingPackCode = null
+            }
+        }
+        LaunchedEffect(pendingPackCode, communityLoading, communityLoaded, communityPacks, communityError) {
+            val id = pendingPackCode ?: return@LaunchedEffect
+            if (communityLoading || !communityLoaded) return@LaunchedEffect
+            val entry = communityPacks.firstOrNull { it.id == id }
+            when {
+                communityError != null -> packCodeError = "Couldn't check this pack. Check your connection and try again."
+                entry == null -> packCodeError = "This pack is unavailable or hidden. Check the code, or show hidden packs in Discover options."
+                else -> { catalogSaveError = null; previewingCatalogPack = entry; showPackCode = false }
+            }
+            pendingPackCode = null
         }
 
         fun runFolderImport(uri: android.net.Uri) {
@@ -507,9 +559,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
         LaunchedEffect(Unit) {
             refreshFactory()
-            if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
-                operation("Importing shared stickers") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(intent) }
+        }
+        LaunchedEffect(incomingShare) {
+            val shared = incomingShare ?: return@LaunchedEffect
+            if ((shared.action == Intent.ACTION_SEND || shared.action == Intent.ACTION_SEND_MULTIPLE) && packCode(shared) == null) {
+                operation("Importing shared stickers") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(shared) }
             }
+            incomingShare = null
         }
         DisposableEffect(Unit) { onDispose { previewCache.clear() } }
         DisposableEffect(Unit) {
@@ -760,7 +816,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             scope.launch { snackbar.showSnackbar("Hidden from new stickers. Saved local packs are kept.") }
                                         },
                                         onReport = { entry -> reportingPack = entry; reportReason = "" },
-                                        onShowHidden = { CommunityCatalog(this@StickerDockPolishedActivity, backup).clearHidden(); refreshFactory() })
+                                        onShowHidden = { CommunityCatalog(this@StickerDockPolishedActivity, backup).clearHidden(); refreshFactory() },
+                                        onOpenCode = { packCodeError = null; showPackCode = true })
                                 }
                             }
                         }
@@ -809,8 +866,28 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     bytes
                 },
                 onSave = { catalogSaveError = null; importFactoryPack(entry) },
-                onDismiss = { if (!busy) previewingCatalogPack = null })
+                onDismiss = { if (!busy) previewingCatalogPack = null },
+                onShare = {
+                    startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, PublicPackLinks.shareText(entry.name, entry.id))
+                    }, "Share sticker pack"))
+                })
         }
+
+        if (showPackCode) AlertDialog(onDismissRequest = { pendingPackCode = null; showPackCode = false },
+            title = { Text("Open pack code") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Preview a shared pack before saving it to your library.")
+                    OutlinedTextField(value = packCodeInput, onValueChange = { packCodeInput = it.take(256); packCodeError = null },
+                        label = { Text("Pack code or link") }, singleLine = true, enabled = pendingPackCode == null)
+                    if (pendingPackCode != null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    packCodeError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = { TextButton(enabled = pendingPackCode == null && packCodeInput.isNotBlank(), onClick = { openPublicPackCode(packCodeInput) }) { Text("Preview pack") } },
+            dismissButton = { TextButton(onClick = { pendingPackCode = null; showPackCode = false }) { Text("Cancel") } })
 
         if (showFilters) {
             LibraryFiltersSheet(

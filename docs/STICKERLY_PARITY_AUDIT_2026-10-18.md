@@ -27,7 +27,7 @@ another app has them. No user requirement is silently removed by that decision.
 | Text and transforms | Caption placement, rotation, mirror, scale, undo/redo | Rich text styling/free placement and iOS editor parity |
 | Video/GIF → animated stickers | Trim, caption, moving preview, explicit save, type-separated packs | Editable video projects and moving-subject segmentation |
 | Add pack to WhatsApp | Official provider, app-specific personal/Business actions, add-again | Actual S24/WhatsApp refresh/cancel/Business acceptance; no intra-app account routing claim |
-| Send a pack link/code | Portable file sharing and reviewed catalog | Native public-pack links/codes and private revocable links |
+| Send a pack link/code | Portable file sharing; native public-pack codes/custom links with explicit preview/save | Signed interaction acceptance, deployed HTTPS landing/universal links and private revocable links |
 | Telegram destination | No dedicated pack exporter | Research/implementation/testing required; do not label a generic file share Telegram pack installation |
 | Follow creators / public profiles | Reviewed catalog and hide/report mechanisms | Moderated community product, identity, safety and operational review |
 | Private durable collection | Local database/media, backups, optional private cloud | Full editable-project backup, phone migration and iOS cloud parity |
@@ -90,8 +90,8 @@ animation, picker/cancel/save/restart. See QA_MATRIX.md for hash and limits.
 Source after that checkpoint is not covered by it. Local ADB currently sees no
 device. Image-generation provider keys are absent; no paid render was made.
 
-Implementation sequence: automatic cutout and edge correction → useful pack
-links/codes → durable editable-project backup → native AI assistance and broader
+Implementation sequence: verify cutout/edge correction and public pack codes →
+HTTPS sharing and durable editable-project backup → native AI assistance and broader
 reviewed content → iOS parity. Device, identity, moderation and provider acceptance
 remain explicit gates alongside implementation. The project is not yet a complete
 Sticker.ly-equivalent product.
