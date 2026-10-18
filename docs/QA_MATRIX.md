@@ -1,5 +1,22 @@
 # StickerDock verification checklist
 
+## October 19 — current continuation
+
+- `8eac289` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159539977),
+  including the provider/content-URI fixture corrections, native regressions,
+  backend checks, lint and builds. [Signed APK interaction run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159546406)
+  passes brush undo/redo/cancel, durable draft/process restart, save/exact reset
+  and public code cold/warm/share handling. It then fails at received-file import
+  using a shell-created DocumentsProvider URI. Overall signed acceptance fails.
+  The fixture now uses a scoped FileProvider URI matching pack sharing; import
+  errors also retain failed files for retry and expose a reason. A matching new
+  signed run is required. Create and brush screenshots from this run were inspected.
+- `4945ce0` [failed](https://github.com/dvajjala-ui/stickerdock/actions/runs/39139552573)
+  two unit tests: provider metadata/resources were missing from the unit-test
+  environment, and an older share fixture used file URIs. Those test fixtures
+  are corrected. Network/raw file URI rejection remains enforced for incoming
+  shares. This failed source is not a verified APK candidate.
+
 ## 0.11.0 — pack-focused Android candidate, October 18
 
 - Design and public-code source `1d1d95c` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39138509715).

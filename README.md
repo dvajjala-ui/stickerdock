@@ -24,6 +24,8 @@ until a release is published. Read the [product decisions and research](docs/PRO
 [candidate verification](docs/QA_MATRIX.md) and [optional original-art worker](docs/ORIGINAL_ARTWORK_WORKER.md).
 The [parity audit](docs/STICKERLY_PARITY_AUDIT_2026-10-18.md) tracks every requirement;
 the candidate is not a complete Sticker.ly replacement yet.
+See the [Android design review](docs/UI_REVIEW_2026-10-19.md) for layout decisions
+and actual screenshot findings.
 Original image generation is prepared but disabled and not live-validated.
 
 Android and iPhone clients keep your sticker library independently from WhatsApp

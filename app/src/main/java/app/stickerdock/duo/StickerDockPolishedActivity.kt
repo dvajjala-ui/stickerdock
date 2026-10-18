@@ -104,6 +104,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var photoSaveError by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingSharedFiles by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
         var pendingSharedType by rememberSaveable { mutableStateOf("application/zip") }
+        var sharedImportError by rememberSaveable { mutableStateOf<String?>(null) }
         var cloudRevision by remember { mutableStateOf(0) }
         var libraryReady by remember { mutableStateOf(false) }
         var reportingPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
@@ -569,7 +570,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     val streams = IncomingStickers.streams(shared)
                     when {
                         streams.isNotEmpty() && shared.type?.startsWith("image/") == true -> { pendingPhotoUris = streams.map { it.toString() }; photoSaveError = null }
-                        streams.isNotEmpty() -> { pendingSharedFiles = streams.map { it.toString() }; pendingSharedType = shared.type ?: "application/zip" }
+                        streams.isNotEmpty() -> { pendingSharedFiles = streams.map { it.toString() }; pendingSharedType = shared.type ?: "application/zip"; sharedImportError = null }
                         shared.action == Intent.ACTION_SEND -> operation("Saving shared links") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(shared) }
                     }
                 } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Couldn't open shared files") }
@@ -900,16 +901,23 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         if (pendingSharedFiles.isNotEmpty()) AlertDialog(onDismissRequest = { if (!busy) pendingSharedFiles = emptyList() },
             title = { Text("Import shared packs?") },
-            text = { Text("${pendingSharedFiles.size} ${if (pendingSharedFiles.size == 1) "file is" else "files are"} ready to import. They will be added as packs in your library. Your existing packs stay as they are.") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${pendingSharedFiles.size} ${if (pendingSharedFiles.size == 1) "file is" else "files are"} ready to import. They will be added as packs in your library. Your existing packs stay as they are.")
+                sharedImportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } },
             confirmButton = { TextButton(enabled = !busy, onClick = {
                 val shared = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                     type = pendingSharedType
                     putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(pendingSharedFiles.map(android.net.Uri::parse)))
                 }
                 operation("Importing shared packs") {
-                    val result = IncomingStickers(this@StickerDockPolishedActivity, store, files).import(shared)
-                    runOnUiThread { pendingSharedFiles = emptyList(); sectionName = PolishedHomeSection.LIBRARY.name }
-                    result
+                    val result = IncomingStickers(this@StickerDockPolishedActivity, store, files).importReport(shared)
+                    runOnUiThread {
+                        pendingSharedFiles = result.failedUris.map { it.toString() }
+                        sharedImportError = if (result.failedUris.isEmpty()) null else result.message
+                        sectionName = PolishedHomeSection.LIBRARY.name
+                    }
+                    result.message
                 }
             }) { Text(if (busy) "Importing…" else "Import packs") } },
             dismissButton = { TextButton(enabled = !busy, onClick = { pendingSharedFiles = emptyList() }) { Text("Cancel") } })

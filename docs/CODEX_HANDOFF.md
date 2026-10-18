@@ -1,4 +1,24 @@
-# StickerDock development handoff — updated October 18, 2026
+# StickerDock development handoff — updated October 19, 2026
+
+## October 19 — visual design and sharing continuation
+
+`8eac289` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159539977).
+The [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159546406)
+passes brush/draft/process restart/exact Reset and public pack-code interactions,
+then fails its received-file fixture (shell-created DocumentsProvider URI).
+Overall acceptance fails. The fixture now uses a scoped FileProvider URI; failed
+imports are retained for retry with useful errors, and a full sharing round-trip
+unit test checks artwork, labels and private ratings. Rerun required. The earlier `4945ce0` failure was test setup: Android
+resources were absent from provider unit tests, and an older incoming-share test
+used raw file URIs. Tests now use the manifest/resources and content-URI fixtures.
+
+The latest source includes public pack codes/custom links (PUBLIC_PACK_CODES.md),
+readable per-share ZIP filenames, explicit received-file import, and shared-photo
+destination selection. Cold/warm intents are handled. Brush controls scroll/wrap
+for larger text, and the editor title yields space to Save/Cancel. UI review and
+actual screenshot limitations are in UI_REVIEW_2026-10-19.md. Original generation
+remains prepared/disabled with no live provider trial. Keep the full R01–R38 map
+active; this candidate does not close every product requirement.
 
 ## Current continuation — cutout and full parity reconciliation
 

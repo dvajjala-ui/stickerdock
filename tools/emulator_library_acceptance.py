@@ -232,8 +232,17 @@ class LibraryAcceptance(ClipCreatorSmoke):
         with zipfile.ZipFile(archive, "w") as zipped:
             zipped.writestr("manifest.json", json.dumps(manifest))
             zipped.writestr(f"packs/{pack_id}/{sticker_id}.webp", content)
-        self.adb("push", str(archive), "/sdcard/Download/qa-received.zip")
-        uri = "content://com.android.externalstorage.documents/document/primary%3ADownload%2Fqa-received.zip"
+        # Use a real scoped FileProvider URI, as the sender's share sheet does.
+        # A shell-created DocumentsProvider URI does not prove a user-selected
+        # document grant and can fail before the app reads the archive.
+        directory = ROOT + "/cache/shared"
+        self.adb("shell", "mkdir", "-p", directory)
+        self.adb("push", str(archive), directory + "/qa-received.zip")
+        uid = self.adb("shell", "stat", "-c", "%u", ROOT).strip()
+        assert uid.isdigit()
+        self.adb("shell", "chown", "-R", f"{uid}:{uid}", directory)
+        self.adb("shell", "restorecon", "-RF", directory)
+        uri = "content://" + PACKAGE + ".exports/shared/qa-received.zip"
         for save in (False, True):
             self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-t", "application/zip", "-d", uri,
                      "--grant-read-uri-permission", "-n", PACKAGE + "/.StickerDockPolishedActivity")
@@ -241,6 +250,13 @@ class LibraryAcceptance(ClipCreatorSmoke):
             assert self.counts() == before, "Opening a received archive imported before confirmation"
             self.screenshot("17-received-pack")
             self.tap("Import packs" if save else "Cancel")
+            if save:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline and self.nodes("Import shared packs?"):
+                    visible = [n.get("text", "") for n in self.tree().iter("node") if self.visible(n)]
+                    errors = [value for value in visible if "Shared import:" in value]
+                    assert not errors, "Received archive failed: " + " ".join(errors)
+                    time.sleep(.4)
             self.wait_hidden("Import shared packs?")
             assert self.counts() == ((before[0] + 1, before[1] + 1) if save else before)
         self.launch(restart=True); self.wait_text("Weekend reactions")
