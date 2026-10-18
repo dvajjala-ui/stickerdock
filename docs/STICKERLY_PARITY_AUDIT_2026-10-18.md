@@ -23,7 +23,7 @@ another app has them. No user requirement is silently removed by that decision.
 | Journey | Current StickerDock | Gap / acceptance |
 | --- | --- | --- |
 | Browse packs → inspect → save | Rebuilt Android pack rows and read-only Discover; explicit offline save | Small reviewed catalog; populated real-content design acceptance |
-| Name pack → photos → edit | Explicit new/existing destination; independent original and draft | Automatic removal now under implementation/test; selective edge correction next |
+| Name pack → photos → edit | Explicit new/existing destination; independent original/draft; automatic removal and erase/restore brushes implemented | Signed brush journey verification and physical automatic-model quality |
 | Text and transforms | Caption placement, rotation, mirror, scale, undo/redo | Rich text styling/free placement and iOS editor parity |
 | Video/GIF → animated stickers | Trim, caption, moving preview, explicit save, type-separated packs | Editable video projects and moving-subject segmentation |
 | Add pack to WhatsApp | Official provider, app-specific personal/Business actions, add-again | Actual S24/WhatsApp refresh/cancel/Business acceptance; no intra-app account routing claim |

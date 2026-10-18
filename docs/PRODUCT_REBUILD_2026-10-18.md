@@ -44,7 +44,7 @@ research. Sticker.ly media is a visual reference, not a reusable catalog.
 | [StickerVault](https://github.com/mintnchocochip/stickervault) | Useful migration/portable-library reference. GPL implementation is not copied into MIT source. |
 | [PhotoEditor](https://github.com/burhanrashid52/PhotoEditor) | Established editing primitives/undo; adopting another view-based editor would duplicate current Compose recipes. Keep the recipe engine and improve its controls. |
 | [rembg](https://github.com/danielgatis/rembg) | Candidate server cutout stage. Evaluate actual model weights, license, edge quality and runtime before adding dependencies. No package/model installed in this pass. |
-| [ML Kit subject segmentation](https://developers.google.com/ml-kit/vision/subject-segmentation/android) | Candidate native automatic cutout; model arrives via Play services and first-use availability matters. Manual correction and failure fallback are required. Not implemented in this candidate. |
+| [ML Kit subject segmentation](https://developers.google.com/ml-kit/vision/subject-segmentation/android) | Optional native cutout implemented with beta 16.0.0-beta1. On-device processing, first-use Play services model download, cancellable UI and manual fallback. Live inference/quality still requires device acceptance. |
 | [FLUX.2 klein 4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | Apache-2.0 weights; documented standard memory footprint is approximately 13 GB. Local GTX 1650 has 4 GB. CPU offload/quantization is an experiment, not a free production capacity promise. |
 | [BFL asynchronous generation](https://docs.bfl.ai/quick_start/generating_images) | Optional server image adapter with persisted request IDs and bounded polling. Paid calls remain disabled by default. |
 | [Groq vision](https://console.groq.com/docs/vision) | Retain existing image understanding/caption roles. Do not represent a text/vision response as newly synthesized artwork. |
@@ -71,7 +71,7 @@ No third-party implementation or sticker art was copied in this rebuild.
 | Pack sharing links | Public reviewed pack link/deep link; private capability link with revocation/expiry | Planned; this candidate still shares a portable file |
 | Legacy launcher | Remove inactive duplicate activity with its second UI implementation | Removed; manifest launcher and data identities unchanged |
 | AI-generated catalog | Coherent character/theme packs with distinct useful reactions; private review first | Optional original-art worker prepared, not enabled/live-validated |
-| Automatic cutout | One-tap subject extraction, restore/erase correction, reversible source | Planned, not disguised as an available button |
+| Automatic cutout | One-tap subject extraction, restore/erase correction, reversible source | Implemented: confidence masks retained separately, erase/restore brush, undo/redo and drafts. Automatic model quality and signed brush acceptance remain separate gates; see QA_MATRIX.md. |
 | Favorites/recents | Small personal shortcuts, backed by an additive migration | Planned after core acceptance |
 | Community | Defer social/feed mechanics until catalog and moderation are dependable | Existing reviewed catalog retained; no unreviewed upload feed |
 

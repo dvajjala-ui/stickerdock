@@ -2,6 +2,18 @@
 
 ## 0.11.0 — pack-focused Android candidate, October 18
 
+- Automatic-cutout source `377b97a` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39133885444):
+  build, tests, lint and native alignment. Mask tests cover soft alpha, original
+  transparency, retained recipes, draft/copy/deletion recovery and damaged-mask
+  refusal. This does not prove live Google Play model availability or quality.
+- Brush source at `7878bbb` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39134519338):
+  112 Android/12 shared/208 Python tests plus lint/build. The [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39134517018)
+  passed build/signature checks and existing scenarios, but stopped before brush
+  interaction: its locator matched both the search field and pack title. The
+  fixture now searches `001` instead of the full title. This failed run does not
+  establish brush interaction acceptance. A rerun also covers the subsequent
+  typography/card/Create/editor-tool layout changes.
+
 - **Verified core checkpoint `db6c979`:** [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070097918)
   and [signed APK emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070094081)
   both pass: 105 Android/12 shared/208 Python tests, lint and signature/alignment.

@@ -18,6 +18,29 @@ import androidx.compose.ui.unit.dp
 val WhatsAppGreen = Color(0xFF087F5B)
 
 @Composable
+fun CreationCard(action: String, title: String, description: String, icon: String, enabled: Boolean,
+                 onClick: () -> Unit, prominent: Boolean = true) {
+    Surface(shape = MaterialTheme.shapes.extraLarge,
+        color = if (prominent) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        contentColor = if (prominent) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface.copy(alpha = .7f)) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { StickerDockNavIcon(icon) }
+                }
+                Spacer(Modifier.weight(1f))
+                Text(if (prominent) "PHOTO STICKERS" else "ANIMATED STICKERS", style = MaterialTheme.typography.labelSmall)
+            }
+            Text(title, style = if (prominent) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.headlineSmall)
+            Text(description, style = MaterialTheme.typography.bodyMedium)
+            if (prominent) Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(action) }
+            else OutlinedButton(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(action) }
+        }
+    }
+}
+
+@Composable
 fun LibrarySearch(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
     TextField(value = value, onValueChange = onChange, singleLine = true,
         placeholder = { Text(label) },

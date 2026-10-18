@@ -24,6 +24,13 @@ Continuation and credential preference:
 
 ## Interpretation for implementation
 
+Further design clarification:
+
+> , also i pas thinking u can make UI chanegs like a reall app and good and better design
+
+Treat layout, typography, creation hierarchy and actual screenshot inspection as
+part of the ongoing product rebuild, alongside functional correctness.
+
 Further clarification:
 
 > COMTINUR actullly i want u to cleat all the requitmetns and like see wwhat u build and replvica nd fucnuitity anf e rhting wise stickerly\

@@ -1,5 +1,26 @@
 # StickerDock development handoff — updated October 18, 2026
 
+## Current continuation — cutout and full parity reconciliation
+
+STICKERLY_PARITY_AUDIT_2026-10-18.md maps all R01–R38 requirements to actual
+implementation, gaps and acceptance. It explicitly does not close full parity.
+`377b97a` adds optional on-device ML Kit subject removal and lossless,
+content-addressed masks alongside retained originals. Its [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39133885444)
+passes. `22bc2a2` adds erase/restore brushes with undo/redo, bounded recreation
+state, and explicit Apply into a durable draft. Saved artwork changes only on
+Save; Reset returns the exact retained original. Copy/move and deletion undo
+retain referenced masks. Existing backup format remains saved-artwork only.
+
+`7878bbb` extends exact signed-APK acceptance to brush cancel, undo/redo, draft
+process restart, save and exact-original reset. Android CI passes (112/12/208),
+but the signed emulator run stopped on an ambiguous test locator before reaching
+the brush. The locator is corrected. The subsequent design pass adds typography,
+distinct pack cards, photo/video creation cards and Cutout/Transform/Text editor
+tools around a larger checkerboard preview. A matching rerun is required.
+Do not treat the older db6c979 APK as containing this editor.
+Google Play model inference/quality is not tested by the AOSP emulator. No
+physical ADB device is connected and no paid image-generation call was made.
+
 ## Latest — pack-focused product rebuild candidate
 
 Branch `codex/sticker-first-redesign`, [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21).

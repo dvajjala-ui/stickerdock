@@ -2,6 +2,9 @@ package app.stickerdock.duo
 
 import android.view.WindowManager
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +15,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.onFocusChanged
@@ -49,6 +54,7 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
     var saveError by remember { mutableStateOf<String?>(null) }
     var showCutout by remember { mutableStateOf(false) }
     var showRefinement by rememberSaveable { mutableStateOf(false) }
+    var tool by rememberSaveable { mutableStateOf("Cutout") }
     var draftMessage by remember { mutableStateOf("Opening project…") }
     val hasChanges = session?.let { edit != it.savedHistory.edit } ?: false
     val dismiss = {
@@ -100,8 +106,9 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
         SideEffect { window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE) }
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(ownerInsets.union(WindowInsets.safeDrawing)).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(enabled = !saving, onClick = dismiss) { Text("Cancel") }
+                    Text("Edit sticker", style = MaterialTheme.typography.titleMedium)
                     Button(enabled = input != null && error == null && !rendering && !saving && !automaticBusy && hasChanges, onClick = {
                         saving = true
                         saveError = null
@@ -114,22 +121,40 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
                     }) { Text(if (saving) "Saving…" else "Save") }
                 }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Edit sticker", style = MaterialTheme.typography.headlineSmall)
-                    Text(draftMessage, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = history.canUndo && !saving && !automaticBusy, onClick = { history = history.undo() }) { Text("Undo") }
-                        OutlinedButton(enabled = history.canRedo && !saving && !automaticBusy, onClick = { history = history.redo() }) { Text("Redo") }
+                        TextButton(enabled = history.canUndo && !saving && !automaticBusy, onClick = { history = history.undo() }) { Text("Undo") }
+                        TextButton(enabled = history.canRedo && !saving && !automaticBusy, onClick = { history = history.redo() }) { Text("Redo") }
                         Spacer(Modifier.weight(1f))
                         TextButton(enabled = input != null && edit != ArtworkEdit() && !saving && !automaticBusy, onClick = { history = history.update(ArtworkEdit()) }) { Text("Reset") }
                     }
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        val side = minOf(maxWidth, 240.dp)
-                        Surface(Modifier.size(side).align(Alignment.Center), color = MaterialTheme.colorScheme.surfaceVariant) {
-                            preview?.let { Image(it, "Sticker preview", Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit) }
+                        val side = minOf(maxWidth, 320.dp)
+                        val light = MaterialTheme.colorScheme.surface
+                        val shade = MaterialTheme.colorScheme.surfaceContainerHigh
+                        Surface(Modifier.size(side).align(Alignment.Center), shape = MaterialTheme.shapes.extraLarge) {
+                            Box {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val tile = size.width / 20
+                                    for (row in 0..19) for (column in 0..19) drawRect(if ((row + column) % 2 == 0) light else shade,
+                                        Offset(column * tile, row * tile), Size(tile, tile))
+                                }
+                                preview?.let { Image(it, "Sticker preview", Modifier.fillMaxSize().padding(12.dp), contentScale = ContentScale.Fit) }
+                                if (rendering) LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.BottomCenter))
+                            }
                         }
                     }
+                    Text(draftMessage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally))
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("Cutout", "Transform", "Text")) { name ->
+                            FilterChip(selected = tool == name, onClick = { tool = name }, label = { Text(name) },
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary))
+                        }
+                    }
+                    if (tool == "Cutout") {
                     Button(enabled = input != null && !saving && !automaticBusy, modifier = Modifier.fillMaxWidth(), onClick = {
                         val original = input ?: return@Button
                         automaticBusy = true
@@ -148,25 +173,31 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
                     }) { Text(if (automaticBusy) "Finding subject…" else "Remove background") }
                     if (automaticBusy) TextButton(onClick = { automaticGeneration++; automaticJob?.cancel(); automaticBusy = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancel removal") }
                     Text("Runs on this device. First use may need a model download.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedButton(enabled = input != null && !saving && !automaticBusy, modifier = Modifier.fillMaxWidth(), onClick = { showRefinement = true }) { Text("Refine edges") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(enabled = input != null && !saving && !automaticBusy, modifier = Modifier.weight(1f), onClick = { showRefinement = true }) { Text("Refine edges") }
+                        OutlinedButton(enabled = input != null && !saving && !automaticBusy, modifier = Modifier.weight(1f), onClick = { showCutout = true }) { Text("Trace outline") }
+                    }
                     if (edit.maskHash.isNotEmpty()) TextButton(enabled = !saving && !automaticBusy,
                         onClick = { history = history.update(edit.copy(maskHash = "", cutout = emptyList())) }) { Text("Restore background") }
+                    if (edit.cutout.isNotEmpty()) TextButton(enabled = !saving, onClick = { history = history.update(edit.copy(cutout = emptyList())) }) { Text("Remove cutout") }
+                    }
+                    if (tool == "Transform") {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = input != null && !saving && !automaticBusy, onClick = { showCutout = true }) { Text("Cutout") }
                         OutlinedButton(enabled = input != null && !saving, onClick = { history = history.update(edit.copy(quarterTurns = (edit.quarterTurns + 1) % 4)) }, modifier = Modifier.weight(1f)) { Text("Rotate") }
                         FilterChip(enabled = input != null && !saving, selected = edit.mirror, onClick = { history = history.update(edit.copy(mirror = !edit.mirror)) }, label = { Text("Mirror") })
                     }
-                    if (edit.cutout.isNotEmpty()) TextButton(enabled = !saving, onClick = { history = history.update(edit.copy(cutout = emptyList())) }) { Text("Remove cutout") }
                     Text("Zoom / crop")
                     Slider(enabled = !saving, value = edit.zoom, onValueChange = { history = history.update(edit.copy(zoom = it), "zoom") }, onValueChangeFinished = { history = history.endGroup() }, valueRange = 1f..3f)
                     Text("Horizontal position")
                     Slider(enabled = !saving, value = edit.horizontal, onValueChange = { history = history.update(edit.copy(horizontal = it), "horizontal") }, onValueChangeFinished = { history = history.endGroup() }, valueRange = -1f..1f)
                     Text("Vertical position")
                     Slider(enabled = !saving, value = edit.vertical, onValueChange = { history = history.update(edit.copy(vertical = it), "vertical") }, onValueChangeFinished = { history = history.endGroup() }, valueRange = -1f..1f)
+                    }
+                    if (tool == "Text") {
                     OutlinedTextField(edit.topText, { history = history.update(edit.copy(topText = it.take(100)), "top") }, enabled = !saving, label = { Text("Top caption") }, modifier = Modifier.fillMaxWidth().onFocusChanged { history = history.endGroup() })
                     OutlinedTextField(edit.bottomText, { history = history.update(edit.copy(bottomText = it.take(100)), "bottom") }, enabled = !saving, label = { Text("Bottom caption") }, modifier = Modifier.fillMaxWidth().onFocusChanged { history = history.endGroup() })
-                    Text("Reset restores your starting sticker. Editable originals and drafts stay on this device; shared packs and backups contain saved stickers.", style = MaterialTheme.typography.bodySmall)
-                    Text("Open WhatsApp after saving to let it refresh the pack.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("Your original stays intact. Save when you're happy with the result.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -78,7 +79,9 @@ fun LibraryScreen(
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Static", "Animated")) { type ->
-                        FilterChip(selected = packFilter == type, onClick = { onPackFilterChange(type) }, label = { Text(if (type == "All") "All packs" else type) })
+                        FilterChip(selected = packFilter == type, onClick = { onPackFilterChange(type) }, label = { Text(if (type == "All") "All packs" else type) },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary), border = null)
                     }
                 }
             }
@@ -138,13 +141,14 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
     previewCache: StickerPreviewCache, selected: Boolean, matchLabel: String?, onClick: () -> Unit) {
     Surface(onClick = onClick, shape = MaterialTheme.shapes.large,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)),
         modifier = Modifier.fillMaxWidth().semantics { this.selected = selected; role = Role.Button }) {
-        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(matchLabel ?: buildString {
-                        append("$stickerCount stickers")
+                        append("$stickerCount ${if (stickerCount == 1) "sticker" else "stickers"}")
                         if (pack.kind == StickerKind.ANIMATED) append(" · Animated")
                         if (pack.category != PackCategory.GENERAL) append(" · ${pack.category.label}")
                         if (pack.rating == PackRating.MATURE) append(" · Private")
@@ -163,7 +167,6 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
                     }
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
         }
     }
 }
@@ -218,14 +221,8 @@ fun LibraryFiltersSheet(
 fun CreateScreen(busy: Boolean, onPhotos: () -> Unit, onClip: () -> Unit, onImport: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = 800.dp), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item {
-                Column(Modifier.padding(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Make it yours.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Text("Small stickers. Big reactions.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            item { ProductAction("Make stickers from photos", "Choose photos, name a pack, then add your finishing touches.", "Photo", !busy, onPhotos) }
-            item { ProductAction("Make an animated reaction", "Trim a video or GIF. Add a caption and preview it moving.", "Video", !busy, onClip) }
+            item { CreationCard("Make stickers from photos", "Your photos.\nYour reactions.", "Cut out a subject, add a caption and make a pack that's yours.", "Photo", !busy, onPhotos) }
+            item { CreationCard("Make an animated reaction", "Give it a little motion.", "Turn a video or GIF into a reaction worth sending.", "Video", !busy, onClip, prominent = false) }
             item { Spacer(Modifier.height(8.dp)) }
             item { TextButton(enabled = !busy, onClick = onImport) { Text("Import and backups") } }
         }

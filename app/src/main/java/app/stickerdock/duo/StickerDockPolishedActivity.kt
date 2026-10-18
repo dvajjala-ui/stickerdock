@@ -787,7 +787,11 @@ class StickerDockPolishedActivity : ComponentActivity() {
                             photoSaveError = result.firstError?.let { "${result.added} saved · ${result.failed} need attention. $it" }
                             result.packIds.firstOrNull()?.let { selectedId = it; sectionName = PolishedHomeSection.LIBRARY.name }
                         }
-                        "${result.added} stickers saved · ${result.duplicates} already in this selection · ${result.failed} need attention"
+                        buildString {
+                            append("${result.added} ${if (result.added == 1) "sticker" else "stickers"} saved")
+                            if (result.duplicates > 0) append(" · ${result.duplicates} already in this selection")
+                            if (result.failed > 0) append(" · ${result.failed} need attention")
+                        }
                     } catch (error: Exception) {
                         runOnUiThread { photoSaveError = error.message ?: "Couldn't save. Your selection is still here." }
                         throw error

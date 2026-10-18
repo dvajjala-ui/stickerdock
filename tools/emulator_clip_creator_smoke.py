@@ -59,6 +59,7 @@ class ClipCreatorSmoke(RecoverySmoke):
         if from_create:
             self.wait_text("Search library")
             self.tap("Create")
+            self.scroll_to_text("Make an animated reaction")
         self.wait_text("Make an animated reaction")
         self.tap("Make an animated reaction")
         self.wait_text("Show roots")

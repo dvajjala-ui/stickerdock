@@ -76,6 +76,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         for save in (False, True):
             self.launch(restart=True)
             self.wait_text("Search library"); self.tap("Create")
+            self.screenshot("15-create-screen")
             self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
             self.wait_text("Show roots")
             if not self.nodes("Images in Downloads"):
@@ -159,9 +160,9 @@ class LibraryAcceptance(ClipCreatorSmoke):
 
         def open_editor():
             self.launch(restart=True)
-            self.wait_text("Search library"); self.fill("Search library", "QA pack 001")
+            self.wait_text("Search library"); self.fill("Search library", "001")
             self.wait_text("QA pack 001"); self.tap("QA pack 001")
-            self.wait_text("QA sticker 00"); self.tap("QA sticker 00")
+            self.scroll_to_text("QA sticker 00"); self.tap("QA sticker 00")
             self.wait_text("Edit artwork and captions"); self.tap("Edit artwork and captions")
             self.wait_text("Edit sticker"); self.scroll_to_text("Refine edges"); self.wait_enabled("Refine edges")
 
