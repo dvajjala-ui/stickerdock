@@ -14,6 +14,7 @@ import subprocess
 import tarfile
 import time
 import uuid
+import zipfile
 
 from PIL import Image
 from emulator_clip_creator_smoke import ClipCreatorSmoke
@@ -76,6 +77,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         for save in (False, True):
             self.launch(restart=True)
             self.wait_text("Search library"); self.tap("Create")
+            self.wait_text("Make stickers from photos")
             self.screenshot("15-create-screen")
             self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
             self.wait_text("Show roots")
@@ -162,7 +164,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
             self.launch(restart=True)
             self.wait_text("Search library"); self.fill("Search library", "001")
             self.wait_text("QA pack 001"); self.tap("QA pack 001")
-            self.scroll_to_text("QA sticker 00"); self.tap("QA sticker 00")
+            self.wait_text("QA sticker 00"); self.tap("QA sticker 00")
             self.wait_text("Edit artwork and captions"); self.tap("Edit artwork and captions")
             self.wait_text("Edit sticker"); self.scroll_to_text("Refine edges"); self.wait_enabled("Refine edges")
 
@@ -217,6 +219,31 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.screenshot("16-pack-code-preview")
         self.tap("Cancel"); self.wait_hidden("Open pack code")
         assert self.counts() == before, "Shared code or cancellation mutated the library"
+
+    def received_pack(self):
+        before = self.counts()
+        pack_id, sticker_id = str(uuid.uuid4()), str(uuid.uuid4())
+        image = io.BytesIO()
+        Image.new("RGBA", (512, 512), (240, 190, 55, 255)).save(image, format="WEBP", lossless=True)
+        content = image.getvalue()
+        archive = self.output / "Weekend reactions.zip"
+        manifest = {"schema": 5, "packs": [{"id": pack_id, "name": "Weekend reactions", "kind": "STATIC", "rating": "GENERAL", "category": "REACTIONS",
+                    "stickers": [{"name": sticker_id + ".webp", "sha256": hashlib.sha256(content).hexdigest(), "label": "Weekend", "tags": "qa"}]}]}
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.writestr("manifest.json", json.dumps(manifest))
+            zipped.writestr(f"packs/{pack_id}/{sticker_id}.webp", content)
+        self.adb("push", str(archive), "/sdcard/Download/qa-received.zip")
+        uri = "content://com.android.externalstorage.documents/document/primary%3ADownload%2Fqa-received.zip"
+        for save in (False, True):
+            self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-t", "application/zip", "-d", uri,
+                     "--grant-read-uri-permission", "-n", PACKAGE + "/.StickerDockPolishedActivity")
+            self.wait_text("Import shared packs?")
+            assert self.counts() == before, "Opening a received archive imported before confirmation"
+            self.screenshot("17-received-pack")
+            self.tap("Import packs" if save else "Cancel")
+            self.wait_hidden("Import shared packs?")
+            assert self.counts() == ((before[0] + 1, before[1] + 1) if save else before)
+        self.launch(restart=True); self.wait_text("Weekend reactions")
 
     def run_acceptance(self, apk):
         assert self.adb("shell", "getprop", "ro.kernel.qemu").strip() == "1", "Only a disposable emulator is allowed"
@@ -294,12 +321,13 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.photo_destination()
         self.brush_refinement()
         self.public_pack_links()
+        self.received_pack()
         crashes = self.adb("logcat", "-b", "crash", "-d")
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import"],
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import", "received pack file explicit import, cancel without mutation and restart preservation"],
                   "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance", "Pack-code fixture is deliberately unpublished; live published-pack and HTTPS sharing acceptance remains separate"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)

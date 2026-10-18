@@ -12,11 +12,7 @@ class IncomingStickers(
 ) {
     @Suppress("DEPRECATION")
     fun import(intent: Intent): String {
-        val uris = when (intent.action) {
-            Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
-            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
-            else -> emptyList()
-        }
+        val uris = streams(intent)
         if (uris.isEmpty()) {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
             if (!sharedText.isNullOrBlank()) {
@@ -51,5 +47,19 @@ class IncomingStickers(
         imported += photos.added
         rejected += photos.duplicates + photos.failed
         return "Shared import: $imported added, $rejected skipped"
+    }
+
+    companion object {
+        @Suppress("DEPRECATION")
+        fun streams(intent: Intent): List<Uri> {
+            val uris = when (intent.action) {
+                Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+                Intent.ACTION_SEND -> listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+                Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
+                else -> emptyList()
+            }
+            require(uris.size <= 100 && uris.all { it.scheme == "content" }) { "Choose up to 100 shared files from your device." }
+            return uris
+        }
     }
 }
