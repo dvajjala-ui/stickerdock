@@ -6,7 +6,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 
-/** Private local recipes. ZIPs, WhatsApp and cloud sync only see the saved export. */
+/** Private recipes. Sharing/cloud use saved artwork; editable backups explicitly retain sources. */
 class ArtworkProjects(private val context: Context, private val store: StickerStore, private val files: StickerFiles) {
     private val masks = ArtworkMaskStore(context)
     data class Session(val original: ByteArray, val history: ArtworkHistory, val savedHistory: ArtworkHistory)

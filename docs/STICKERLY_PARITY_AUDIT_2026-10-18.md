@@ -54,7 +54,7 @@ not close a requirement.
 | R10 | Core checkpoint verified | New features require new matching CI/APK acceptance |
 | R11 | Partial: trend/source/caption jobs exist | Consistent reviewed daily variety and useful pack coherence |
 | R12 | Partial: Admin/Studio deployed | Current owner onboarding and operational CRUD/recovery acceptance |
-| R13 | Partial: private ratings/kinds and portable format | Full editable-project backups and link-based pack sharing |
+| R13 | Partial: private ratings/kinds, portable format and new Android editable backup source | Verify editable restore; iPhone/full-resolution/video projects and private links remain |
 | R14 | Pending product gate | Public submissions require rights, moderation, identity, scanning and age protections |
 | R15 | Active: end-to-end owner/consumer audit | Fresh hosted operational checks after relevant deployment |
 | R16 | External gate: Pinterest approval | Keep approved reference browsing; no scraping workaround |

@@ -105,6 +105,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var pendingSharedFiles by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
         var pendingSharedType by rememberSaveable { mutableStateOf("application/zip") }
         var sharedImportError by rememberSaveable { mutableStateOf<String?>(null) }
+        var showBackupOptions by rememberSaveable { mutableStateOf(false) }
+        var editableBackup by rememberSaveable { mutableStateOf(true) }
         var cloudRevision by remember { mutableStateOf(0) }
         var libraryReady by remember { mutableStateOf(false) }
         var reportingPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
@@ -476,11 +478,17 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-            if (uri != null) operation("Creating backup") { backup.export(uri); "Backup saved" }
+            if (uri != null) {
+                val includeProjects = editableBackup
+                operation("Creating backup") {
+                    if (includeProjects) EditableBackup(this@StickerDockPolishedActivity, store, files).export(uri) else backup.export(uri)
+                    if (includeProjects) "Editable backup saved" else "Sticker backup saved"
+                }
+            }
         }
         val loadBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) operation("Restoring backup") {
-                val restored = backup.restore(uri)
+                val restored = EditableBackup(this@StickerDockPolishedActivity, store, files).restoreOrSaved(uri)
                 "Restored ${restored.packs} packs • ${restored.stickers} stickers • ${restored.rejected} skipped"
             }
         }
@@ -792,7 +800,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         },
                                         {
                                             scope.launch {
-                                                try { withContext(Dispatchers.IO) { backup.estimate() }; saveBackup.launch("stickerdock.zip") }
+                                                try { withContext(Dispatchers.IO) { backup.estimate() }; showBackupOptions = true }
                                                 catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Cannot create backup") }
                                             }
                                         },
@@ -884,6 +892,31 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     }, "Share sticker pack"))
                 })
         }
+
+        if (showBackupOptions) AlertDialog(onDismissRequest = { showBackupOptions = false },
+            title = { Text("Back up your library") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Choose what to keep. Both options include saved packs, labels and tags.")
+                    TextButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                        editableBackup = true; showBackupOptions = false; saveBackup.launch("stickerdock-editable.zip")
+                    }) {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Editable backup", style = MaterialTheme.typography.titleMedium)
+                            Text("For Android restore. Also keeps original images, cutout masks and unfinished drafts. Keep this file private.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    TextButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                        editableBackup = false; showBackupOptions = false; saveBackup.launch("stickerdock.zip")
+                    }) {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Sticker backup", style = MaterialTheme.typography.titleMedium)
+                            Text("Portable saved stickers for Android, iPhone and older versions. Does not include editable projects.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showBackupOptions = false }) { Text("Cancel") } })
 
         if (showPackCode) AlertDialog(onDismissRequest = { pendingPackCode = null; showPackCode = false },
             title = { Text("Open pack code") },

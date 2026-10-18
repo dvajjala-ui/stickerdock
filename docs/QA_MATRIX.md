@@ -1,5 +1,13 @@
 # StickerDock verification checklist
 
+## Editable backup continuation — verification pending
+
+New Android editable backup tests cover originals/masks/saved recipes/drafts,
+Undo/Redo/restart/Reset, unchanged portable v5 imports, archive routing, damaged
+blobs/recipes and project-storage failure rollback/retry. Matching CI and signed
+APK regression are required before declaring this new feature verified.
+Physical Samsung Files/Drive backup picker acceptance remains pending.
+
 ## October 19 — current continuation
 
 - **Verified candidate `019c75f`:** [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)

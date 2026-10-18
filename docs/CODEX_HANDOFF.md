@@ -1,5 +1,14 @@
 # StickerDock development handoff — updated October 19, 2026
 
+## Active continuation — editable backups
+
+Android now has explicit editable/portable backup choices. The new bounded
+envelope retains normalized originals, saved histories, drafts and masks around
+an unchanged portable v5 library ZIP. Restore and generic ZIP imports recognize
+it; sharing/cloud remain saved artwork only. New tests cover round-trip, restart,
+exact Reset, corruption and storage failure rollback. Matching CI is pending;
+the verified candidate below predates these changes. See EDITABLE_BACKUPS.md.
+
 ## October 19 — visual design and sharing continuation
 
 **Latest verified source `019c75f`** passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)

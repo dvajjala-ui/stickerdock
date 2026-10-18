@@ -57,7 +57,7 @@ class PackZipImporter(
                     continue
                 }
 
-                if (path.equals("manifest.json", ignoreCase = true)) {
+                if (path.equals("manifest.json", ignoreCase = true) || path.equals(EditableBackup.MANIFEST, ignoreCase = true)) {
                     // Never reinterpret a versioned backup as generic pictures:
                     // doing so discards names, tags and private/mature ratings.
                     stickerDockManifest = true
@@ -108,7 +108,7 @@ class PackZipImporter(
 
         if (stickerDockManifest) {
             assets.clear()
-            val restored = StickerBackup(context, store, files).restore(uri)
+            val restored = EditableBackup(context, store, files).restoreOrSaved(uri)
             return Summary(restored.packs, restored.stickers, 0, restored.rejected)
         }
 

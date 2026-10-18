@@ -272,7 +272,7 @@ fun ImportScreen(
             item { StickerDockSectionHeader("Library safety", "Back up your own local collection before changing devices.") }
             item {
                 StickerDockActionGrid(listOf(
-                    StickerDockAction("Back up library", "Export packs, metadata and sticker bytes to a ZIP", !busy, false, onBackup),
+                    StickerDockAction("Back up library", "Keep editable projects or export portable stickers", !busy, false, onBackup),
                     StickerDockAction("Restore backup", "Merge a StickerDock backup into this library", !busy, false, onRestore)
                 ))
             }

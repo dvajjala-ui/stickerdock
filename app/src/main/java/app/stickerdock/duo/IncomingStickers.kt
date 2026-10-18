@@ -35,7 +35,7 @@ class IncomingStickers(
             if (intent.type in setOf("application/zip", "application/x-zip-compressed", "application/x-wastickers") || filename.endsWith(".zip") || filename.endsWith(".wastickers")) {
                 try {
                     try {
-                        val result = StickerBackup(context, store, files).restore(uri)
+                        val result = EditableBackup(context, store, files).restoreOrSaved(uri)
                         imported += result.stickers
                         rejected += result.rejected
                     } catch (_: Exception) {
