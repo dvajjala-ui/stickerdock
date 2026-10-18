@@ -23,15 +23,24 @@ class PackSharingTest {
         context.deleteDatabase("stickerdock.db")
         StickerStore(context).use { store ->
             val files = StickerFiles(context, store)
-            val pack = store.createPack("My private reactions", rating = PackRating.MATURE)
+            val pack = store.createPack("My private / reactions", rating = PackRating.MATURE)
             val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.CYAN) }
             val bytes = ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
             bitmap.recycle()
             assertEquals(ImportResult.Added, files.importBytes(pack.id, bytes, label = "Hello", tags = "wave"))
             val source = store.listStickers(pack.id).single()
             val backup = StickerBackup(context, store, files)
-            val sent = PackSharing(context, backup).share(pack)
-            val opened = Intent(Intent.ACTION_VIEW).setDataAndType(sent.clipData!!.getItemAt(0).uri, "application/zip")
+            val sharing = PackSharing(context, backup)
+            val sent = sharing.share(pack)
+            val second = sharing.share(pack)
+            val uri = sent.clipData!!.getItemAt(0).uri
+            assertEquals(pack.name, sent.getStringExtra(Intent.EXTRA_TITLE))
+            assertEquals("content", uri.scheme)
+            assertTrue(uri.lastPathSegment!!.startsWith("My private  reactions-"))
+            assertNotEquals(uri, second.clipData!!.getItemAt(0).uri)
+            assertTrue(sent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            assertEquals(listOf(uri), IncomingStickers.streams(sent))
+            val opened = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/zip")
             val report = IncomingStickers(context, store, files).importReport(opened)
             assertTrue(report.message, report.failedUris.isEmpty())
             val restored = store.listPacks().single { it.id != pack.id }
@@ -47,25 +56,6 @@ class PackSharingTest {
             assertEquals(2, store.listPacks().size)
         }
     }
-    @Test fun exportHasReadableTitleAndScopedReadGrantWithoutOverwritingEarlierShare() {
-        val context: Context = RuntimeEnvironment.getApplication()
-        context.deleteDatabase("stickerdock.db")
-        StickerStore(context).use { store ->
-            val pack = store.createPack("Weekend / reactions")
-            val sharing = PackSharing(context, StickerBackup(context, store, StickerFiles(context, store)))
-            val first = sharing.share(pack)
-            val second = sharing.share(pack)
-            assertEquals("Weekend / reactions", first.getStringExtra(Intent.EXTRA_TITLE))
-            val uri = first.clipData!!.getItemAt(0).uri
-            assertEquals("content", uri.scheme)
-            assertTrue(uri.lastPathSegment!!.startsWith("Weekend  reactions-"))
-            assertNotEquals(uri, second.clipData!!.getItemAt(0).uri)
-            assertTrue(first.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
-            assertEquals(listOf(uri), IncomingStickers.streams(first))
-            assertEquals(listOf(uri), IncomingStickers.streams(Intent(Intent.ACTION_VIEW, uri)))
-        }
-    }
-
     @Test fun incomingFileStreamsRejectNetworkAndRawFilesystemPaths() {
         for (url in listOf("https://example.com/pack.zip", "file:///data/user/0/private.zip")) {
             assertTrue(runCatching { IncomingStickers.streams(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isFailure)
