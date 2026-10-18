@@ -200,6 +200,24 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert saved_state() == (original, None), "Reset did not restore the exact original bytes"
         self.screenshot("14-restored-original")
 
+    def public_pack_links(self):
+        before = self.counts()
+        self.adb("shell", "am", "force-stop", PACKAGE)
+        # A valid-shaped but deliberately unpublished ID exercises cold and
+        # singleTop delivery without relying on a mutable production catalog.
+        for slug in ("qa-unpublished-pack", "qa-another-unpublished-pack"):
+            self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", "stickerdock://pack/" + slug)
+            self.wait_text("Open pack code")
+            self.wait_text("SD:" + slug)
+            assert self.counts() == before, "Opening a public code silently imported content"
+            self.tap("Cancel"); self.wait_hidden("Open pack code")
+        self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.SEND", "-t", "text/plain",
+                 "--es", "android.intent.extra.TEXT", "SD:qa-shared-unpublished-pack", "-n", PACKAGE + "/.StickerDockPolishedActivity")
+        self.wait_text("Open pack code"); self.wait_text("SD:qa-shared-unpublished-pack")
+        self.screenshot("16-pack-code-preview")
+        self.tap("Cancel"); self.wait_hidden("Open pack code")
+        assert self.counts() == before, "Shared code or cancellation mutated the library"
+
     def run_acceptance(self, apk):
         assert self.adb("shell", "getprop", "ro.kernel.qemu").strip() == "1", "Only a disposable emulator is allowed"
         self.adb("install", "-r", str(apk))
@@ -275,13 +293,14 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert before == after, "Browsing or preview changed saved data"
         self.photo_destination()
         self.brush_refinement()
+        self.public_pack_links()
         crashes = self.adb("logcat", "-b", "crash", "-d")
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset"],
-                  "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance"]}
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import"],
+                  "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance", "Pack-code fixture is deliberately unpublished; live published-pack and HTTPS sharing acceptance remains separate"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)
 
