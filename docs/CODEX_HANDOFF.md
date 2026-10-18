@@ -2,6 +2,17 @@
 
 ## October 19 — visual design and sharing continuation
 
+**Latest verified source `019c75f`** passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
+and [complete signed-APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161487231):
+116 Android/12 shared/208 Python tests, lint, signing/alignment, 10k library and
+all new brush/public-code/received-file journeys. Candidate APK is
+`work/StickerDock-0.11.0/StickerDock.apk`, SHA-256
+`6c9856e53b2d18bbff58ca0fae5086f5eeda3c1a944a45d2460732c892a8aa24`.
+Its hash agrees with release.json and acceptance.json. Screenshots were inspected.
+Later documentation-only commits do not change this compiled-source checkpoint.
+The provider-cache unit-test isolation correction combines related assertions in
+one app sandbox; all sharing assertions remain. See QA_MATRIX.md for boundaries.
+
 `8eac289` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159539977).
 The [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159546406)
 passes brush/draft/process restart/exact Reset and public pack-code interactions,

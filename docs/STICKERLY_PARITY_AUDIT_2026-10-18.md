@@ -83,6 +83,14 @@ not close a requirement.
 
 ## Evidence and next work
 
+Latest verified continuation `019c75f` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
+and [complete signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161487231):
+116 Android/12 shared/208 Python tests, the existing large-library/creation checks,
+brush undo/cancel/draft recovery/exact Reset, public-code intent delivery and
+scoped received-file cancel/import/restart. Original AI/model quality and physical
+WhatsApp remain open; this evidence does not close every ledger requirement.
+See UI_REVIEW_2026-10-19.md and QA_MATRIX.md for screenshots, hashes and limits.
+
 `db6c979` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070097918)
 and [signed emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070094081):
 105 Android, 12 shared, 208 Python tests; 10k-sticker browsing, large text, tablet,
