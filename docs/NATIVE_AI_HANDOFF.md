@@ -4,8 +4,9 @@ This is remaining work under R26/R31/R37/R38, not an implemented mobile AI
 feature. The October 19 backup continuation reviewed these exact source paths:
 
 - `api/captions.py` queues/status-checks operator Creator Studio jobs.
-- `api/_shared.py:authorized` accepts an owner browser session or operational
-  Studio token. It is not a general mobile-user authentication boundary.
+- Following R40, workspace caption/upload/library routes have no account gate.
+  They are shared operator operations, not a mobile-user authentication or
+  ownership boundary. See OPEN_ADMIN.md. Phone cloud authentication is retained.
 - Android `CloudLibrary` has encrypted account sessions and refresh, but its
   transport currently targets `/api/cloud` and keeps bearer acquisition private.
 - `tools/creator_request_worker.py` uses server-side Groq vision/captioning and

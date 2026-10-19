@@ -1,6 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 import logging
-from api._shared import StudioError, authorized, options, read_json, send_json
+from api._shared import StudioError, same_origin, options, read_json, send_json
 from api._admin import dispatch
 from tools.supabase_factory import SupabaseError
 from tools.pinterest_connection import oauth_start
@@ -11,8 +11,8 @@ class handler(BaseHTTPRequestHandler):
         options(self)
 
     def do_POST(self):
-        if not authorized(self.headers):
-            send_json(self, 401, {"error": "Enter a valid owner access token"})
+        if not same_origin(self.headers):
+            send_json(self, 403, {"error": "Use the StickerDock workspace for this request"})
             return
         try:
             payload = read_json(self)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import hmac
 import io
 import json
 import os
@@ -20,33 +19,32 @@ MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
 CREATOR_MAX_OUTSTANDING = 25
-MIN_STUDIO_TOKEN_LENGTH = 32
-MAX_STUDIO_TOKEN_LENGTH = 256
 
 
 class StudioError(ValueError):
     pass
 
 
-def authorized(headers) -> bool:
-    # Browser owners use server-managed sessions. Legacy owner tokens remain
-    # supported only for existing operational scripts and smoke checks.
-    from api.session import cookies, same_origin, owner_user
-    session = cookies(headers).get("sd_owner", "")
-    if session and same_origin(headers):
-        try:
-            from api._cloud import auth_call
-            if owner_user(auth_call("user", token=session)):
-                return True
-        except StudioError:
-            pass
-    expected = os.environ.get("STUDIO_ACCESS_TOKEN", "").strip()
-    supplied = str(headers.get("X-StickerDock-Token", ""))
-    if not (MIN_STUDIO_TOKEN_LENGTH <= len(expected) <= MAX_STUDIO_TOKEN_LENGTH):
+def same_origin(headers) -> bool:
+    """Reject foreign browser origins; the shared workspace has no login gate.
+
+    Direct HTTP clients remain supported. This is a browser request boundary,
+    not authentication or a substitute for private phone-account authorization.
+    """
+    if headers.get("Sec-Fetch-Site") == "cross-site":
         return False
-    if not supplied or len(supplied) > MAX_STUDIO_TOKEN_LENGTH:
+    origin = headers.get("Origin", "")
+    if not origin:
+        return True
+    host = headers.get("Host", "")
+    if host and origin == "https://" + host:
+        return True
+    try:
+        parsed = urllib.parse.urlsplit(origin)
+    except ValueError:
         return False
-    return hmac.compare_digest(expected.encode(), supplied.encode())
+    return (parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+            and origin == "http://" + host)
 
 
 def read_json(handler) -> dict:
@@ -79,7 +77,7 @@ def send_json(handler, status: int, value: dict, extra_headers=None):
 
 def options(handler):
     handler.send_response(204)
-    handler.send_header("Access-Control-Allow-Headers", "Content-Type, X-StickerDock-Token")
+    handler.send_header("Access-Control-Allow-Headers", "Content-Type")
     handler.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()

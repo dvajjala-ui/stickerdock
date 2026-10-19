@@ -1,4 +1,4 @@
-"""Private owner admin operations. No service credential is returned to a browser."""
+"""Shared admin operations. No service credential is returned to a browser."""
 from __future__ import annotations
 
 import base64
@@ -92,7 +92,7 @@ def overview(client):
             run["display_status"] = "waiting" if retry_at > time.time() else "retry_due"
             run["retry_at"] = retry_at
     return {**result, "catalog_base": public_catalog_base(client.url),
-            "access_mode": "single-owner-token"}
+            "access_mode": "open-workspace"}
 
 
 def pack_detail(client, payload):

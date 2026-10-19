@@ -1,7 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 from api._cloud import auth_call
-from api._shared import StudioError, read_json, send_json, safe_text
-from api.session import same_origin
+from api._shared import StudioError, read_json, send_json, safe_text, same_origin
 import re
 
 
@@ -28,7 +27,7 @@ class handler(BaseHTTPRequestHandler):
                 if not user.get("email_confirmed_at"):
                     raise StudioError("Confirm your email first")
                 auth_call("user", {"password": password}, token=token[7:], method="PUT")
-                send_json(self, 200, {"message": "Password updated. Sign in again on your phone or Admin."})
+                send_json(self, 200, {"message": "Password updated. Sign in again on your phone."})
             else:
                 raise StudioError("Unknown account action")
         except StudioError as error:

@@ -75,7 +75,7 @@ class AdminApiTest(unittest.TestCase):
         self.assertEqual(result["factory_packs"][0]["id"], self.origin)
         self.assertEqual(result["catalog"], {"version": 1, "packs": []})
         self.assertEqual(result["packs"], [])
-        self.assertEqual(result["access_mode"], "single-owner-token")
+        self.assertEqual(result["access_mode"], "open-workspace")
         self.assertEqual(self.client.objects, before)
 
     def test_overview_exposes_cooldown_then_retry_due_without_changing_database_status(self):
@@ -230,13 +230,13 @@ class AdminApiTest(unittest.TestCase):
         saved = self.client.find("factory_settings", "id", "default")
         self.assertEqual(saved["rating"], "MATURE")
 
-    def test_endpoint_fails_closed_before_dispatch(self):
+    def test_foreign_browser_origin_is_rejected_before_dispatch(self):
         request = object.__new__(handler)
-        request.headers = {"X-StickerDock-Token": "wrong"}
+        request.headers = {"Host": "stickerdock.vercel.app", "Origin": "https://other.example"}
         request.rfile = io.BytesIO(b'{"action":"overview"}')
         with patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN": "x" * 32}), patch("api.admin.send_json") as send, patch("api.admin.dispatch") as call:
             request.do_POST()
-        self.assertEqual(send.call_args.args[1], 401)
+        self.assertEqual(send.call_args.args[1], 403)
         call.assert_not_called()
 
     def test_create_pack_keeps_source_rights_and_normalizes_unique_stickers(self):

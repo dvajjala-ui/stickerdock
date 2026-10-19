@@ -7,7 +7,17 @@ for generation because its short-lived functions are a poor fit for FFmpeg and
 persistent batch state. It can host the included Creator Studio without moving
 the worker or database.
 
-## October 19 website verification
+## Current shared workspace — October 19
+
+R40 explicitly removes the Admin/Studio password and token gate. The dashboard
+loads existing data directly; workspace APIs do not require a cookie or login.
+The database, storage and phone-account authentication are retained. Workspace
+data and controls are accessible to anyone with the URL; provider credentials
+remain server-side. See [OPEN_ADMIN.md](OPEN_ADMIN.md) for the access model.
+
+The website checks below record the earlier release publication, before R40.
+
+## Earlier October 19 website verification
 
 The pack rebuild is merged in [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21)
 at `f129430820633263316b75e44420f464f063449f`.
@@ -49,12 +59,10 @@ or establish original-art generation, Pinterest approval or phone acceptance.
   service-role-only `creator_requests` queue with atomic worker claiming.
 - **Supabase public bucket:** only packs explicitly published with the reviewed
   publish workflow and its catalog JSON.
-- **Vercel Creator Studio:** static editor plus token-gated Python server routes.
-  Owner sessions protect browser operations; server tokens remain available for
-  operational scripts. Public deployment verification is recorded above; earlier
-  authenticated migration, editing and publication checks are in the requirements
-  ledger. New account onboarding and current private operations require separate
-  authenticated acceptance.
+- **Vercel Admin/Creator Studio:** shared dashboard/editor and Python workspace
+  routes, with no password or token gate following R40. Existing workspace data
+  and controls are publicly accessible. Phone cloud accounts remain separately
+  authenticated. Provider credentials stay in server configuration.
 - **Android:** contains only the public catalog URL. It never contains the Groq
   key or Supabase service-role key.
 
@@ -205,32 +213,24 @@ Do not publish the five-sticker smoke pack created during production validation.
 Wait for a completed reviewed production day and publish only the intended final
 GENERAL pack.
 
-## 5. Private Creator Studio AI queue
+## 5. Shared Creator Studio AI queue
 
 The Android app still shows **AI meme creator — Coming soon**. The separate
-browser Studio source now supports the real private AI flow, but its production
-Vercel deployment/environment is still a remaining gate.
+browser Studio supports the operator AI flow and opens without signing in.
+The existing deployment is independent of native phone AI integration.
 
 Configure Vercel/server-side environment variables:
 
-- `STUDIO_ACCESS_TOKEN` — random 32–256 character token;
 - `SUPABASE_URL`;
 - `SUPABASE_SERVICE_ROLE_KEY`.
 
-Generate a strong Studio token locally, for example:
+`STUDIO_ACCESS_TOKEN` is no longer an API access credential. Its existing
+server-only use signing Pinterest OAuth state remains; retain it for that
+integration. Do not put provider or OAuth signing secrets into browser code.
 
-```sh
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-The server rejects configured Studio tokens shorter than 32 characters or longer
-than 256 characters. Do not commit the token or place it in browser/source code;
-store it only in the Vercel/server environment and enter it manually in the
-private Studio when needed.
-
-The token-gated `/api/upload`, `/api/library`, and `/api/captions` routes keep the
-Supabase secret on the server. `/api/captions` can create a bounded request and
-query status; the browser never receives `GROQ_API_KEY`.
+The shared `/api/upload`, `/api/library`, and `/api/captions` routes keep service
+credentials on the server. `/api/captions` can create a bounded request and query
+status without a login; the browser never receives `GROQ_API_KEY`.
 
 For a local image, the Studio AI flow is:
 

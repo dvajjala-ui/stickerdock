@@ -1,5 +1,11 @@
 # Factory admin portal and APK delivery
 
+October 19 R40 update: Admin/Studio now open directly without a password, cookie,
+owner account or API access token. The existing database/storage are retained.
+Anyone with the URL can use workspace data and controls; phone cloud accounts
+remain separately authenticated. See [the current access model](OPEN_ADMIN.md).
+The older token/preview instructions below record the previous implementation.
+
 ## Implemented source
 
 The independently deployable `/admin` browser app uses the existing Vercel Python

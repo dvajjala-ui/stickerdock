@@ -1,5 +1,15 @@
 # StickerDock development handoff — updated October 19, 2026
 
+## Current website change — R40
+
+User explicitly requests removing Admin password/API login without deleting the
+database. Admin/Studio now load live data directly, with no owner session or
+token flow. `/api/session` is removed; phone-cloud account authentication and
+all SQL/data are retained. See OPEN_ADMIN.md and the R40 ledger entry. Local
+205 backend tests and browser checks pass, including direct startup/retry,
+polling/edit preservation and Studio fixture queue/result. Hosted/main-CI
+verification is still required. Earlier sign-in notes below are historical.
+
 ## Published release — October 19, 2026
 
 Android **0.11.0 (build 15)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.0) from `f129430820633263316b75e44420f464f063449f`.

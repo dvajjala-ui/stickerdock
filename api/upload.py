@@ -1,6 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 
-from api._shared import StudioError, authorized, options, read_json, send_json, upload_user_image
+from api._shared import StudioError, same_origin, options, read_json, send_json, upload_user_image
 
 
 class handler(BaseHTTPRequestHandler):
@@ -8,8 +8,8 @@ class handler(BaseHTTPRequestHandler):
         options(self)
 
     def do_POST(self):
-        if not authorized(self.headers):
-            send_json(self, 401, {"error": "Creator access token is invalid"})
+        if not same_origin(self.headers):
+            send_json(self, 403, {"error": "Use the StickerDock workspace for this request"})
             return
         try:
             request = read_json(self)

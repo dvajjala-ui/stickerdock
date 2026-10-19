@@ -17,19 +17,9 @@
     $("status").textContent = message;
     $("status").classList.toggle("error", error);
   };
-  let signedIn = false;
-  sessionStorage.removeItem("stickerdock-studio-token");
-  async function checkSession() {
-    const response=await fetch("/api/session",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"status"})});
-    const result=await response.json();signedIn=Boolean(response.ok&&result.signed_in);
-    $("studio-account").textContent=signedIn?"Open owner workspace":"Sign in to owner workspace";
-    updateAiButton();return signedIn;
-  }
   const updateAiButton = () => {
-    $("generate").disabled = aiBusy || !ready || !signedIn || !$("prompt").value.trim();
+    $("generate").disabled = aiBusy || !ready || !$("prompt").value.trim();
   };
-  checkSession().catch(() => status("Sign in through the owner workspace to use cloud and AI features."));
-
   function coverGeometry(width, height, fit) {
     const scale = fit === "contain" ? Math.min(512 / width, 512 / height) : Math.max(512 / width, 512 / height);
     const w = width * scale, h = height * scale;
@@ -83,7 +73,7 @@
       ctx.fillText(line, captionX, y);
     });
   }
-  function loadDataUrl(url, originPath = null, readyMessage = "Image ready. Add a caption and style it, or use the private AI worker.") {
+  function loadDataUrl(url, originPath = null, readyMessage = "Image ready. Add a caption and style it, or use the Factory AI worker.") {
     image.onload = () => {
       sourcePath = originPath;
       ready = true;
@@ -107,14 +97,13 @@
     reader.readAsDataURL(file);
   }
   async function api(path, body) {
-    if (!signedIn && !await checkSession()) throw new Error("Sign in through the owner workspace first. No API key is needed.");
     const options = {
       method: "POST",
+      credentials: "omit",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(body)
     };
-    let response = await fetch(path, options);
-    if(response.status===401&&await checkSession())response=await fetch(path,options);
+    const response = await fetch(path, options);
     const value = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(value.error || `Request failed (${response.status})`);
     return value;
@@ -122,7 +111,7 @@
   async function ensureAiSource() {
     if (sourcePath) return sourcePath;
     if (!ready || !image.src.startsWith("data:image/")) throw new Error("Choose an image first.");
-    status("Saving the source to the private factory inbox…");
+    status("Saving the source to the Factory inbox…");
     const upload = document.createElement("canvas");
     const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
     upload.width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -149,7 +138,7 @@
       if (result.status === "failed" || result.status === "cancelled") {
         throw new Error(result.error_message || `AI request ${result.status}.`);
       }
-      status(result.status === "running" ? "AI worker is creating your sticker…" : "AI request queued. The private worker checks every 10 minutes…");
+      status(result.status === "running" ? "AI worker is creating your sticker…" : "AI request queued. The Factory worker checks every 10 minutes…");
       await sleep(5000);
     }
     throw new Error("AI request is still queued. You can leave this page and try again later.");
@@ -163,7 +152,7 @@
     aiBusy = true; updateAiButton();
     try {
       const path = await ensureAiSource();
-      status("Queueing a private AI sticker request…");
+      status("Queueing a Factory AI sticker request…");
       const queued = await api("/api/captions", {action: "queue", prompt, source_path: path});
       const completed = await waitForAiRequest(queued.id);
       const result = await api("/api/library", {action: "fetch", path: completed.result_path});
@@ -213,7 +202,7 @@
     finally { button.disabled = false; }
   });
   async function refreshLibrary() {
-    status("Loading the private factory inbox…");
+    status("Loading the Factory inbox…");
     try {
       const result = await api("/api/library", {action: "list"});
       const select = $("library");

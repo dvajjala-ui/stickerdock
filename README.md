@@ -7,6 +7,11 @@
 | Admin website | [stickerdock.vercel.app/admin](https://stickerdock.vercel.app/admin) |
 | Creator Studio | [stickerdock.vercel.app/studio](https://stickerdock.vercel.app/studio) |
 
+Admin and Creator Studio now open directly without a password or account gate,
+as explicitly requested on October 19. Their workspace data and controls are
+accessible to anyone with the URL. Existing database content is retained;
+phone cloud backups still require account authentication. See [the access model](docs/OPEN_ADMIN.md).
+
 These links stay current with successful releases. Android changes merged into
 `main` build and verify a signed APK/AAB, then run that exact APK on an Android 15
 emulator before advancing the download. Failed builds keep the previous release.
@@ -144,15 +149,15 @@ build setting; Groq and Supabase service keys never enter the APK.
 Account email setup: [Gmail Apps Script sender and Supabase integration](docs/GMAIL_ACCOUNT_EMAIL.md).
 The send-only Gmail script is connected to Supabase. Live test messages reach
 the owner inbox, signed delivery/retry checks pass, and unsigned mail requests
-are rejected. Owner password entry and real account-link acceptance remain
+are rejected. Phone-account password entry and real account-link acceptance remain
 with the account holder.
 
 The new independent `/admin` web app manages Factory output migration, editable
 pack drafts, sticker labels/tags/removal, review, publish/unpublish, inbox uploads,
 AI requests, queue retry/cancel, scheduled generation settings and audit history.
-It reuses the existing Vercel Python APIs and workers. Its clearly marked local
-preview uses synthetic sample data; live mode requires configured server secrets
-and the additive admin database migration.
+It reuses the existing Vercel Python APIs and workers. It reads live data directly;
+the server needs the existing Supabase configuration and additive admin schema.
+The fixture browser tests intercept requests locally and never modify production.
 
 Run `python tools/admin_dev_server.py` and open `http://127.0.0.1:4173/admin`.
 See [admin operation and deployment](docs/ADMIN_PORTAL.md) and the

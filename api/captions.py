@@ -2,7 +2,7 @@ from http.server import BaseHTTPRequestHandler
 
 from api._shared import (
     StudioError,
-    authorized,
+    same_origin,
     creator_request_status,
     options,
     queue_creator_request,
@@ -16,8 +16,8 @@ class handler(BaseHTTPRequestHandler):
         options(self)
 
     def do_POST(self):
-        if not authorized(self.headers):
-            send_json(self, 401, {"error": "Creator access token is invalid"})
+        if not same_origin(self.headers):
+            send_json(self, 403, {"error": "Use the StickerDock workspace for this request"})
             return
         try:
             payload = read_json(self)

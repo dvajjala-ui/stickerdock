@@ -3,6 +3,7 @@
     "deploymentEnabled": {
       "codex/iphone-client-and-navigation": false,
       "codex/sticker-first-redesign": false
+      ,"codex/open-admin-dashboard": false
     }
   },
   "rewrites": [
@@ -20,7 +21,6 @@
   ],
   "functions": {
     "api/account.py": {"includeFiles": "tools/**"},
-    "api/session.py": {"includeFiles": "tools/**"},
     "api/cloud.py": {"includeFiles": "tools/**"},
     "api/admin.py": {"includeFiles": "tools/**"},
     "api/pinterest_callback.py": {"includeFiles": "tools/**"}

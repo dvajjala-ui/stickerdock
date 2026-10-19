@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>StickerDock — Factory Admin</title>
-  <meta name="description" content="Private StickerDock Factory control, pack review and publication.">
+  <meta name="description" content="StickerDock Factory dashboard, pack review and publication.">
   <link rel="stylesheet" href="/admin/styles.css">
   <script src="/admin/app.js" defer></script>
 </head>
@@ -26,15 +26,13 @@
       <button data-page="health"><span>✓</span> Setup & health</button>
       <button data-page="pinterest"><span>Ⓟ</span> Pinterest connection</button>
     </nav>
-    <div class="sidebar-bottom"><a class="download-apk" href="/download">Download Android APK <span>Latest signed release ↗</span></a><div class="flow-note"><span>☏</span><strong>Made for your phone</strong><p>Pack browsing, photo/video editing and editable backups. Review public packs here.</p></div><button id="connection-button" class="account"><span class="avatar">D</span><span>Owner workspace<small id="connection-label">Sign in to manage</small></span><span>↗</span></button></div>
+    <div class="sidebar-bottom"><a class="download-apk" href="/download">Download Android APK <span>Latest signed release ↗</span></a><div class="flow-note"><span>☏</span><strong>Made for your phone</strong><p>Pack browsing, photo/video editing and editable backups. Review public packs here.</p></div><div class="account"><span class="avatar">D</span><span>Shared workspace<small id="connection-label">No password required</small></span></div></div>
   </aside>
   <div class="main-shell">
-    <header class="topbar"><div><button id="menu-button" class="icon-button" aria-label="Toggle navigation">☰</button><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Overview</strong></span></div><div class="top-actions"><span class="connection-pill" id="mode-pill"><i></i> Sign in required</span><button id="refresh-button" class="icon-button" aria-label="Refresh data">↻</button><button id="connect-button" class="secondary compact">Sign in</button></div></header>
-    <div id="preview-banner" class="preview-banner" hidden>Sign in to manage your live Factory workspace. <button id="banner-connect">Sign in →</button></div>
+    <header class="topbar"><div><button id="menu-button" class="icon-button" aria-label="Toggle navigation">☰</button><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Overview</strong></span></div><div class="top-actions"><span class="connection-pill" id="mode-pill"><i></i> Connecting…</span><button id="refresh-button" class="icon-button" aria-label="Refresh data">↻</button></div></header>
     <main id="content" tabindex="-1"></main>
-    <footer>StickerDock Factory <span>Private workspace · Reviewed publishing</span></footer>
+    <footer>StickerDock Factory <span>Shared workspace · Reviewed publishing</span></footer>
   </div>
-  <dialog id="connect-dialog"><form id="connect-form"><div class="dialog-heading"><h2>Sign in to StickerDock</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Your live owner workspace manages the app, Factory, packs and user submissions. No API key or access token is needed.</p><label>Email<input id="owner-email" type="email" autocomplete="username" required value="dvajjala@gmail.com"></label><label>Password<input id="owner-password" type="password" minlength="10" maxlength="128" autocomplete="current-password" required></label><p class="hint">First visit? Create the owner account and confirm your email, then sign in. The same account can back up your phone stickers.</p><p id="connect-error" class="error" role="alert"></p><div class="dialog-actions"><button type="button" id="disconnect-button" class="secondary">Sign out</button><button type="button" id="owner-signup" class="secondary">Create owner account</button><button type="submit" class="primary">Sign in →</button></div><button type="button" id="owner-resend" class="text-button">Resend confirmation email</button><p><a href="/account">Forgot password?</a></p></form></dialog>
   <dialog id="pack-dialog"><div id="pack-editor"></div></dialog>
   <dialog id="create-dialog"><form id="create-form"><div class="dialog-heading"><h2>Create a sticker pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Choose source images from the private library. Static images become 512 × 512 WebP stickers.</p><div class="form-grid"><label>Pack name<input name="name" maxlength="60" required placeholder="e.g. Everyday reactions"></label><label>Creator<input name="creator" maxlength="60" required value="StickerDock"></label></div><label>Category<select name="category" id="create-category"></select></label><div id="create-sources" class="source-choices"></div><p class="hint">Keep 3–30 unique stickers for WhatsApp publication. Source rights travel with the pack.</p><div class="dialog-actions"><button type="button" class="secondary" data-close>Cancel</button><button class="primary" type="submit">Create private draft</button></div></form></dialog>
   <dialog id="confirm-dialog"><form id="confirm-form"><div class="dialog-heading"><h2 id="confirm-title">Confirm action</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p id="confirm-message"></p><div class="dialog-actions"><button class="secondary" type="button" data-close>Cancel</button><button class="primary" type="submit" id="confirm-submit">Confirm</button></div></form></dialog>

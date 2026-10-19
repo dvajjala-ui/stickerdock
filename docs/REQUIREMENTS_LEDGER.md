@@ -24,6 +24,10 @@ User request: â€œpush code abd upated latets apk and admin web site needed likeâ
 
 | ID | Requirement | Status | Implementation and remaining work |
 | --- | --- | --- | --- |
+| R40 | Remove Admin password/account checks from frontend and APIs, open the live dashboard directly, retain all database data and push | In progress | Explicit October 19 user instruction supersedes the owner-login part of R21. Shared Admin/Studio load directly with credential-free workspace APIs; owner session endpoint and login/preview code removed. Database/schema/RLS, stored accounts/packs and private phone-cloud authentication retained. See OPEN_ADMIN.md. Local API/browser checks pass; main CI and hosted verification pending. |
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
 | R01 | Simple sticker import and export to WhatsApp, easier than Sticker.ly | Partial | Phone folders, images, ZIPs and pack provider exist. Add/result handling and separate target status added; phone acceptance pending. |
 | R02 | Import the user's existing stickers | Partial | SAF recursive folder scans, EXIF grouping, deduplication, resume and ADB ZIP helper. Private databases and complete third-party catalogs are unavailable. Galaxy large-library QA pending. |
 | R03 | AI Factory delivers new stickers automatically into the user's library | Updated by R22 | User reversed automatic library addition on October 15. 0.7.0 source removes launch/resume imports; explicit preview/save is implemented and locally tested. Device acceptance remains pending. Generation/discovery remain required, with explicit user saving. |
@@ -94,7 +98,7 @@ User request: â€œpush code abd upated latets apk and admin web site needed likeâ
 | --- | --- | --- | --- |
 | R19 | Local library plus private account cloud sync, category metadata and restore | Partial | 0.6.0 adds confirmed-account private backup, checksums/checkpoints, categories/All, periodic retry and non-destructive restore. Migration applied with RLS verified. SMTP setup explicitly deferred by user; new-account email delivery and phone acceptance remain pending. |
 | R20 | User-controlled public sharing so others can use approved packs | Partial | Per-pack opt-in/withdrawal, adult/rights confirmation, immutable submissions, admin previews/review drafts, reports and hide creator/pack controls. Live two-account smoke passed (run 38716261393). Physical phone acceptance pending. |
-| R21 | Live admin portal with no manually pasted owner access token or key | Partial | Normal owner email/password sign-in across Admin and Creator Studio, secure HttpOnly session/refresh/logout, password recovery and live-only initial view. Site root opens Admin. Operational token fallback retained for scripts. Email setup deferred by user; verified-owner access required. |
+| R21 | Live admin portal with no manually pasted owner access token or key | Updated by R40 | October 19: owner login superseded by the explicitly requested open dashboard. Earlier implementation: Normal owner email/password sign-in across Admin and Creator Studio, secure HttpOnly session/refresh/logout, password recovery and live-only initial view. Site root opens Admin. Operational token fallback retained for scripts. Email setup deferred by user; verified-owner access required. |
 
 - 2026-10-15 Pinterest/image follow-up: new app 1624615 is submitted and Trial
   pending, replacing the old download use case with live reference browsing.

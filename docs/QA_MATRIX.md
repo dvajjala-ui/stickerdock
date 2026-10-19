@@ -1,5 +1,15 @@
 # StickerDock verification checklist
 
+## Current website change — R40
+
+Local backend suite: **205 tests pass**. Credential-free workspace read/command
+fixtures, foreign-browser-origin rejection and private-phone-cloud 401 checks
+pass. Browser smoke passes direct startup without session requests, outage/retry,
+navigation, edit/polling protection, mobile layout and Studio source/fixture
+queue/result. Main CI and hosted checks remain required. No SQL/data migration
+or Android APK change is part of this slice. See OPEN_ADMIN.md. The owner-login
+checks in the earlier publication record below predate this requested change.
+
 ## Published release — October 19, 2026
 
 Android **0.11.0 (build 15)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.0) from `f129430820633263316b75e44420f464f063449f`.

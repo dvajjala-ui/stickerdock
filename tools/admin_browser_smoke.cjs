@@ -19,16 +19,13 @@ const assert = require('node:assert/strict');
       catalog: {version: 1, packs: []}, catalog_base: 'https://example.invalid/catalog/'
     };
     let overviewRequests = 0, releaseBackground, backgroundStarted;
-    let signedIn = false;
-    await page.route('**/api/session', async route => {
-      const payload = route.request().postDataJSON();
-      if (payload.action === 'login') signedIn = true;
-      await route.fulfill({json: {signed_in: signedIn}});
-    });
+    const sessionRequests = [];
+    page.on('request', request => {if (request.url().endsWith('/api/session')) sessionRequests.push(request.url());});
     const backgroundObserved = new Promise(resolve => {backgroundStarted = resolve;});
     await page.route('**/api/admin', async route => {
       assert.equal(route.request().headers()['x-stickerdock-token'], undefined,
-        'Browser session requests must not send a manually copied owner token');
+        'Workspace requests must not send an owner token');
+      assert.equal(route.request().headers().cookie, undefined, 'Workspace APIs do not need cookies');
       const payload = route.request().postDataJSON();
       if (payload.action === 'health') {
         return route.fulfill({json: {admin_ready: true, worker_ready: true, checks: []}});
@@ -42,15 +39,9 @@ const assert = require('node:assert/strict');
       await route.fulfill({json: snapshot});
     });
     await page.goto(process.env.ADMIN_PREVIEW_URL || 'http://127.0.0.1:4173/admin');
-    assert.equal(await page.locator('#preview-banner').isVisible(), false, 'Live sign-in must not show the retired preview-token banner');
-    await page.locator('#connect-button').click();
-    assert.equal(await page.locator('#owner-token').count(), 0, 'Owner login must use a normal session');
-    await page.locator('#owner-email').fill('fixture-owner@example.invalid');
-    await page.locator('#owner-password').fill('fixture-password-not-a-real-account');
-    await page.locator('#connect-form button[type=submit]').click();
-    await page.locator('#connect-dialog').waitFor({state: 'hidden'});
-    assert.equal(await page.locator('#preview-banner').isVisible(), false, 'Signed-in owners must not see a sign-in banner');
-    assert.equal(await page.locator('#owner-password').inputValue(), '');
+    await page.getByRole('heading', {name: 'Your sticker factory, at a glance.', exact: true}).waitFor();
+    assert.equal(await page.locator('#connect-dialog, #owner-token, input[type=password]').count(), 0,
+      'Dashboard must open directly without login controls');
     await page.clock.runFor(30000);
     await backgroundObserved;
     await page.waitForFunction(() => document.querySelector('#mode-pill').textContent.includes('Live'));
@@ -80,9 +71,62 @@ const assert = require('node:assert/strict');
     await page.locator('nav button[data-page=catalog]').click();
     await page.getByText('Users preview and save the packs they want.', {exact: false}).waitFor();
     assert.deepEqual(errors, []);
+    assert.deepEqual(sessionRequests, [], 'Dashboard must never call the removed session API');
+
+    const retry = await browser.newPage();
+    let attempts = 0;
+    await retry.route('**/api/admin', async route => {
+      if (route.request().postDataJSON().action === 'health') return route.fulfill({json: {admin_ready: true}});
+      attempts++;
+      return attempts === 1 ? route.fulfill({status: 503, json: {error: 'Temporary test outage'}})
+        : route.fulfill({json: snapshot});
+    });
+    await retry.goto(process.env.ADMIN_PREVIEW_URL || 'http://127.0.0.1:4173/admin');
+    await retry.getByRole('heading', {name: 'Workspace unavailable', exact: true}).waitFor();
+    assert.equal(await retry.getByText('Total stickers', {exact: true}).count(), 0,
+      'Failed startup must not render fabricated zero totals');
+    await retry.getByRole('button', {name: 'Try again', exact: true}).click();
+    await retry.getByRole('heading', {name: 'Your sticker factory, at a glance.', exact: true}).waitFor();
+    await retry.close();
+
+    const studio = await browser.newPage();
+    const studioActions = [];
+    studio.on('pageerror', error => errors.push(error.message));
+    await studio.route('**/api/**', async route => {
+      assert.equal(route.request().headers()['x-stickerdock-token'], undefined);
+      assert.equal(route.request().headers().cookie, undefined);
+      const payload = route.request().postDataJSON();
+      const endpoint = new URL(route.request().url()).pathname;
+      studioActions.push(endpoint + ':' + payload.action);
+      const path = 'inbox/' + 'a'.repeat(64) + '.png';
+      if (endpoint === '/api/library' && payload.action === 'list')
+        return route.fulfill({json: {items: [{path, name: 'Owned test source', size: 1024}]}});
+      if (endpoint === '/api/library' && payload.action === 'fetch')
+        return route.fulfill({json: {image: await studio.locator('#canvas').evaluate(canvas => canvas.toDataURL('image/png'))}});
+      if (endpoint === '/api/captions' && payload.action === 'queue')
+        return route.fulfill({status: 202, json: {id: 'fixture-job', status: 'queued'}});
+      if (endpoint === '/api/captions' && payload.action === 'status')
+        return route.fulfill({json: {status: 'complete', result_path: path}});
+      throw new Error('Unexpected Studio request: ' + endpoint);
+    });
+    await studio.goto(new URL('/studio/index.html', process.env.ADMIN_PREVIEW_URL || 'http://127.0.0.1:4173').href);
+    await studio.locator('#refresh').click();
+    await studio.locator('#library').selectOption('inbox/' + 'a'.repeat(64) + '.png');
+    await studio.locator('#load-library').click();
+    await studio.locator('#prompt').fill('An original reaction');
+    await studio.waitForFunction(() => !document.querySelector('#generate').disabled);
+    await studio.locator('#generate').click();
+    await studio.waitForFunction(() => document.querySelector('#status').textContent.includes('AI sticker ready'));
+    assert.ok(studioActions.includes('/api/captions:queue'));
+    assert.ok(studioActions.includes('/api/captions:status'));
+    assert.equal(studioActions.some(action => action.startsWith('/api/session:')), false);
+    assert.deepEqual(errors, []);
+    await studio.close();
     console.log(JSON.stringify({pass: true, checks: [
       'navigation while a background read is pending', 'stale response does not reset edits',
-      'settings form protected from polling', 'actions remain enabled', 'owner session login',
+      'settings form protected from polling', 'actions remain enabled', 'direct dashboard without login/session API',
+      'startup outage and retry without fake data',
+      'Studio source loading and fixture AI queue/result without authentication',
       'rate-limit waiting state and retry time', 'mobile layout', 'explicit catalog save wording', 'no page errors'
     ]}));
   } finally {
