@@ -7,6 +7,22 @@ for generation because its short-lived functions are a poor fit for FFmpeg and
 persistent batch state. It can host the included Creator Studio without moving
 the worker or database.
 
+## October 19 website verification
+
+The pack rebuild is merged in [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21)
+at `f129430820633263316b75e44420f464f063449f`.
+[The production Vercel deployment](https://vercel.com/dvajjala-2765s-projects/stickerdock/DdbL1xgZhTWQFau3UfYAwPZ3k1Wu)
+succeeds. `/admin`, its JavaScript/CSS and `/about` match the merged source;
+`/studio`, `/account`, `/privacy` and `/support` return HTTP 200. The download
+route points to the latest signed GitHub release. A fresh signed-out session
+returns `signed_in: false`, and the owner health endpoint returns HTTP 401 without
+authentication. Public browser checks pass at 1280px and 390px, with no fixture
+packs, JavaScript errors or production writes.
+
+This check verifies the deployed public interface and authentication boundary.
+It does not repeat the earlier authenticated operational checks documented below,
+or establish original-art generation, Pinterest approval or phone acceptance.
+
 ## What runs where
 
 - **GitHub Actions — Sticker Factory:** the Factory workflow has an eight-times-per-day
@@ -34,8 +50,11 @@ the worker or database.
 - **Supabase public bucket:** only packs explicitly published with the reviewed
   publish workflow and its catalog JSON.
 - **Vercel Creator Studio:** static editor plus token-gated Python server routes.
-  The source supports manual editing and the private AI queue flow, but the
-  production Vercel deployment/environment has not yet been verified.
+  Owner sessions protect browser operations; server tokens remain available for
+  operational scripts. Public deployment verification is recorded above; earlier
+  authenticated migration, editing and publication checks are in the requirements
+  ledger. New account onboarding and current private operations require separate
+  authenticated acceptance.
 - **Android:** contains only the public catalog URL. It never contains the Groq
   key or Supabase service-role key.
 

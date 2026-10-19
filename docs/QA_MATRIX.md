@@ -1,15 +1,42 @@
 # StickerDock verification checklist
 
-## Editable backup continuation
+## Published release — October 19, 2026
 
-Latest source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984):
+Android **0.11.0 (build 15)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.0) from `f129430820633263316b75e44420f464f063449f`.
+[Main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39208384285) passes **124 Android / 12 shared / 208 backend tests**,
+release lint/builds and 16 KB alignment. [The signed release run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39208384312)
+passes signature/alignment checks and on-screen Android 15 acceptance. The
+public APK/AAB and metadata were downloaded and their checksums verified.
+APK: 3,853,283 bytes; SHA-256
+`a84fd854da449e137f6ed34e024a80277bd5b0960bbd5b89bdf6a8f9519c40b8`.
+The APK hash matches release.json, SHA256SUMS.txt and acceptance.json. The
+signing certificate matches Android 0.10.2. Local delivery:
+`work/StickerDock-0.11.0/StickerDock.apk`.
+
+Signed acceptance covers 334 packs/10,000 synthetic stickers (scrolling PSS
+34,571→60,108 KB), large text,
+photo creation, brush/draft/restart/reset, public codes, received files and
+DocumentsUI editable export/restore with retained project history. These are
+emulator checks, not physical WhatsApp/Business or segmentation-quality acceptance.
+
+[Production admin](https://stickerdock.vercel.app/admin) is deployed. Its
+HTML/JS/CSS and About page match source; supporting routes, signed-out session,
+owner authentication boundary and desktop/phone browser checks pass. No
+authenticated production writes were made in this publication check. The
+existing public catalog has one four-sticker pack; its archive/media hashes
+and format validate. Native AI/original artwork, Pinterest approval, catalog
+breadth, physical-phone acceptance and remaining parity are still open.
+
+## Historical pre-merge editable backup checkpoint
+
+Earlier source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984):
 **124 Android / 12 shared / 208 Python tests**, including all eight editable
 backup tests. Signed native build and on-screen acceptance are tracked in
 [run 39205128245](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205128245)
 both pass. The downloaded APK's SHA-256 is
 `7aaff3b68e6177337139662acadc79edbe9f0238f4b137f0646ba4f6cefb693e` and matches
-release.json, SHA256SUMS.txt and acceptance.json. Candidate:
-`work/StickerDock-0.11.0/StickerDock.apk` (3,853,283 bytes).
+release.json, SHA256SUMS.txt and acceptance.json. Earlier artifact:
+`work/editable-backup-verified/work/release/StickerDock.apk` (3,853,283 bytes).
 
 The exact APK exports the 10k-fixture library through DocumentsUI, verifies
 source/mask hashes, restores a single-project subset through DocumentsUI, and

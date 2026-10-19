@@ -40,7 +40,38 @@ in `app/build.gradle.kts`. An existing version cannot be silently republished fr
 a different commit. Failed checks leave the previous latest release intact.
 The stable README/site links need no editing for each new version.
 
-## Android 0.10.2 scope and limits
+## Android 0.11.0 — published October 19
+
+Android **0.11.0 (build 15)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.0) from `f129430820633263316b75e44420f464f063449f`.
+[Main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39208384285) passes **124 Android / 12 shared / 208 backend tests**,
+release lint/builds and 16 KB alignment. [The signed release run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39208384312)
+passes signature/alignment checks and on-screen Android 15 acceptance. The
+public APK/AAB and metadata were downloaded and their checksums verified.
+APK: 3,853,283 bytes; SHA-256
+`a84fd854da449e137f6ed34e024a80277bd5b0960bbd5b89bdf6a8f9519c40b8`.
+The APK hash matches release.json, SHA256SUMS.txt and acceptance.json. The
+signing certificate matches Android 0.10.2. Local delivery:
+`work/StickerDock-0.11.0/StickerDock.apk`.
+
+Signed acceptance covers 334 packs/10,000 synthetic stickers (scrolling PSS
+34,571→60,108 KB), large text,
+photo creation, brush/draft/restart/reset, public codes, received files and
+DocumentsUI editable export/restore with retained project history. These are
+emulator checks, not physical WhatsApp/Business or segmentation-quality acceptance.
+
+[Production admin](https://stickerdock.vercel.app/admin) is deployed. Its
+HTML/JS/CSS and About page match source; supporting routes, signed-out session,
+owner authentication boundary and desktop/phone browser checks pass. No
+authenticated production writes were made in this publication check. The
+existing public catalog has one four-sticker pack; its archive/media hashes
+and format validate. Native AI/original artwork, Pinterest approval, catalog
+breadth, physical-phone acceptance and remaining parity are still open.
+
+The release adds pack-centered browsing/search, named photo destinations,
+focused editing tools, mask brushes/drafts, public codes, received-pack import
+and editable Android backups. Portable backup compatibility is preserved.
+
+## Earlier Android 0.10.2 scope and limits
 
 - Library grids use cached first-frame posters; tap an animated sticker to play.
   Only open previews animate, and playback pauses when the activity is paused.
@@ -56,5 +87,5 @@ The stable README/site links need no editing for each new version.
 
 A synthetic 40/day recovery test proves scheduling/state logic, not live provider
 capacity. Actual full-day generation, varied reviewed content, physical phone
-WhatsApp/Business checks, advanced Android AI/automatic cutout/project backups
-and iPhone parity remain separately tracked in the requirements audit.
+WhatsApp/Business checks, native AI, live automatic-cutout quality,
+full-resolution/video projects and iPhone parity remain separately tracked in the requirements audit.
