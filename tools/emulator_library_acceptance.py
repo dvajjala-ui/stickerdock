@@ -239,6 +239,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.adb("shell", "settings", "put", "system", "font_scale", "2.0")
         self.wait_text("Back up your library"); self.scroll_to_text("Sticker backup")
         self.screenshot("19-backup-large-text"); self.tap("Cancel")
+        self.scroll_to_text("Back up library"); self.screenshot("21-import-large-text")
         self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
         # Both picker cancellation and the format choice leave the collection intact.
         open_options(); self.tap("Sticker backup"); self.wait_text("Show roots")

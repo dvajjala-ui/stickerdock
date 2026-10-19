@@ -132,11 +132,13 @@ fun StickerDockActionGrid(actions: List<StickerDockAction>) {
 @Composable
 private fun ActionButton(action: StickerDockAction, modifier: Modifier) {
     if (action.primary) {
-        FilledTonalButton(enabled = action.enabled, onClick = action.onClick, modifier = modifier) {
+        FilledTonalButton(enabled = action.enabled, onClick = action.onClick, modifier = modifier,
+            shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp)) {
             ActionButtonText(action)
         }
     } else {
-        OutlinedButton(enabled = action.enabled, onClick = action.onClick, modifier = modifier) {
+        OutlinedButton(enabled = action.enabled, onClick = action.onClick, modifier = modifier,
+            shape = MaterialTheme.shapes.medium, contentPadding = PaddingValues(16.dp)) {
             ActionButtonText(action)
         }
     }
@@ -144,12 +146,12 @@ private fun ActionButton(action: StickerDockAction, modifier: Modifier) {
 
 @Composable
 private fun ActionButtonText(action: StickerDockAction) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(action.title, fontWeight = FontWeight.Medium)
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(action.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
         if (action.description.isNotBlank()) {
             Text(
                 action.description,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
