@@ -12,7 +12,9 @@ fails on a test-script label mismatch (`Save` versus the system picker's `SAVE`)
 after prior library/editor/sharing journeys and backup format/cancel/large-text
 checks. The script is corrected; original-image validation also now fully
 decodes pixels, with a forged-valid-checksum malformed WebP regression.
-Rerun required for complete DocumentsUI export/restore and persisted history.
+Screenshot inspection also found pill-shaped option buttons clipping text at
+200% size. They are replaced by moderately rounded option cards in the scroll
+area. Rerun required for complete DocumentsUI export/restore and persisted history.
 Physical Samsung Files/Drive backup picker acceptance remains pending.
 
 ## October 19 — current continuation

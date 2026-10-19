@@ -900,18 +900,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Choose what to keep. Both options include saved packs, labels and tags.")
-                    TextButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh, onClick = {
                         editableBackup = true; showBackupOptions = false; saveBackup.launch("stickerdock-editable.zip")
                     }) {
-                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Editable backup", style = MaterialTheme.typography.titleMedium)
                             Text("For Android restore. Also keeps original images, cutout masks and unfinished drafts. Keep this file private.", style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-                    TextButton(modifier = Modifier.fillMaxWidth(), onClick = {
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh, onClick = {
                         editableBackup = false; showBackupOptions = false; saveBackup.launch("stickerdock.zip")
                     }) {
-                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text("Sticker backup", style = MaterialTheme.typography.titleMedium)
                             Text("Portable saved stickers for Android, iPhone and older versions. Does not include editable projects.", style = MaterialTheme.typography.bodyMedium)
                         }
