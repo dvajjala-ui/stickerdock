@@ -1,5 +1,139 @@
 # StickerDock verification checklist
 
+## Editable backup continuation
+
+Latest source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984):
+**124 Android / 12 shared / 208 Python tests**, including all eight editable
+backup tests. Signed native build and on-screen acceptance are tracked in
+[run 39205128245](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205128245)
+both pass. The downloaded APK's SHA-256 is
+`7aaff3b68e6177337139662acadc79edbe9f0238f4b137f0646ba4f6cefb693e` and matches
+release.json, SHA256SUMS.txt and acceptance.json. Candidate:
+`work/StickerDock-0.11.0/StickerDock.apk` (3,853,283 bytes).
+
+The exact APK exports the 10k-fixture library through DocumentsUI, verifies
+source/mask hashes, restores a single-project subset through DocumentsUI, and
+retains its project history after restart without changing existing packs.
+Format/picker cancellation and 200% text pass. Inspected screenshots 18/19/20/21:
+backup body text has no curved clipping; normal viewport cropping at scroll
+boundaries remains expected, with the fixed Cancel control accessible. Import
+action text is readable. Scrolling PSS is **34,167→66,630 KB**. All earlier
+library/editor/code/share journeys pass in this same run. Fixtures remain
+synthetic/repo-owned, not proof of desirable real catalog artwork.
+Physical S24/WhatsApp/Business and third-party Files/Drive providers remain
+pending; a fresh ADB check finds no device.
+
+New Android editable backup tests cover originals/masks/saved recipes/drafts,
+Undo/Redo/restart/Reset, unchanged portable v5 imports, archive routing, damaged
+blobs/recipes and project-storage failure rollback/retry. Source `744a13d` passes
+[Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39165983862).
+Updated source `cf9d8b0` passes native/shared/backend tests, lint, build and
+signing/alignment; [signed emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39202677418)
+fails on a test-script label mismatch (`Save` versus the system picker's `SAVE`),
+after prior library/editor/sharing journeys and backup format/cancel/large-text
+checks. The script is corrected; original-image validation also now fully
+decodes pixels, with a forged-valid-checksum malformed WebP regression.
+Screenshot inspection also found pill-shaped option buttons clipping text at
+200% size. They are replaced by moderately rounded option cards in the scroll
+area. Rerun required for complete DocumentsUI export/restore and persisted history.
+Physical Samsung Files/Drive backup picker acceptance remains pending.
+
+## October 19 — current continuation
+
+- **Verified candidate `019c75f`:** [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
+  and [complete signed-APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161487231)
+  pass: **116 Android/12 shared/208 Python tests**, lint, signing and alignment.
+  APK SHA-256 `6c9856e53b2d18bbff58ca0fae5086f5eeda3c1a944a45d2460732c892a8aa24`.
+  Downloaded APK hash matches both release.json and acceptance.json. Candidate
+  files are under ignored `work/StickerDock-0.11.0/`; stable remains 0.10.2.
+- That exact APK passes 334-pack/10k-sticker browsing, animation, tablet,
+  360dp/200% text, memory trim/restart, real MP4 preview, named photo save/cancel,
+  brush undo/redo/cancel, durable draft/process restart, explicit Save/exact Reset,
+  public code cold/warm/share delivery, and received-file cancel/import/restart.
+  Scrolling PSS is **40,919→67,443 KB**. Create, editor draft, pack-code and
+  received-file screenshots were inspected. Test artwork is synthetic/repo-owned.
+- The received-file fixture uses a real scoped FileProvider URI from the app's
+  share directory. It does not establish another app's document-grant behavior.
+  Unit round-trip checks preserve artwork hashes, labels/tags and private ratings;
+  inaccessible files remain retryable. Physical S24/WhatsApp/Business, live
+  segmentation quality, published-code/HTTPS sharing and original AI artwork
+  quality remain separate gates. A fresh local ADB check sees no device.
+
+- `8eac289` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159539977),
+  including the provider/content-URI fixture corrections, native regressions,
+  backend checks, lint and builds. [Signed APK interaction run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159546406)
+  passes brush undo/redo/cancel, durable draft/process restart, save/exact reset
+  and public code cold/warm/share handling. It then fails at received-file import
+  using a shell-created DocumentsProvider URI. Overall signed acceptance fails.
+  The fixture now uses a scoped FileProvider URI matching pack sharing; import
+  errors also retain failed files for retry and expose a reason. A matching new
+  signed run is required. Create and brush screenshots from this run were inspected.
+- `4945ce0` [failed](https://github.com/dvajjala-ui/stickerdock/actions/runs/39139552573)
+  two unit tests: provider metadata/resources were missing from the unit-test
+  environment, and an older share fixture used file URIs. Those test fixtures
+  are corrected. Network/raw file URI rejection remains enforced for incoming
+  shares. This failed source is not a verified APK candidate.
+
+## 0.11.0 — pack-focused Android candidate, October 18
+
+- Design and public-code source `1d1d95c` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39138509715).
+  The earlier design [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39138121727)
+  reached the brush scenario but its exact-match scroll helper skipped the sticker
+  whose accessibility label includes tags. The test now selects that visible
+  sticker directly. Library/large-text screenshots from that run were inspected;
+  this is not a successful brush scenario. Received-file changes at `4945ce0`
+  and their complete signed acceptance are pending.
+
+- Automatic-cutout source `377b97a` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39133885444):
+  build, tests, lint and native alignment. Mask tests cover soft alpha, original
+  transparency, retained recipes, draft/copy/deletion recovery and damaged-mask
+  refusal. This does not prove live Google Play model availability or quality.
+- Brush source at `7878bbb` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39134519338):
+  112 Android/12 shared/208 Python tests plus lint/build. The [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39134517018)
+  passed build/signature checks and existing scenarios, but stopped before brush
+  interaction: its locator matched both the search field and pack title. The
+  fixture now searches `001` instead of the full title. This failed run does not
+  establish brush interaction acceptance. A rerun also covers the subsequent
+  typography/card/Create/editor-tool layout changes.
+
+- **Verified core checkpoint `db6c979`:** [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070097918)
+  and [signed APK emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070094081)
+  both pass: 105 Android/12 shared/208 Python tests, lint and signature/alignment.
+  SHA-256 `a80e6ee90f4ddd2747e6fddd1860114d3d34e2333bcae29766984ec47afd8151`.
+  The corrected photo test proves picker selection/cancel do not save, explicit
+  named-pack save adds one pack/sticker, and restart preserves it. The 10k search
+  regression proves pack matching is not capped by the 100-thumbnail query.
+  Scrolling PSS 31,626→60,579 KB. The local ADB device list is empty; physical
+  S24/WhatsApp acceptance remains unavailable. This evidence does not cover
+  subsequent work beyond this exact commit.
+
+- First native slice `2c6f9e8`: [debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39068155580)
+  and [signed APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39068160560)
+  pass. 105 Android + 12 shared tests; lint, signatures/alignment and Android 15
+  emulator checks. APK SHA-256 `2f61718879a3c9bf937faaa32a670928fa6039293dff1f7e7e3bf171dfa77319`.
+- That emulator run covers 334 packs/10,000 synthetic stickers, animated
+  poster/detail behavior, 360dp/200% text, tablet layout, scrollable controls,
+  restart preservation and actual MP4 preview without mutation. PSS grew from
+  32,146 to 63,996 KB during scrolling. Screenshots inspected for library,
+  large-text pack detail and WhatsApp target sheet. Flat-color performance
+  fixtures are not content-quality evidence.
+- Code slice `1ac4af2` adds the original-art worker and an emulator test
+  for photo selection → named destination → cancel/save → restart. Its
+  [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39069066380)
+  passed build/native/backend checks and the existing emulator checks, then
+  failed on a test locator: photo DocumentsUI says "Images in Downloads", not
+  "Files in Downloads". The locator is corrected; a rerun is required. This is
+  not a passing photo-flow claim. [Branch CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39069301039)
+  passes at `222cebd`.
+- Local full Python suite: **208 tests pass**, no skips. Original generation uses
+  mocked provider responses; spending-disabled dry run makes zero submissions.
+  No live image generation, background extraction or generated-art quality claim.
+- The photo fixture is the repository-owned app icon, not a user collection or
+  a claim of catalog quality. Physical WhatsApp/Business installations, personal
+  SAF folders, real-artwork product sign-off and iPhone parity remain separate.
+- Candidate source remains in [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21);
+  the stable release is still 0.10.2.
+
 ## 0.10.2 — published Android reliability release, October 17
 
 - [Signed release CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037711698)

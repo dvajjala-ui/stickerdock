@@ -14,6 +14,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -38,35 +41,41 @@ fun FactoryScreen(
     previewRevision: Int = 0,
     onHide: ((CommunityCatalog.Listing) -> Unit)? = null,
     onReport: ((CommunityCatalog.Listing) -> Unit)? = null,
-    onShowHidden: (() -> Unit)? = null
+    onShowHidden: (() -> Unit)? = null,
+    onOpenCode: (() -> Unit)? = null
 ) {
-    var query by remember { mutableStateOf("") }
-    var selectedKind by remember { mutableStateOf<StickerKind?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var selectedKindName by rememberSaveable { mutableStateOf("") }
+    val selectedKind = selectedKindName.takeIf { it.isNotBlank() }?.let(StickerKind::valueOf)
+    var showOptions by remember { mutableStateOf(false) }
     val visible = packs.filter { entry ->
         (query.isBlank() || entry.name.contains(query, true) || entry.creator.contains(query, true) ||
             entry.categories.any { it.label.contains(query, true) }) &&
             (selectedKind == null || selectedKind in entry.kinds)
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyVerticalGrid(columns = GridCells.Adaptive(240.dp), modifier = Modifier.fillMaxHeight().widthIn(max = 960.dp),
+        LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), modifier = Modifier.fillMaxHeight().widthIn(max = 960.dp),
             contentPadding = PaddingValues(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Find your next reaction", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                            Text("Preview a pack. Save the ones you love.", style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Find a pack for your next conversation.", modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Box {
+                            IconButton(onClick = { showOptions = true }, modifier = Modifier.semantics { contentDescription = "Discover options" }) { StickerDockNavIcon("More") }
+                            DropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
+                                if (onOpenCode != null) DropdownMenuItem(text = { Text("Open pack code") }, onClick = { showOptions = false; onOpenCode() })
+                                DropdownMenuItem(text = { Text("Refresh") }, enabled = !loading, onClick = { showOptions = false; onRefresh() })
+                                if (onShowHidden != null) DropdownMenuItem(text = { Text("Show hidden packs & creators") }, onClick = { showOptions = false; onShowHidden() })
+                            }
                         }
-                        TextButton(enabled = !loading, onClick = onRefresh) { Text("Refresh") }
                     }
-                    OutlinedTextField(query, { query = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Search packs, creators or topics") })
+                    LibrarySearch(query, { query = it }, "Search packs, creators or topics", Modifier.fillMaxWidth())
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item { FilterChip(selectedKind == null, { selectedKind = null }, { Text("All packs") }) }
+                        item { FilterChip(selectedKind == null, { selectedKindName = "" }, { Text("All packs") }) }
                         items(StickerKind.entries) { kind ->
-                            FilterChip(selectedKind == kind, { selectedKind = kind },
+                            FilterChip(selectedKind == kind, { selectedKindName = kind.name },
                                 { Text(if (kind == StickerKind.STATIC) "Static" else "Animated") })
                         }
                     }
@@ -81,29 +90,39 @@ fun FactoryScreen(
                     EmptyStateCard("More reactions are on the way", "Reviewed packs will appear here. Create or import your own stickers in the meantime.")
                 }
                 !loading && packs.isNotEmpty() && visible.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
-                    EmptyStateCard("No matching packs", "Try another search or show all packs.", "Clear filters", { query = ""; selectedKind = null })
+                    EmptyStateCard("No matching packs", "Try another search or show all packs.", "Clear filters", { query = ""; selectedKindName = "" })
                 }
                 else -> gridItems(visible, key = { it.id + it.sha256 }) { entry ->
-                    Card(onClick = { if (!busy) onPack(entry) }, modifier = Modifier.fillMaxWidth()) {
-                        CatalogArtwork(entry, onPreview, compact = true, revision = previewRevision)
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
-                            Text(entry.creator + (entry.stickerCount?.let { " · $it stickers" } ?: ""),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (entry.categories.isNotEmpty()) Text(entry.categories.joinToString(" · ") { it.label }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                            FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }, modifier = Modifier.fillMaxWidth()) {
-                                Text(if (entry.id in importedIds) "Open in library" else "Preview pack")
+                    var showMenu by remember(entry.id) { mutableStateOf(false) }
+                    Surface(onClick = { onPack(entry) }, enabled = !busy, shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2)
+                                    Text(entry.creator + (entry.stickerCount?.let { " · $it stickers" } ?: ""),
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Box {
+                                    IconButton(onClick = { showMenu = true }, modifier = Modifier.semantics { contentDescription = "Options for ${entry.name}" }) { StickerDockNavIcon("More") }
+                                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                                        if (onHide != null) DropdownMenuItem(text = { Text(if (entry.publisherId.isBlank()) "Hide pack" else "Hide creator") }, onClick = { showMenu = false; onHide(entry) })
+                                        if (onReport != null) DropdownMenuItem(text = { Text("Report pack") }, onClick = { showMenu = false; onReport(entry) })
+                                    }
+                                }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (onHide != null) TextButton(onClick = { onHide(entry) }) { Text(if (entry.publisherId.isBlank()) "Hide pack" else "Hide creator") }
-                                if (onReport != null) TextButton(onClick = { onReport(entry) }) { Text("Report") }
+                            CatalogArtwork(entry, onPreview, compact = true, revision = previewRevision)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (StickerKind.ANIMATED in entry.kinds) "Animated" else "Sticker pack", modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }) {
+                                    Text(if (entry.id in importedIds) "Open in library" else "View pack")
+                                }
                             }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
                         }
                     }
                 }
-            }
-            if (onShowHidden != null) item(span = { GridItemSpan(maxLineSpan) }) {
-                TextButton(onClick = onShowHidden) { Text("Reset hidden packs & creators") }
             }
             item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(24.dp)) }
         }
@@ -127,14 +146,14 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
         catch (_: Exception) { CatalogArtworkState(loading = false, failed = true) }
     }
     val artworkSize = if (compact) Modifier.height(168.dp) else Modifier.aspectRatio(1.5f)
-    Box(Modifier.fillMaxWidth().then(artworkSize).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().then(artworkSize).background(MaterialTheme.colorScheme.surfaceContainerLow), contentAlignment = Alignment.Center) {
         when {
             state.bitmap != null -> Image(state.bitmap!!, "Sticker previews from ${entry.name}",
                 Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit)
             state.loading -> CircularProgressIndicator(Modifier.size(24.dp))
             else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("✦", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.primary)
-                Text(if (state.failed) "Preview couldn't load" else "Tap Preview pack to see the stickers",
+                StickerDockNavIcon("Library")
+                Text(if (state.failed) "Preview couldn't load" else "Open this pack to load its preview",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (state.failed) TextButton(onClick = { attempt++ }) { Text("Retry preview") }
             }
@@ -145,7 +164,8 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Boolean, saveError: String?,
-    onPreview: suspend (CommunityCatalog.Listing) -> ByteArray?, onSave: () -> Unit, onDismiss: () -> Unit) {
+    onPreview: suspend (CommunityCatalog.Listing) -> ByteArray?, onSave: () -> Unit, onDismiss: () -> Unit,
+    onShare: (() -> Unit)? = null) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -159,6 +179,7 @@ fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Bool
             Button(enabled = !busy, onClick = onSave, modifier = Modifier.fillMaxWidth()) {
                 Text(if (busy) "Saving pack…" else if (saved) "Open in library" else "Save to library")
             }
+            if (onShare != null) OutlinedButton(enabled = !busy, onClick = onShare, modifier = Modifier.fillMaxWidth()) { Text("Share pack code") }
             TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Keep browsing") }
         }
     }

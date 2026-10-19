@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "title": "Chai break reactions",
+  "character": "An original round ginger cat wearing a teal scarf, expressive dark eyebrows and tiny paws",
+  "style": "Warm hand-drawn sticker illustration, bold clean outline, consistent teal and terracotta palette",
+  "stickers": [
+    {"id": "hello", "caption": "Hello ji", "emotion": "happy", "pose": "Waving enthusiastically with one paw"},
+    {"id": "really", "caption": "Sach mein?", "emotion": "surprised", "pose": "Wide eyes, one eyebrow raised, paws beside the cheeks"},
+    {"id": "chai", "caption": "Chai first", "emotion": "sleepy", "pose": "Sleepy eyes while hugging a small steaming cup of chai"},
+    {"id": "thanks", "caption": "Shukriya", "emotion": "grateful", "pose": "Paws together with a small appreciative bow"},
+    {"id": "done", "caption": "Ho gaya", "emotion": "proud", "pose": "Giving a confident thumbs-up with a delighted smile"},
+    {"id": "oops", "caption": "Oops", "emotion": "embarrassed", "pose": "One paw covering the forehead, sheepish smile"}
+  ]
+}

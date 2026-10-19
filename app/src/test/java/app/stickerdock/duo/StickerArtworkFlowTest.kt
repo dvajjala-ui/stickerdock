@@ -147,6 +147,39 @@ class StickerArtworkFlowTest {
         assertEquals(2, store.listPacks().size)
     }
 
+    @Test fun explicitPhotoCreationCanReuseAPhotoWithoutDuplicatingWithinTheSelection() {
+        val uri = Uri.fromFile(File(context.cacheDir, "owned-photo.png").apply { writeBytes(png(Color.MAGENTA)) })
+        val importer = PhotoPackImporter(context, store, files)
+        importer.import(listOf(uri), "Old pack")
+        val result = importer.import(listOf(uri, uri), "Friends", deduplicateLibrary = false)
+        assertEquals(1, result.added)
+        assertEquals(1, result.duplicates)
+        assertEquals(2, store.listPacks().size)
+        assertEquals("Friends", store.getPack(result.packIds.single())!!.name)
+    }
+
+    @Test fun photosSaveIntoChosenPackAndRetryRetainsOnlyFailedInputs() {
+        val target = store.createPack("Chosen")
+        val good = Uri.fromFile(File(context.cacheDir, "valid-photo.png").apply { writeBytes(png(Color.CYAN)) })
+        val bad = Uri.fromFile(File(context.cacheDir, "broken-photo.png").apply { writeBytes(byteArrayOf(1, 2)) })
+        val importer = PhotoPackImporter(context, store, files)
+        val result = importer.import(listOf(good, bad), "Ignored name", target.id, deduplicateLibrary = false)
+        assertEquals(1, result.added)
+        assertEquals(listOf(target.id), result.packIds)
+        assertEquals(listOf(bad), result.failedUris)
+        assertEquals(1, store.listPacks().size)
+        assertEquals(1, store.stickerCount(target.id))
+        assertEquals(1, importer.import(listOf(good), "Chosen", target.id, deduplicateLibrary = false).duplicates)
+        assertEquals(1, store.stickerCount(target.id))
+    }
+
+    @Test fun deletedPhotoDestinationDoesNotCreateAReplacementPack() {
+        val target = store.createPack("Removed")
+        files.deletePack(target.id)
+        assertTrue(runCatching { PhotoPackImporter(context, store, files).import(emptyList(), "New", target.id) }.isFailure)
+        assertTrue(store.listPacks().isEmpty())
+    }
+
     @Test fun exportPreflightAcceptsRealPackAndIdentifiesDamagedArtwork() {
         val pack = store.createPack("WhatsApp")
         listOf(Color.RED, Color.BLUE, Color.GREEN).forEach { files.importBytes(pack.id, png(it)) }
@@ -159,8 +192,12 @@ class StickerArtworkFlowTest {
     }
 
     @Test fun corruptSharedZipDoesNotStopFollowingPhotos() {
-        val badArchive = Uri.fromFile(File(context.cacheDir, "broken.zip").apply { writeText("broken archive") })
-        val photo = Uri.fromFile(File(context.cacheDir, "shared-photo.png").apply { writeBytes(png(Color.CYAN)) })
+        val badArchive = Uri.parse("content://shared.test/broken.zip")
+        val photo = Uri.parse("content://shared.test/shared-photo.png")
+        org.robolectric.Shadows.shadowOf(context.contentResolver).registerInputStream(badArchive,
+            java.io.ByteArrayInputStream("broken archive".toByteArray()))
+        org.robolectric.Shadows.shadowOf(context.contentResolver).registerInputStream(photo,
+            java.io.ByteArrayInputStream(png(Color.CYAN)))
         val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
             type = "*/*"
             putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, arrayListOf(badArchive, photo))

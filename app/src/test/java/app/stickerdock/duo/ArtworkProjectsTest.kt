@@ -186,6 +186,46 @@ class ArtworkProjectsTest {
         assertArrayEquals(files.stickerFile(item.packId, item.fileName).readBytes(), entries.values.last())
     }
 
+    @Test fun automaticMaskSurvivesDraftReopenCopyAndDeletionRecoveryAndReset() {
+        val item = sticker()
+        val original = projects.open(item).original
+        val bytes = ArtworkMasks.fromConfidence(FloatArray(512 * 512) { if (it % 512 < 120) 1f else 0f })
+        val hash = projects.retainMask(item, bytes)
+        val history = projects.open(item).history.update(ArtworkEdit(maskHash = hash))
+        projects.saveDraft(item, history)
+        assertEquals(hash, ArtworkProjects(context, store, files).open(item).history.edit.maskHash)
+        assertArrayEquals(original, files.stickerFile(item.packId, item.fileName).readBytes())
+        projects.save(item, history)
+        val edited = store.stickerById(item.id)!!
+        val target = store.createPack("Cutout copy")
+        assertEquals(ImportResult.Added, files.transferSticker(edited, target.id, move = false))
+        val copied = store.listStickers(target.id).single()
+        assertArrayEquals(bytes, projects.mask(copied, projects.open(copied).history.edit))
+        val snapshot = projects.snapshot(edited)!!
+        val saved = files.stickerFile(edited.packId, edited.fileName).readBytes()
+        files.deleteSticker(edited)
+        assertEquals(ImportResult.Added, files.restoreBytes(edited.packId, saved, edited.sha256) { projects.restoreSnapshot(it, snapshot) })
+        val restored = store.listStickers(edited.packId).single()
+        assertArrayEquals(bytes, projects.mask(restored, projects.open(restored).history.edit))
+        projects.save(restored, projects.open(restored).history.update(ArtworkEdit()))
+        val reset = store.stickerById(restored.id)!!
+        assertArrayEquals(original, files.stickerFile(reset.packId, reset.fileName).readBytes())
+    }
+
+    @Test fun damagedMaskCannotOverwriteTheSavedStickerOrDraft() {
+        val item = sticker()
+        projects.open(item)
+        val hash = projects.retainMask(item, ArtworkMasks.fromConfidence(FloatArray(512 * 512) { 1f }))
+        val history = ArtworkHistory().update(ArtworkEdit(maskHash = hash))
+        projects.saveDraft(item, history)
+        val record = store.artworkProject(item.id)
+        val saved = files.stickerFile(item.packId, item.fileName).readBytes()
+        ArtworkMaskStore(context).file(item.id, hash).writeBytes(byteArrayOf(1, 2, 3))
+        assertTrue(runCatching { projects.save(item, history) }.isFailure)
+        assertEquals(record, store.artworkProject(item.id))
+        assertArrayEquals(saved, files.stickerFile(item.packId, item.fileName).readBytes())
+    }
+
     private fun sticker(): StickerItem {
         val pack = store.createPack("Editable")
         val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)

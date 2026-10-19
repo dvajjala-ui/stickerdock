@@ -13,11 +13,13 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 class StickerBackup(private val context: Context, private val store: StickerStore, private val files: StickerFiles) {
-    data class RestoreSummary(val packs: Int, val stickers: Int, val rejected: Int, val packIds: List<String> = emptyList())
+    data class RestoreSummary(val packs: Int, val stickers: Int, val rejected: Int, val packIds: List<String> = emptyList(),
+        val stickerIdsByArchivePath: Map<String, String> = emptyMap())
     data class ExportEstimate(val packs: Int, val stickers: Int, val bytes: Long)
 
     private data class ExportPack(val pack: StickerPack, val stickers: List<StickerItem>)
     private data class ValidatedSticker(
+        val archivePath: String,
         val stagedFile: File,
         val sha256: String,
         val label: String,
@@ -173,7 +175,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
                     val label = if (schema >= 5) item.optString("label", "") else ""
                     val tags = if (schema >= 5) item.optString("tags", "") else ""
                     require(label.length <= 80 && tags.length <= 400) { "Sticker metadata too long" }
-                    images += ValidatedSticker(staged, hash, label, tags)
+                    images += ValidatedSticker(path, staged, hash, label, tags)
                 }
                 validated += ValidatedPack(name, kind, rating, category, images)
             }
@@ -220,6 +222,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
 
     private fun importValidated(validated: List<ValidatedPack>): RestoreSummary {
         val createdPackIds = mutableListOf<String>()
+        val restoredIds = mutableMapOf<String, String>()
         var added = 0
         try {
             validated.forEach { restored ->
@@ -230,7 +233,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
                         StickerFiles.boundedRead(it, MAX_ENTRY_BYTES.toInt())
                     }
                     when (val result = files.restoreBytes(pack.id, data, sticker.sha256,
-                        sticker.label, sticker.tags)) {
+                        sticker.label, sticker.tags) { item -> restoredIds[sticker.archivePath] = item.id }) {
                         ImportResult.Added -> added++
                         ImportResult.Duplicate -> error("Unexpected duplicate in restored pack")
                         is ImportResult.Failed -> error(result.reason)
@@ -241,7 +244,7 @@ class StickerBackup(private val context: Context, private val store: StickerStor
             createdPackIds.forEach(files::deletePack)
             throw error
         }
-        return RestoreSummary(validated.size, added, 0, createdPackIds.toList())
+        return RestoreSummary(validated.size, added, 0, createdPackIds.toList(), restoredIds.toMap())
     }
 
     private fun sha256(file: File): String {

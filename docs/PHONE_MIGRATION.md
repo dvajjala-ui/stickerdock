@@ -49,8 +49,10 @@ If an authorized export supplies **actual** image files, import them with the sy
 The iPhone client is a tested-source candidate; a signed iPhone installation is
 still required. It cannot scan Android folders or another iPhone app's sandbox.
 
-1. On Android, open a pack → **Share ZIP**, or export a library backup from the
+1. On Android, open a pack → **Share pack**, or choose **Sticker backup** in the
    import/backup tools. Transfer the ZIP through a sharing service you choose.
+   **Editable backup** is an Android project archive and is not directly readable
+   by the iPhone client; use the portable Sticker backup for this transfer.
 2. On iPhone, save that ZIP in Files. Open StickerDock → **Library** → settings
    → **Import sticker ZIP**; the empty library also has an import action.
 3. Check the imported names, static/animated types and private ratings. Saved

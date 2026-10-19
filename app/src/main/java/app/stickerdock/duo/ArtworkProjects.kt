@@ -6,10 +6,19 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 
-/** Private local recipes. ZIPs, WhatsApp and cloud sync only see the saved export. */
+/** Private recipes. Sharing/cloud use saved artwork; editable backups explicitly retain sources. */
 class ArtworkProjects(private val context: Context, private val store: StickerStore, private val files: StickerFiles) {
+    private val masks = ArtworkMaskStore(context)
     data class Session(val original: ByteArray, val history: ArtworkHistory, val savedHistory: ArtworkHistory)
-    data class Snapshot(val record: ArtworkProjectRecord, val original: ByteArray)
+    data class Snapshot(val record: ArtworkProjectRecord, val original: ByteArray, val masks: Map<String, ByteArray> = emptyMap())
+
+    fun retainMask(item: StickerItem, bytes: ByteArray): String {
+        requireCurrent(item)
+        requireNotNull(store.artworkProject(item.id)) { "Reopen this project before editing" }
+        return masks.write(item.id, bytes)
+    }
+
+    fun mask(item: StickerItem, edit: ArtworkEdit): ByteArray? = edit.maskHash.takeIf { it.isNotEmpty() }?.let { masks.read(item.id, it) }
 
     fun open(item: StickerItem): Session = store.transaction {
         requireCurrent(item)
@@ -33,6 +42,7 @@ class ArtworkProjects(private val context: Context, private val store: StickerSt
         val record = requireNotNull(store.artworkProject(item.id)) { "Reopen the editor before saving" }
         require(record.savedSha256 == item.sha256) { "Sticker changed; reopen it before editing" }
         val encoded = validated(history)
+        validateMasks(item.id, history)
         val draft = if (history.edit == ArtworkHistory.decodeStrict(record.savedHistory).edit) null else encoded
         if (draft != record.draftHistory) store.putArtworkProject(record.copy(draftHistory = draft, updatedAt = System.currentTimeMillis()))
     }
@@ -48,10 +58,11 @@ class ArtworkProjects(private val context: Context, private val store: StickerSt
     fun save(item: StickerItem, history: ArtworkHistory) {
         val session = open(item)
         val encodedHistory = validated(history)
+        validateMasks(item.id, history)
         val edit = ArtworkHistory.decodeStrict(encodedHistory).edit
         // Reset returns exactly the retained bytes, rather than another lossy encode.
         val bytes = if (edit == ArtworkEdit()) session.original else {
-            val bitmap = StickerArtwork.render(session.original, edit)
+            val bitmap = StickerArtwork.render(session.original, edit, mask(item, edit))
             try { StickerArtwork.encode(bitmap) } finally { bitmap.recycle() }
         }
         files.replaceStaticArtwork(item, bytes) { hash ->
@@ -65,7 +76,10 @@ class ArtworkProjects(private val context: Context, private val store: StickerSt
     /** Snapshot allows Undo deletion to retain the same editable starting image/recipe. */
     fun snapshot(item: StickerItem): Snapshot? = store.artworkProject(item.id)?.let { record ->
         require(record.savedSha256 == item.sha256) { "Sticker project changed" }
-        Snapshot(record, readImage(sourceFile(item.id, record.sourceSha256), record.sourceSha256))
+        val hashes = maskHashes(ArtworkHistory.decodeStrict(record.savedHistory)) +
+            record.draftHistory?.let { maskHashes(ArtworkHistory.decodeStrict(it)) }.orEmpty()
+        Snapshot(record, readImage(sourceFile(item.id, record.sourceSha256), record.sourceSha256),
+            hashes.associateWith { masks.read(item.id, it) })
     }
 
     internal fun restoreSnapshot(item: StickerItem, snapshot: Snapshot, includeDraft: Boolean = true) {
@@ -73,6 +87,13 @@ class ArtworkProjects(private val context: Context, private val store: StickerSt
         require(snapshot.record.savedSha256 == item.sha256) { "Project does not match saved artwork" }
         ArtworkHistory.decodeStrict(snapshot.record.savedHistory)
         snapshot.record.draftHistory?.let(ArtworkHistory::decodeStrict)
+        val hashes = maskHashes(ArtworkHistory.decodeStrict(snapshot.record.savedHistory)) +
+            (if (includeDraft) snapshot.record.draftHistory?.let { maskHashes(ArtworkHistory.decodeStrict(it)) }.orEmpty() else emptySet())
+        hashes.forEach { hash ->
+            val bytes = requireNotNull(snapshot.masks[hash]) { "Project cutout mask is missing" }
+            require(StickerFiles.sha256(bytes) == hash) { "Project cutout mask is damaged" }
+            masks.write(item.id, bytes)
+        }
         writeOriginal(item.id, snapshot.record.sourceSha256, snapshot.original)
         store.putArtworkProject(snapshot.record.copy(stickerId = item.id,
             draftHistory = if (includeDraft) snapshot.record.draftHistory else null, updatedAt = System.currentTimeMillis()))
@@ -86,6 +107,10 @@ class ArtworkProjects(private val context: Context, private val store: StickerSt
     }
 
     private fun validated(history: ArtworkHistory): String = history.encode().also { ArtworkHistory.decodeStrict(it) }
+    private fun maskHashes(history: ArtworkHistory) = history.entries.map { it.maskHash }.filter { it.isNotEmpty() }.toSet()
+    private fun validateMasks(stickerId: String, history: ArtworkHistory) {
+        maskHashes(history).forEach { masks.read(stickerId, it) }
+    }
 
     internal fun sourceFile(stickerId: String, hash: String): File {
         require(BackupArchivePaths.isId(stickerId) && hash.matches(Regex("[0-9a-f]{64}"))) { "Invalid project path" }

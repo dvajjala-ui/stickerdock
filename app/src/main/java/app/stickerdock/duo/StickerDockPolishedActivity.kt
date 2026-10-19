@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -20,6 +22,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +59,21 @@ class StickerDockPolishedActivity : ComponentActivity() {
     private lateinit var store: StickerStore
     private lateinit var files: StickerFiles
     private lateinit var backup: StickerBackup
+    private var incomingPackCode by mutableStateOf<String?>(null)
+    private var incomingShare by mutableStateOf<Intent?>(null)
+
+    private fun packCode(intent: Intent): String? = when (intent.action) {
+        Intent.ACTION_VIEW -> intent.dataString?.let(PublicPackLinks::parse)
+        Intent.ACTION_SEND -> if (intent.type == "text/plain") intent.getStringExtra(Intent.EXTRA_TEXT)?.let(PublicPackLinks::fromSharedText) else null
+        else -> null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        incomingPackCode = packCode(intent)
+        incomingShare = intent
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +81,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         store = StickerStore(applicationContext)
         files = StickerFiles(applicationContext, store)
         backup = StickerBackup(applicationContext, store, files)
+        if (savedInstanceState == null) { incomingPackCode = packCode(intent); incomingShare = intent }
         setContent { StickerDockTheme { StickerDockApp() } }
     }
 
@@ -81,6 +101,14 @@ class StickerDockPolishedActivity : ComponentActivity() {
         val scope = rememberCoroutineScope()
         val cloud = remember { CloudLibrary(applicationContext) }
         var showCloud by remember { mutableStateOf(false) }
+        var showSettings by remember { mutableStateOf(false) }
+        var pendingPhotoUris by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+        var photoSaveError by rememberSaveable { mutableStateOf<String?>(null) }
+        var pendingSharedFiles by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+        var pendingSharedType by rememberSaveable { mutableStateOf("application/zip") }
+        var sharedImportError by rememberSaveable { mutableStateOf<String?>(null) }
+        var showBackupOptions by rememberSaveable { mutableStateOf(false) }
+        var editableBackup by rememberSaveable { mutableStateOf(true) }
         var cloudRevision by remember { mutableStateOf(0) }
         var libraryReady by remember { mutableStateOf(false) }
         var reportingPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
@@ -103,6 +131,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         var searchText by rememberSaveable { mutableStateOf("") }
         var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
+        var matchedStickerPackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         var packFilter by rememberSaveable { mutableStateOf("All") }
         var packSort by rememberSaveable { mutableStateOf("Newest") }
         var categoryName by rememberSaveable { mutableStateOf("") }
@@ -128,15 +157,21 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var savedLinks by remember { mutableStateOf<List<StickerlyLinks.Link>>(emptyList()) }
 
         var communityLoading by remember { mutableStateOf(false) }
+        var communityLoaded by remember { mutableStateOf(false) }
         var communityPacks by remember { mutableStateOf<List<CommunityCatalog.Listing>>(emptyList()) }
         var communityError by remember { mutableStateOf<String?>(null) }
         var catalogImportedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         var previewingCatalogPack by remember { mutableStateOf<CommunityCatalog.Listing?>(null) }
         var catalogSaveError by remember { mutableStateOf<String?>(null) }
         var catalogArtworkRevision by remember { mutableStateOf(0) }
+        var showPackCode by rememberSaveable { mutableStateOf(false) }
+        var packCodeInput by rememberSaveable { mutableStateOf("") }
+        var packCodeError by remember { mutableStateOf<String?>(null) }
+        var pendingPackCode by rememberSaveable { mutableStateOf<String?>(null) }
         var whatsAppStatus by remember { mutableStateOf<Map<WhatsAppTarget, WhatsAppPackStatus>>(emptyMap()) }
         var whatsAppStatusRefresh by remember { mutableStateOf(0) }
-        var pendingWhatsAppTarget by remember { mutableStateOf<WhatsAppTarget?>(null) }
+        var pendingWhatsAppTargetName by rememberSaveable { mutableStateOf<String?>(null) }
+        var pendingWhatsAppPackId by rememberSaveable { mutableStateOf<String?>(null) }
 
         var showPackOptions by remember { mutableStateOf(false) }
         var managingSticker by remember { mutableStateOf<StickerItem?>(null) }
@@ -174,12 +209,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
         val filteredPacks = packs.filter {
-            val matchesSearch = searchText.isBlank() ||
-                it.name.contains(searchText, ignoreCase = true) ||
-                it.category.label.contains(searchText, ignoreCase = true)
-            matchesSearch &&
-                (packFilter == "All" || it.kind.name.equals(packFilter, ignoreCase = true)) &&
-                (categoryFilter == null || it.category == categoryFilter)
+            PackPresentation.matches(it, searchText, packFilter, categoryFilter, matchedStickerPackIds)
         }.let { filtered ->
             when (packSort) {
                 "Name" -> filtered.sortedBy { it.name.lowercase() }
@@ -298,6 +328,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 } catch (e: Exception) {
                     communityError = e.message ?: "Unable to load new stickers"
                 } finally {
+                    communityLoaded = true
                     communityLoading = false
                 }
             }
@@ -320,6 +351,36 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 }
                 if (summary.stickers == 0) "Pack already in your library" else "Imported ${summary.stickers} stickers"
             }
+        }
+
+        fun openPublicPackCode(raw: String) {
+            val id = PublicPackLinks.parse(raw)
+            if (id == null) { packCodeError = "Enter a StickerDock code starting with SD: or a StickerDock pack link."; return }
+            packCodeError = null
+            selectedId = null
+            sectionName = PolishedHomeSection.FACTORY.name
+            refreshFactory()
+            pendingPackCode = id
+        }
+
+        LaunchedEffect(incomingPackCode) {
+            incomingPackCode?.let { id ->
+                packCodeInput = PublicPackLinks.code(id)
+                showPackCode = true
+                openPublicPackCode(packCodeInput)
+                incomingPackCode = null
+            }
+        }
+        LaunchedEffect(pendingPackCode, communityLoading, communityLoaded, communityPacks, communityError) {
+            val id = pendingPackCode ?: return@LaunchedEffect
+            if (communityLoading || !communityLoaded) return@LaunchedEffect
+            val entry = communityPacks.firstOrNull { it.id == id }
+            when {
+                communityError != null -> packCodeError = "Couldn't check this pack. Check your connection and try again."
+                entry == null -> packCodeError = "This pack is unavailable or hidden. Check the code, or show hidden packs in Discover options."
+                else -> { catalogSaveError = null; previewingCatalogPack = entry; showPackCode = false }
+            }
+            pendingPackCode = null
         }
 
         fun runFolderImport(uri: android.net.Uri) {
@@ -374,15 +435,15 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         val photoPackPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-            if (uris.isNotEmpty()) operation("Making stickers") {
-                val result = PhotoPackImporter(this@StickerDockPolishedActivity, store, files).import(uris)
-                runOnUiThread {
-                    selectedId = result.packIds.firstOrNull()
-                    sectionName = PolishedHomeSection.LIBRARY.name
-                }
-                buildString {
-                    append("${result.added} stickers added • ${result.duplicates} duplicates • ${result.failed} skipped")
-                    result.firstError?.let { append(". $it") }
+            if (uris.isNotEmpty()) {
+                if (uris.size > 100) scope.launch { snackbar.showSnackbar("Choose up to 100 photos at once") }
+                else {
+                    uris.forEach { uri ->
+                        try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) {}
+                    }
+                    // A single GIF belongs in the moving creator; never silently flatten it.
+                    if (uris.size == 1 && contentResolver.getType(uris.first()) == "image/gif") clipUri = uris.first().toString()
+                    else { pendingPhotoUris = uris.map { it.toString() }; photoSaveError = null }
                 }
             }
         }
@@ -419,29 +480,41 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         val saveBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-            if (uri != null) operation("Creating backup") { backup.export(uri); "Backup saved" }
+            if (uri != null) {
+                val includeProjects = editableBackup
+                operation("Creating backup") {
+                    if (includeProjects) EditableBackup(this@StickerDockPolishedActivity, store, files).export(uri) else backup.export(uri)
+                    if (includeProjects) "Editable backup saved" else "Sticker backup saved"
+                }
+            }
         }
         val loadBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) operation("Restoring backup") {
-                val restored = backup.restore(uri)
+                val restored = EditableBackup(this@StickerDockPolishedActivity, store, files).restoreOrSaved(uri)
                 "Restored ${restored.packs} packs • ${restored.stickers} stickers • ${restored.rejected} skipped"
             }
         }
         val whatsAppInstaller = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val target = pendingWhatsAppTarget
-            pendingWhatsAppTarget = null
+            val target = pendingWhatsAppTargetName?.let(WhatsAppTarget::valueOf)
+            val requestedPack = pendingWhatsAppPackId
+            pendingWhatsAppTargetName = null
+            pendingWhatsAppPackId = null
             whatsAppStatusRefresh++
             scope.launch {
                 val validationError = result.data?.getStringExtra("validation_error")
-                when {
-                    !validationError.isNullOrBlank() -> snackbar.showSnackbar("WhatsApp rejected this pack: $validationError")
-                    result.resultCode == Activity.RESULT_OK -> snackbar.showSnackbar("Added to ${target?.label ?: "WhatsApp"}")
-                    else -> snackbar.showSnackbar("Pack was not added. Confirm the request inside WhatsApp and try again.")
-                }
+                val verified = if (target != null && requestedPack != null) withContext(Dispatchers.IO) {
+                    WhatsAppIntegration.status(this@StickerDockPolishedActivity, requestedPack, target).added
+                } else false
+                snackbar.showSnackbar(when {
+                    !validationError.isNullOrBlank() -> "WhatsApp rejected this pack: $validationError"
+                    verified -> "Added to ${target?.label ?: "WhatsApp"}"
+                    result.resultCode == Activity.RESULT_OK -> "Request accepted. Open WhatsApp's sticker tray to check the pack."
+                    else -> "Pack wasn't added. Your stickers are still saved here."
+                })
             }
         }
 
-        fun launchWhatsApp(packToInstall: StickerPack, target: WhatsAppTarget) {
+        fun launchWhatsApp(packToInstall: StickerPack, target: WhatsAppTarget, addAgain: Boolean = false) {
             if (busy) return
             busyLabel = "Preparing WhatsApp pack"
             scope.launch {
@@ -452,12 +525,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         WhatsAppIntegration.status(this@StickerDockPolishedActivity, packToInstall.id, target)
                     }
                     require(status.installed) { "${target.label} is not installed on this phone" }
-                    if (status.added) {
+                    if (status.added && !addAgain) {
                         val openIntent = packageManager.getLaunchIntentForPackage(target.packageName)
                             ?: error("Unable to open ${target.label}")
                         startActivity(openIntent)
                     } else {
-                        pendingWhatsAppTarget = target
+                        pendingWhatsAppTargetName = target.name
+                        pendingWhatsAppPackId = packToInstall.id
                         whatsAppInstaller.launch(WhatsAppStickerProvider.installIntent(packToInstall, target.packageName))
                     }
                 } catch (_: ActivityNotFoundException) {
@@ -473,16 +547,23 @@ class StickerDockPolishedActivity : ComponentActivity() {
             selectedStickerIds = emptySet()
             refresh()
         }
-        LaunchedEffect(searchText) {
+        LaunchedEffect(searchText, cloudFingerprint) {
             val requested = searchText
-            if (requested.isBlank()) stickerMatches = emptyList()
-            else {
+            stickerMatches = emptyList()
+            matchedStickerPackIds = emptySet()
+            if (requested.isNotBlank()) {
                 delay(250)
-                val matches = withContext(Dispatchers.IO) { store.searchStickers(requested) }
-                if (searchText == requested) stickerMatches = matches
+                val (ids, matches) = withContext(Dispatchers.IO) {
+                    store.searchStickerPackIds(requested) to store.searchStickers(requested)
+                }
+                if (searchText == requested) {
+                    matchedStickerPackIds = ids
+                    stickerMatches = matches
+                }
             }
         }
         LaunchedEffect(pack?.id, pack?.version, whatsAppStatusRefresh) {
+            whatsAppStatus = emptyMap()
             whatsAppStatus = if (pack == null) emptyMap() else withContext(Dispatchers.IO) {
                 WhatsAppTarget.entries.associateWith {
                     WhatsAppIntegration.status(this@StickerDockPolishedActivity, pack.id, it)
@@ -491,9 +572,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
         LaunchedEffect(Unit) {
             refreshFactory()
-            if (intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE) {
-                operation("Importing shared stickers") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(intent) }
+        }
+        LaunchedEffect(incomingShare) {
+            val shared = incomingShare ?: return@LaunchedEffect
+            if (packCode(shared) == null && shared.action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE, Intent.ACTION_VIEW)) {
+                try {
+                    val streams = IncomingStickers.streams(shared)
+                    when {
+                        streams.isNotEmpty() && shared.type?.startsWith("image/") == true -> { pendingPhotoUris = streams.map { it.toString() }; photoSaveError = null }
+                        streams.isNotEmpty() -> { pendingSharedFiles = streams.map { it.toString() }; pendingSharedType = shared.type ?: "application/zip"; sharedImportError = null }
+                        shared.action == Intent.ACTION_SEND -> operation("Saving shared links") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(shared) }
+                    }
+                } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Couldn't open shared files") }
             }
+            incomingShare = null
         }
         DisposableEffect(Unit) { onDispose { previewCache.clear() } }
         DisposableEffect(Unit) {
@@ -520,22 +612,19 @@ class StickerDockPolishedActivity : ComponentActivity() {
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text(if (pack == null) "StickerDock" else pack.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (LocalDensity.current.fontScale < 1.3f) Text(
-                                if (pack == null) section.label else "${pack.category.label} • ${stickers.size} stickers",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(if (pack == null) section.label else pack.name, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
                     },
                     navigationIcon = {
-                        if (pack != null) TextButton(onClick = { selectedId = null }) { Text("Back") }
-                        else if (section == PolishedHomeSection.IMPORT) TextButton(onClick = { sectionName = importReturnSectionName }) { Text("Back") }
+                        if (pack != null || section == PolishedHomeSection.IMPORT) IconButton(
+                            onClick = { if (pack != null) selectedId = null else sectionName = importReturnSectionName },
+                            modifier = Modifier.semantics { contentDescription = "Back" }) { StickerDockNavIcon("Back") }
                     },
-                    actions = { TextButton(onClick = { showCloud = true }) { Text(if (pack == null) "Cloud" else "Backup") } },
+                    actions = {
+                        IconButton(onClick = { showSettings = true }, modifier = Modifier.semantics { contentDescription = "Library settings" }) {
+                            StickerDockNavIcon("More")
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                 )
             },
@@ -543,7 +632,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 if (pack == null) {
                     BoxWithConstraints {
                         if (maxWidth < 720.dp) {
-                            NavigationBar {
+                            NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
                                 PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
                                     NavigationBarItem(
                                         selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
@@ -607,7 +696,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                 { selectedId = it },
                                                 { photoPackPicker.launch(arrayOf("image/*")) },
                                                 artworkDrafts, { selectedId = it.packId; artworkSticker = it },
-                                                { clipPicker.launch(arrayOf("video/*", "image/gif")) }
+                                                { clipPicker.launch(arrayOf("video/*", "image/gif")) }, packFilter, { packFilter = it }
                                             )
                                         }
                                         VerticalDivider()
@@ -640,7 +729,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                     transferItems = chosen
                                                     transferTarget = packs.firstOrNull { it.id != pack.id && it.kind == pack.kind }?.id
                                                 },
-                                                { bulkDeletePending = true }
+                                                { bulkDeletePending = true },
+                                                { target -> launchWhatsApp(pack, target, addAgain = true) }
                                             )
                                         }
                                     }
@@ -667,7 +757,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         transferItems = stickers.filter { it.id in selectedStickerIds }
                                         transferTarget = packs.firstOrNull { it.id != pack.id && it.kind == pack.kind }?.id
                                     },
-                                    { bulkDeletePending = true }
+                                    { bulkDeletePending = true },
+                                    { target -> launchWhatsApp(pack, target, addAgain = true) }
                                 )
                                 section == PolishedHomeSection.LIBRARY -> AnimatedScreenSwap("library") {
                                     LibraryScreen(
@@ -682,7 +773,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         { selectedId = it },
                                         { photoPackPicker.launch(arrayOf("image/*")) },
                                         artworkDrafts, { selectedId = it.packId; artworkSticker = it },
-                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) }
+                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) }, packFilter, { packFilter = it }
                                     )
                                 }
                                 section == PolishedHomeSection.CREATE -> AnimatedScreenSwap("create") {
@@ -711,7 +802,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         },
                                         {
                                             scope.launch {
-                                                try { withContext(Dispatchers.IO) { backup.estimate() }; saveBackup.launch("stickerdock.zip") }
+                                                try { withContext(Dispatchers.IO) { backup.estimate() }; showBackupOptions = true }
                                                 catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Cannot create backup") }
                                             }
                                         },
@@ -724,7 +815,16 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                     FactoryScreen(communityLoading, communityPacks, communityError, catalogImportedIds, busy, ::refreshFactory,
                                         onPack = {
                                             catalogSaveError = null
-                                            if (it.id in catalogImportedIds) importFactoryPack(it) else previewingCatalogPack = it
+                                            val entry = it
+                                            scope.launch {
+                                                val localIds = withContext(Dispatchers.IO) {
+                                                    CatalogImports(this@StickerDockPolishedActivity, store).importedPackIds(entry.id, entry.sha256)
+                                                }
+                                                if (localIds.isNotEmpty()) {
+                                                    selectedId = localIds.first()
+                                                    sectionName = PolishedHomeSection.LIBRARY.name
+                                                } else previewingCatalogPack = entry
+                                            }
                                         },
                                         onPreview = { entry -> withContext(Dispatchers.IO) {
                                             CommunityCatalog(this@StickerDockPolishedActivity, backup).preview(entry)
@@ -736,7 +836,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             scope.launch { snackbar.showSnackbar("Hidden from new stickers. Saved local packs are kept.") }
                                         },
                                         onReport = { entry -> reportingPack = entry; reportReason = "" },
-                                        onShowHidden = { CommunityCatalog(this@StickerDockPolishedActivity, backup).clearHidden(); refreshFactory() })
+                                        onShowHidden = { CommunityCatalog(this@StickerDockPolishedActivity, backup).clearHidden(); refreshFactory() },
+                                        onOpenCode = { packCodeError = null; showPackCode = true })
                                 }
                             }
                         }
@@ -744,6 +845,36 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 }
             }
         }
+
+        if (showSettings) LibrarySettingsSheet(
+            onAccount = { showSettings = false; showCloud = true },
+            onImport = { showSettings = false; selectedId = null; importReturnSectionName = sectionName; sectionName = PolishedHomeSection.IMPORT.name },
+            onDismiss = { showSettings = false })
+
+        if (pendingPhotoUris.isNotEmpty()) PhotoPackSheet(pendingPhotoUris.size, packs, counts, busy, photoSaveError,
+            onSave = { title, target ->
+                val chosen = pendingPhotoUris.map(android.net.Uri::parse)
+                photoSaveError = null
+                operation("Making stickers") {
+                    try {
+                        val result = PhotoPackImporter(this@StickerDockPolishedActivity, store, files)
+                            .import(chosen, title, target, deduplicateLibrary = false)
+                        runOnUiThread {
+                            pendingPhotoUris = result.failedUris.map { it.toString() }
+                            photoSaveError = result.firstError?.let { "${result.added} saved · ${result.failed} need attention. $it" }
+                            result.packIds.firstOrNull()?.let { selectedId = it; sectionName = PolishedHomeSection.LIBRARY.name }
+                        }
+                        buildString {
+                            append("${result.added} ${if (result.added == 1) "sticker" else "stickers"} saved")
+                            if (result.duplicates > 0) append(" · ${result.duplicates} already in this selection")
+                            if (result.failed > 0) append(" · ${result.failed} need attention")
+                        }
+                    } catch (error: Exception) {
+                        runOnUiThread { photoSaveError = error.message ?: "Couldn't save. Your selection is still here." }
+                        throw error
+                    }
+                }
+            }, onDismiss = { pendingPhotoUris = emptyList(); photoSaveError = null })
 
         previewingCatalogPack?.let { entry ->
             CatalogPackSheet(entry, entry.id in catalogImportedIds, busy, catalogSaveError,
@@ -755,8 +886,78 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     bytes
                 },
                 onSave = { catalogSaveError = null; importFactoryPack(entry) },
-                onDismiss = { if (!busy) previewingCatalogPack = null })
+                onDismiss = { if (!busy) previewingCatalogPack = null },
+                onShare = {
+                    startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, PublicPackLinks.shareText(entry.name, entry.id))
+                    }, "Share sticker pack"))
+                })
         }
+
+        if (showBackupOptions) AlertDialog(onDismissRequest = { showBackupOptions = false },
+            title = { Text("Back up your library") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Choose what to keep. Both options include saved packs, labels and tags.")
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh, onClick = {
+                        editableBackup = true; showBackupOptions = false; saveBackup.launch("stickerdock-editable.zip")
+                    }) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Editable backup", style = MaterialTheme.typography.titleMedium)
+                            Text("For Android restore. Also keeps original images, cutout masks and unfinished drafts. Keep this file private.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    Surface(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh, onClick = {
+                        editableBackup = false; showBackupOptions = false; saveBackup.launch("stickerdock.zip")
+                    }) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Sticker backup", style = MaterialTheme.typography.titleMedium)
+                            Text("Portable saved stickers for Android, iPhone and older versions. Does not include editable projects.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showBackupOptions = false }) { Text("Cancel") } })
+
+        if (showPackCode) AlertDialog(onDismissRequest = { pendingPackCode = null; showPackCode = false },
+            title = { Text("Open pack code") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Preview a shared pack before saving it to your library.")
+                    OutlinedTextField(value = packCodeInput, onValueChange = { packCodeInput = it.take(256); packCodeError = null },
+                        label = { Text("Pack code or link") }, singleLine = true, enabled = pendingPackCode == null)
+                    if (pendingPackCode != null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    packCodeError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = { TextButton(enabled = pendingPackCode == null && packCodeInput.isNotBlank(), onClick = { openPublicPackCode(packCodeInput) }) { Text("Preview pack") } },
+            dismissButton = { TextButton(onClick = { pendingPackCode = null; showPackCode = false }) { Text("Cancel") } })
+
+        if (pendingSharedFiles.isNotEmpty()) AlertDialog(onDismissRequest = { if (!busy) pendingSharedFiles = emptyList() },
+            title = { Text("Import shared packs?") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${pendingSharedFiles.size} ${if (pendingSharedFiles.size == 1) "file is" else "files are"} ready to import. They will be added as packs in your library. Your existing packs stay as they are.")
+                sharedImportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } },
+            confirmButton = { TextButton(enabled = !busy, onClick = {
+                val shared = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = pendingSharedType
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(pendingSharedFiles.map(android.net.Uri::parse)))
+                }
+                operation("Importing shared packs") {
+                    val result = IncomingStickers(this@StickerDockPolishedActivity, store, files).importReport(shared)
+                    runOnUiThread {
+                        pendingSharedFiles = result.failedUris.map { it.toString() }
+                        sharedImportError = if (result.failedUris.isEmpty()) null else result.message
+                        sectionName = PolishedHomeSection.LIBRARY.name
+                    }
+                    result.message
+                }
+            }) { Text(if (busy) "Importing…" else "Import packs") } },
+            dismissButton = { TextButton(enabled = !busy, onClick = { pendingSharedFiles = emptyList() }) { Text("Cancel") } })
 
         if (showFilters) {
             LibraryFiltersSheet(

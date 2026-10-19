@@ -14,6 +14,7 @@ import subprocess
 import tarfile
 import time
 import uuid
+import zipfile
 
 from PIL import Image
 from emulator_clip_creator_smoke import ClipCreatorSmoke
@@ -67,6 +68,44 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert match, "No application memory report"
         return int(match.group(1))
 
+    def photo_destination(self):
+        # Repo-owned icon is a deterministic non-flat image, not a personal photo
+        # or claimed catalog-quality artwork. Exercise the real DocumentsUI picker.
+        fixture = Path(__file__).resolve().parents[1] / "ios/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+        self.adb("push", str(fixture), "/sdcard/Download/qa-photo.png")
+        before = self.counts()
+        for save in (False, True):
+            self.launch(restart=True)
+            self.wait_text("Search library"); self.tap("Create")
+            self.wait_text("Make stickers from photos")
+            self.screenshot("15-create-screen")
+            self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
+            self.wait_text("Show roots")
+            if not self.nodes("Images in Downloads"):
+                self.tap("Show roots"); self.wait_text("Downloads")
+                root = self.nodes("Downloads")[-1]
+                left, top, right, bottom = map(int, re.findall(r"\d+", root.get("bounds")))
+                self.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+                self.wait_text("Images in Downloads")
+            if self.nodes("List view"):
+                self.tap("List view")
+            self.wait_text("qa-photo.png"); self.tap("qa-photo.png")
+            self.wait_text("Save to a pack")
+            assert self.counts() == before, "Photo selection mutated the library before Save"
+            self.fill("Pack name", "My photo reactions")
+            self.screenshot("09-photo-destination")
+            if not save:
+                self.tap("Cancel")
+                self.wait_hidden("Save to a pack")
+                assert self.counts() == before, "Cancelling photos created a pack"
+            else:
+                self.tap("Save to pack"); self.wait_text("Pack options")
+                assert self.counts() == (before[0] + 1, before[1] + 1), "Explicit photo save did not create exactly one pack/sticker"
+                self.screenshot("10-saved-photo-pack")
+        self.launch(restart=True); self.wait_text("My photo reactions")
+        assert self.counts() == (before[0] + 1, before[1] + 1), "Photo pack did not survive restart"
+        self.screenshot("11-photo-pack-library")
+
     def seed(self):
         self.launch(restart=True)
         self.wait_text("Your library starts here")
@@ -111,6 +150,193 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert uid.isdigit()
         self.adb("shell", "chown", "-R", f"{uid}:{uid}", ROOT + "/files/stickers", ROOT + "/databases")
         self.adb("shell", "restorecon", "-RF", ROOT + "/files", ROOT + "/databases")
+
+    def brush_refinement(self):
+        sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-qa-sticker:1:0"))
+
+        def saved_state():
+            database = self.output / "brush.db"
+            self.adb("pull", ROOT + "/databases/stickerdock.db", str(database))
+            with sqlite3.connect(database) as connection:
+                return connection.execute("SELECT s.sha256,a.draft_history FROM stickers s LEFT JOIN artwork_projects a ON a.sticker_id=s.id WHERE s.id=?", (sticker_id,)).fetchone()
+
+        def open_editor():
+            self.launch(restart=True)
+            self.wait_text("Search library"); self.fill("Search library", "001")
+            self.wait_text("QA pack 001"); self.tap("QA pack 001")
+            self.wait_text("QA sticker 00"); self.tap("QA sticker 00")
+            self.wait_text("Edit artwork and captions"); self.tap("Edit artwork and captions")
+            self.wait_text("Edit sticker"); self.scroll_to_text("Refine edges"); self.wait_enabled("Refine edges")
+
+        def brush():
+            self.tap("Refine edges"); self.wait_text("Brush on sticker edges")
+            # Loading the retained image is asynchronous; Undo becomes available
+            # only after a real stroke. Retry an ignored loading-time gesture.
+            for _ in range(5):
+                node = self.nodes("Brush on sticker edges")[0]
+                left, top, right, bottom = map(int, re.findall(r"\d+", node.get("bounds")))
+                y = (top + bottom) // 2
+                self.adb("shell", "input", "swipe", str(left + (right - left) // 3), str(y), str(left + (right - left) * 2 // 3), str(y), "400")
+                if self.enabled("Undo"):
+                    break
+            self.wait_enabled("Apply")
+
+        original, _ = saved_state()
+        open_editor(); brush()
+        self.screenshot("12-brush-refinement")
+        self.tap("Undo"); assert not self.enabled("Apply"), "Undo retained a brush edit"
+        self.tap("Redo"); self.wait_enabled("Apply")
+        self.tap("Cancel refinement"); self.wait_hidden("Cancel refinement")
+        assert saved_state() == (original, None), "Cancelled refinement mutated the sticker or draft"
+        brush(); self.tap("Apply"); self.wait_hidden("Cancel refinement")
+        saved, draft = saved_state()
+        assert saved == original and draft, "Apply must retain a draft without overwriting the saved sticker"
+        self.screenshot("13-refined-draft")
+        # A force-stop exercises the persisted mask and draft, not Activity state.
+        open_editor(); self.wait_enabled("Save"); self.tap("Save")
+        self.wait_text("Pack options")
+        changed, draft = saved_state()
+        assert changed != original and draft is None, "Saved brush artwork was not committed"
+        open_editor(); self.scroll_to_text("Reset", forward=False); self.tap("Reset"); self.wait_enabled("Save"); self.tap("Save")
+        self.wait_text("Pack options")
+        assert saved_state() == (original, None), "Reset did not restore the exact original bytes"
+        self.screenshot("14-restored-original")
+
+    def public_pack_links(self):
+        before = self.counts()
+        self.adb("shell", "am", "force-stop", PACKAGE)
+        # A valid-shaped but deliberately unpublished ID exercises cold and
+        # singleTop delivery without relying on a mutable production catalog.
+        for slug in ("qa-unpublished-pack", "qa-another-unpublished-pack"):
+            self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", "stickerdock://pack/" + slug)
+            self.wait_text("Open pack code")
+            self.wait_text("SD:" + slug)
+            assert self.counts() == before, "Opening a public code silently imported content"
+            self.tap("Cancel"); self.wait_hidden("Open pack code")
+        self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.SEND", "-t", "text/plain",
+                 "--es", "android.intent.extra.TEXT", "SD:qa-shared-unpublished-pack", "-n", PACKAGE + "/.StickerDockPolishedActivity")
+        self.wait_text("Open pack code"); self.wait_text("SD:qa-shared-unpublished-pack")
+        self.screenshot("16-pack-code-preview")
+        self.tap("Cancel"); self.wait_hidden("Open pack code")
+        assert self.counts() == before, "Shared code or cancellation mutated the library"
+
+    def editable_backups(self):
+        before = self.counts()
+
+        def open_options():
+            self.launch(restart=True); self.wait_text("Search library"); self.tap("Create")
+            self.scroll_to_text("Import and backups"); self.tap("Import and backups")
+            self.scroll_to_text("Back up library"); self.tap("Back up library")
+            self.wait_text("Back up your library")
+
+        def downloads():
+            self.wait_text("Show roots"); self.tap("Show roots"); self.wait_text("Downloads")
+            root = self.nodes("Downloads")[-1]
+            left, top, right, bottom = map(int, re.findall(r"\d+", root.get("bounds")))
+            self.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+
+        open_options(); self.screenshot("18-backup-options")
+        self.adb("shell", "settings", "put", "system", "font_scale", "2.0")
+        self.wait_text("Back up your library"); self.scroll_to_text("Sticker backup")
+        self.screenshot("19-backup-large-text"); self.tap("Cancel")
+        self.scroll_to_text("Back up library"); self.screenshot("21-import-large-text")
+        self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
+        # Both picker cancellation and the format choice leave the collection intact.
+        open_options(); self.tap("Sticker backup"); self.wait_text("Show roots")
+        self.adb("shell", "input", "keyevent", "4")
+        self.wait_text("Back up library"); assert self.counts() == before
+        open_options(); self.tap("Editable backup"); downloads(); self.wait_text("SAVE"); self.tap("SAVE")
+        self.wait_text("Editable backup saved")
+        archive = self.output / "editable-export.zip"
+        self.adb("pull", "/sdcard/Download/stickerdock-editable.zip", str(archive))
+        with zipfile.ZipFile(archive) as outer:
+            manifest = json.loads(outer.read("editable-backup.json"))
+            library = outer.read("library.zip")
+            assert hashlib.sha256(library).hexdigest() == manifest["library_sha256"]
+            project = manifest["projects"][0]
+            assert project["masks"], "Export discarded the retained brush history"
+            for digest in project["masks"]:
+                assert hashlib.sha256(outer.read(f"blobs/{digest}.png")).hexdigest() == digest
+            assert hashlib.sha256(outer.read(f"blobs/{project['source_sha256']}.webp")).hexdigest() == project["source_sha256"]
+            # Restore one project from this real export, keeping the 10k acceptance
+            # library intact without doubling every synthetic pack/sticker.
+            _, pack_id, filename = project["sticker"].split("/")
+            with zipfile.ZipFile(io.BytesIO(library)) as saved:
+                document = json.loads(saved.read("manifest.json"))
+                pack = next(p for p in document["packs"] if p["id"] == pack_id)
+                pack["name"] = "Editable backup restored"
+                pack["stickers"] = [s for s in pack["stickers"] if s["name"] == filename]
+                document["packs"] = [pack]
+                stream = io.BytesIO()
+                with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as compact:
+                    compact.writestr("manifest.json", json.dumps(document))
+                    compact.writestr(project["sticker"], saved.read(project["sticker"]))
+            library = stream.getvalue()
+            manifest["library_sha256"] = hashlib.sha256(library).hexdigest()
+            manifest["projects"] = [project]
+            restore = self.output / "qa-editable-restore.zip"
+            with zipfile.ZipFile(restore, "w", zipfile.ZIP_DEFLATED) as compact:
+                compact.writestr("editable-backup.json", json.dumps(manifest))
+                compact.writestr("library.zip", library)
+                paths = [f"blobs/{project['source_sha256']}.webp"] + [f"blobs/{mask}.png" for mask in project["masks"]]
+                for path in paths:
+                    compact.writestr(path, outer.read(path))
+        assert self.counts() == before, "Backup export changed the library"
+        self.adb("push", str(restore), "/sdcard/Download/qa-editable-restore.zip")
+        self.scroll_to_text("Restore backup"); self.tap("Restore backup"); downloads()
+        if self.nodes("List view"):
+            self.tap("List view")
+        self.scroll_to_text("qa-editable-restore.zip"); self.tap("qa-editable-restore.zip")
+        self.wait_text("Restored 1 packs")
+        assert self.counts() == (before[0] + 1, before[1] + 1)
+        self.launch(restart=True); self.wait_text("Editable backup restored")
+        self.screenshot("20-restored-editable-pack")
+        database = self.output / "editable-restored.db"
+        self.adb("pull", ROOT + "/databases/stickerdock.db", str(database))
+        with sqlite3.connect(database) as connection:
+            record = connection.execute("SELECT a.source_sha256,a.saved_history,a.draft_history FROM artwork_projects a JOIN stickers s ON a.sticker_id=s.id JOIN packs p ON s.pack_id=p.id WHERE p.name=?", ("Editable backup restored",)).fetchone()
+        assert record == (project["source_sha256"], project["saved_history"], project["draft_history"]), "Editable restore lost project history"
+
+    def received_pack(self):
+        before = self.counts()
+        pack_id, sticker_id = str(uuid.uuid4()), str(uuid.uuid4())
+        image = io.BytesIO()
+        Image.new("RGBA", (512, 512), (240, 190, 55, 255)).save(image, format="WEBP", lossless=True)
+        content = image.getvalue()
+        archive = self.output / "Weekend reactions.zip"
+        manifest = {"schema": 5, "packs": [{"id": pack_id, "name": "Weekend reactions", "kind": "STATIC", "rating": "GENERAL", "category": "REACTIONS",
+                    "stickers": [{"name": sticker_id + ".webp", "sha256": hashlib.sha256(content).hexdigest(), "label": "Weekend", "tags": "qa"}]}]}
+        with zipfile.ZipFile(archive, "w") as zipped:
+            zipped.writestr("manifest.json", json.dumps(manifest))
+            zipped.writestr(f"packs/{pack_id}/{sticker_id}.webp", content)
+        # Use a real scoped FileProvider URI, as the sender's share sheet does.
+        # A shell-created DocumentsProvider URI does not prove a user-selected
+        # document grant and can fail before the app reads the archive.
+        directory = ROOT + "/cache/shared"
+        self.adb("shell", "mkdir", "-p", directory)
+        self.adb("push", str(archive), directory + "/qa-received.zip")
+        uid = self.adb("shell", "stat", "-c", "%u", ROOT).strip()
+        assert uid.isdigit()
+        self.adb("shell", "chown", "-R", f"{uid}:{uid}", directory)
+        self.adb("shell", "restorecon", "-RF", directory)
+        uri = "content://" + PACKAGE + ".exports/shared/qa-received.zip"
+        for save in (False, True):
+            self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-t", "application/zip", "-d", uri,
+                     "--grant-read-uri-permission", "-n", PACKAGE + "/.StickerDockPolishedActivity")
+            self.wait_text("Import shared packs?")
+            assert self.counts() == before, "Opening a received archive imported before confirmation"
+            self.screenshot("17-received-pack")
+            self.tap("Import packs" if save else "Cancel")
+            if save:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline and self.nodes("Import shared packs?"):
+                    visible = [n.get("text", "") for n in self.tree().iter("node") if self.visible(n)]
+                    errors = [value for value in visible if "Shared import:" in value]
+                    assert not errors, "Received archive failed: " + " ".join(errors)
+                    time.sleep(.4)
+            self.wait_hidden("Import shared packs?")
+            assert self.counts() == ((before[0] + 1, before[1] + 1) if save else before)
+        self.launch(restart=True); self.wait_text("Weekend reactions")
 
     def run_acceptance(self, apk):
         assert self.adb("shell", "getprop", "ro.kernel.qemu").strip() == "1", "Only a disposable emulator is allowed"
@@ -185,13 +411,18 @@ class LibraryAcceptance(ClipCreatorSmoke):
         with sqlite3.connect(final_db) as connection:
             after = (connection.execute("SELECT count(*) FROM packs").fetchone()[0], connection.execute("SELECT count(*) FROM stickers").fetchone()[0])
         assert before == after, "Browsing or preview changed saved data"
+        self.photo_destination()
+        self.brush_refinement()
+        self.public_pack_links()
+        self.received_pack()
+        self.editable_backups()
         crashes = self.adb("logcat", "-b", "crash", "-d")
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving"],
-                  "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests"]}
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import", "received pack file explicit import, cancel without mutation and restart preservation", "editable backup format choice/200% text, picker cancellation, real DocumentsUI export, source/mask integrity, one-project DocumentsUI restore and persisted history"],
+                  "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance", "Pack-code fixture is deliberately unpublished; live published-pack and HTTPS sharing acceptance remains separate"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)
 

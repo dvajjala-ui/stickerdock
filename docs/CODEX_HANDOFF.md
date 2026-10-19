@@ -1,4 +1,123 @@
-# StickerDock development handoff — updated October 17, 2026
+# StickerDock development handoff — updated October 19, 2026
+
+## Active continuation — editable backups
+
+Latest source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984),
+including 124 Android / 12 shared / 208 Python tests. All eight editable-backup
+tests pass. The final card geometry and full source-pixel validation are included.
+[Signed on-screen acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205128245)
+passes on that exact APK, including DocumentsUI editable export/restore,
+format/picker cancellation, large text and persisted project history. The
+downloaded candidate is `work/StickerDock-0.11.0/StickerDock.apk` (3,853,283 bytes),
+SHA-256 `7aaff3b68e6177337139662acadc79edbe9f0238f4b137f0646ba4f6cefb693e`.
+Its hash matches release.json, SHA256SUMS.txt and acceptance.json. Normal/200%
+backup choices, 200% Import cards and restored-pack screenshots were inspected.
+Scrolling PSS is 34,167→66,630 KB on the 334-pack/10k synthetic fixture library.
+Physical S24/WhatsApp/Business, Google Play segmentation quality and third-party
+document-provider acceptance remain pending; a fresh ADB check finds no device.
+This is a branch candidate; published stable remains unchanged. The older failed
+fixture run below is historical.
+
+Next native AI boundary is audited in NATIVE_AI_HANDOFF.md: the existing
+`api/captions.py` endpoint is owner-Studio-only, not ordinary mobile-account
+access. Build account-scoped jobs and shared provider budgets before adding a
+native suggestion UI. No provider/Studio key belongs in the APK. No new provider
+call, model installation or hosted deployment was performed in this slice.
+
+Android now has explicit editable/portable backup choices. The new bounded
+envelope retains normalized originals, saved histories, drafts and masks around
+an unchanged portable v5 library ZIP. Restore and generic ZIP imports recognize
+it; sharing/cloud remain saved artwork only. New tests cover round-trip, restart,
+exact Reset, corruption and storage failure rollback. Source `744a13d` passes
+[Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39165983862).
+Source `cf9d8b0` adds scrollable large-text backup choices and real DocumentsUI
+export/restore acceptance. Native/shared/backend tests, lint and signing pass;
+[signed emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39202677418)
+fails at the new fixture's `Save` label (system picker uses `SAVE`). The script
+is fixed and editable originals now require full pixel decoding with a malformed
+pixel/valid-checksum regression. Rerun required. The fully verified candidate below predates these changes. See
+EDITABLE_BACKUPS.md.
+
+## October 19 — visual design and sharing continuation
+
+**Previous verified source `019c75f`** passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
+and [complete signed-APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161487231):
+116 Android/12 shared/208 Python tests, lint, signing/alignment, 10k library and
+all new brush/public-code/received-file journeys. Candidate APK is
+`work/StickerDock-0.11.0/StickerDock.apk`, SHA-256
+`6c9856e53b2d18bbff58ca0fae5086f5eeda3c1a944a45d2460732c892a8aa24`.
+Its hash agrees with release.json and acceptance.json. Screenshots were inspected.
+Later documentation-only commits do not change this compiled-source checkpoint.
+The provider-cache unit-test isolation correction combines related assertions in
+one app sandbox; all sharing assertions remain. See QA_MATRIX.md for boundaries.
+
+`8eac289` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159539977).
+The [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39159546406)
+passes brush/draft/process restart/exact Reset and public pack-code interactions,
+then fails its received-file fixture (shell-created DocumentsProvider URI).
+Overall acceptance fails. The fixture now uses a scoped FileProvider URI; failed
+imports are retained for retry with useful errors, and a full sharing round-trip
+unit test checks artwork, labels and private ratings. Rerun required. The earlier `4945ce0` failure was test setup: Android
+resources were absent from provider unit tests, and an older incoming-share test
+used raw file URIs. Tests now use the manifest/resources and content-URI fixtures.
+
+The latest source includes public pack codes/custom links (PUBLIC_PACK_CODES.md),
+readable per-share ZIP filenames, explicit received-file import, and shared-photo
+destination selection. Cold/warm intents are handled. Brush controls scroll/wrap
+for larger text, and the editor title yields space to Save/Cancel. UI review and
+actual screenshot limitations are in UI_REVIEW_2026-10-19.md. Original generation
+remains prepared/disabled with no live provider trial. Keep the full R01–R38 map
+active; this candidate does not close every product requirement.
+
+## Current continuation — cutout and full parity reconciliation
+
+STICKERLY_PARITY_AUDIT_2026-10-18.md maps all R01–R38 requirements to actual
+implementation, gaps and acceptance. It explicitly does not close full parity.
+`377b97a` adds optional on-device ML Kit subject removal and lossless,
+content-addressed masks alongside retained originals. Its [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39133885444)
+passes. `22bc2a2` adds erase/restore brushes with undo/redo, bounded recreation
+state, and explicit Apply into a durable draft. Saved artwork changes only on
+Save; Reset returns the exact retained original. Copy/move and deletion undo
+retain referenced masks. Existing backup format remains saved-artwork only.
+
+`7878bbb` extends exact signed-APK acceptance to brush cancel, undo/redo, draft
+process restart, save and exact-original reset. Android CI passes (112/12/208),
+but the signed emulator run stopped on an ambiguous test locator before reaching
+the brush. The locator is corrected. The subsequent design pass adds typography,
+distinct pack cards, photo/video creation cards and Cutout/Transform/Text editor
+tools around a larger checkerboard preview. A matching rerun is required.
+Do not treat the older db6c979 APK as containing this editor.
+Google Play model inference/quality is not tested by the AOSP emulator. No
+physical ADB device is connected and no paid image-generation call was made.
+
+## Latest — pack-focused product rebuild candidate
+
+Branch `codex/sticker-first-redesign`, [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21).
+User explicitly rejects treating the prompt as isolated bug fixes; both full
+requests and their no-more-questions/AI preference are preserved in
+PRODUCT_REBUILD_REQUEST_2026-10-18.md. Product/reference/architecture decisions and
+remaining work are in PRODUCT_REBUILD_2026-10-18.md. Ledger R36/R37 track scope.
+
+0.11.0/build15 makes packs the browsing/search unit, enlarges artwork, simplifies
+Discover and secondary settings, stages photos in an explicit new/existing pack
+sheet and streamlines WhatsApp actions. Import retries retain failed selections;
+explicit photo creation can reuse photos across packs while migration keeps its
+global dedup. The unused legacy activity was removed. No schema reset, new
+signing key or public content publication occurred.
+
+`tools/original_artwork.py` is an optional BFL development worker with durable
+submission reservations, source hashes, per-folder request caps and private review
+archives. The Groq path remains. No image-model API key exists for this trial;
+no paid request, purchase or cloud deployment occurred. The BFL endpoint fields
+were checked read-only against its official OpenAPI schema. Mocked tests and a
+zero-submission dry run are not live model quality evidence. See
+ORIGINAL_ARTWORK_WORKER.md; do not expose provider keys in the native app or web UI.
+
+Use QA_MATRIX.md for exact source/run evidence. Physical WhatsApp/Business, S24
+SAF/process-death acceptance, automatic cutout, reviewed content breadth, sharing
+links and iPhone redesign parity remain open. Vercel preview is disabled for this
+branch. Stable production remains 0.10.2; do not mistake a branch artifact for the
+latest published download.
 
 ## Latest — Gmail account email connected
 
