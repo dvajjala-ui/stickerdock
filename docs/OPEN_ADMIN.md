@@ -32,3 +32,12 @@ fixtures, foreign-origin rejection, private phone-cloud denial without a bearer,
 and browser startup, errors/retry, navigation, edits, background polling, mobile
 layout and Studio source → fixture AI request → result. Provider generation and
 destructive production operations are not invoked by these checks.
+
+Commit `a92de8ce85edcbc2c9aff17d5ed8aa022a5b3577` is deployed on `main`.
+[Main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39214400846)
+passes 205 backend tests plus the Android/shared tests, lint and builds. A fresh
+production browser context opens Admin and Studio without a cookie, password or
+session request and passes the 390 px layout check. Read-only production checks
+confirm the existing packs, Factory pack, queue and activity remain available;
+foreign browser origins receive 403, unauthenticated phone-cloud inventory
+receives 401 and the removed session route receives 404.

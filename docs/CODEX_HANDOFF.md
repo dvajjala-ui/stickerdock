@@ -7,8 +7,12 @@ database. Admin/Studio now load live data directly, with no owner session or
 token flow. `/api/session` is removed; phone-cloud account authentication and
 all SQL/data are retained. See OPEN_ADMIN.md and the R40 ledger entry. Local
 205 backend tests and browser checks pass, including direct startup/retry,
-polling/edit preservation and Studio fixture queue/result. Hosted/main-CI
-verification is still required. Earlier sign-in notes below are historical.
+polling/edit preservation and Studio fixture queue/result. Commit `a92de8c` is
+deployed; [main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39214400846)
+passes. Production Admin/Studio open in a fresh cookie-free browser at desktop
+and 390 px. Read-only checks confirm existing records remain, `/api/session` is
+404, foreign browser origins are 403 and unauthenticated phone cloud is 401.
+Earlier sign-in notes below are historical.
 
 ## Published release — October 19, 2026
 
@@ -29,10 +33,10 @@ photo creation, brush/draft/restart/reset, public codes, received files and
 DocumentsUI editable export/restore with retained project history. These are
 emulator checks, not physical WhatsApp/Business or segmentation-quality acceptance.
 
-[Production admin](https://stickerdock.vercel.app/admin) is deployed. Its
-HTML/JS/CSS and About page match source; supporting routes, signed-out session,
-owner authentication boundary and desktop/phone browser checks pass. No
-authenticated production writes were made in this publication check. The
+[Production admin](https://stickerdock.vercel.app/admin) is deployed. The current
+dashboard opens directly and its supporting routes and desktop/phone browser
+checks pass. Phone-cloud authentication remains enforced. No production writes
+were made in this publication check. The
 existing public catalog has one four-sticker pack; its archive/media hashes
 and format validate. Native AI/original artwork, Pinterest approval, catalog
 breadth, physical-phone acceptance and remaining parity are still open.
@@ -388,9 +392,10 @@ and cleanup. No personal files or public test publication. Final retry/UI/metada
 https://github.com/dvajjala-ui/stickerdock/actions/runs/38717657942.
 Do not confuse this with phone acceptance.
 
-Admin is live-only and now asks for normal owner email/password, not a pasted
-owner token. Secure HttpOnly cookies support refresh/logout; legacy token remains
-for operational scripts. Owner allowlist defaults to dvjjala@gmail.com. Password
+Historical pre-R40 owner-session record: Admin previously asked for normal owner
+email/password instead of a pasted owner token. Secure HttpOnly cookies supported
+refresh/logout and a legacy token remained for operational scripts. The owner
+allowlist defaulted to the configured owner address. Password
 reset and account confirmation use /account; Supabase Site URL was corrected
 from localhost to https://stickerdock.vercel.app/account. User explicitly asked
 to skip SMTP setup, so production account-email delivery remains pending. Do not
@@ -402,7 +407,7 @@ suite 151 run / 147 passed / 4 local video skips, plus 4 owner-session tests.
 Hosted admin sign-in and account recovery page pass at 390px without page errors
 or horizontal overflow. Signed 0.6.0 APK/AAB use existing release certificate. Final APK SHA-256:
 16AA3FCEC9795F245A651845692630E132633842B421A08F6102A9642818FEBE.
-Root opens Admin; Studio at /studio shares the same owner browser session.
+Root opens Admin; Studio is at /studio. R40 removed this earlier owner session.
 No ADB device connected; WhatsApp, large-library sync, and physical-phone
 acceptance remain pending. Pinterest approval and full daily Factory capacity
 also retain their existing external/operational gates.

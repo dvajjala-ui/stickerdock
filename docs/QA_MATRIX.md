@@ -2,12 +2,16 @@
 
 ## Current website change — R40
 
-Local backend suite: **205 tests pass**. Credential-free workspace read/command
+Local and [main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39214400846)
+backend suites: **205 tests pass**. Credential-free workspace read/command
 fixtures, foreign-browser-origin rejection and private-phone-cloud 401 checks
 pass. Browser smoke passes direct startup without session requests, outage/retry,
 navigation, edit/polling protection, mobile layout and Studio source/fixture
-queue/result. Main CI and hosted checks remain required. No SQL/data migration
-or Android APK change is part of this slice. See OPEN_ADMIN.md. The owner-login
+queue/result. Production read-only/API checks pass: existing data is present,
+Admin and Studio open in a fresh cookie-free browser, foreign browser origins
+receive 403, phone-cloud receives 401 without a bearer and `/api/session` is 404.
+No SQL/data migration, production write or Android APK change is part of this
+slice. See OPEN_ADMIN.md. The owner-login
 checks in the earlier publication record below predate this requested change.
 
 ## Published release — October 19, 2026
@@ -29,10 +33,10 @@ photo creation, brush/draft/restart/reset, public codes, received files and
 DocumentsUI editable export/restore with retained project history. These are
 emulator checks, not physical WhatsApp/Business or segmentation-quality acceptance.
 
-[Production admin](https://stickerdock.vercel.app/admin) is deployed. Its
-HTML/JS/CSS and About page match source; supporting routes, signed-out session,
-owner authentication boundary and desktop/phone browser checks pass. No
-authenticated production writes were made in this publication check. The
+[Production admin](https://stickerdock.vercel.app/admin) is deployed. The current
+dashboard opens directly and its supporting routes and desktop/phone browser
+checks pass. Phone-cloud authentication remains enforced. No production writes
+were made in this publication check. The
 existing public catalog has one four-sticker pack; its archive/media hashes
 and format validate. Native AI/original artwork, Pinterest approval, catalog
 breadth, physical-phone acceptance and remaining parity are still open.

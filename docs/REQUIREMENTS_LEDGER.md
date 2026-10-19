@@ -24,7 +24,7 @@ User request: â€œpush code abd upated latets apk and admin web site needed likeâ
 
 | ID | Requirement | Status | Implementation and remaining work |
 | --- | --- | --- | --- |
-| R40 | Remove Admin password/account checks from frontend and APIs, open the live dashboard directly, retain all database data and push | In progress | Explicit October 19 user instruction supersedes the owner-login part of R21. Shared Admin/Studio load directly with credential-free workspace APIs; owner session endpoint and login/preview code removed. Database/schema/RLS, stored accounts/packs and private phone-cloud authentication retained. See OPEN_ADMIN.md. Local API/browser checks pass; main CI and hosted verification pending. |
+| R40 | Remove Admin password/account checks from frontend and APIs, open the live dashboard directly, retain all database data and push | Implemented / verified | Deployed from `a92de8c`. Shared Admin/Studio load directly with credential-free workspace APIs; owner session endpoint and login/preview code are removed. Database/schema/RLS, stored accounts/packs and private phone-cloud authentication are retained. [Main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39214400846) passes 205 backend tests plus Android/shared tests, lint and builds. Production read-only/API and fresh-browser desktop/390 px checks pass; no production writes were used. See OPEN_ADMIN.md. |
 
 | ID | Requirement | Status | Implementation and remaining work |
 | --- | --- | --- | --- |
