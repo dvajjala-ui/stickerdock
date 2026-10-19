@@ -220,6 +220,82 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.tap("Cancel"); self.wait_hidden("Open pack code")
         assert self.counts() == before, "Shared code or cancellation mutated the library"
 
+    def editable_backups(self):
+        before = self.counts()
+
+        def open_options():
+            self.launch(restart=True); self.wait_text("Search library"); self.tap("Create")
+            self.scroll_to_text("Import and backups"); self.tap("Import and backups")
+            self.scroll_to_text("Back up library"); self.tap("Back up library")
+            self.wait_text("Back up your library")
+
+        def downloads():
+            self.wait_text("Show roots"); self.tap("Show roots"); self.wait_text("Downloads")
+            root = self.nodes("Downloads")[-1]
+            left, top, right, bottom = map(int, re.findall(r"\d+", root.get("bounds")))
+            self.adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+
+        open_options(); self.screenshot("18-backup-options")
+        self.adb("shell", "settings", "put", "system", "font_scale", "2.0")
+        self.wait_text("Back up your library"); self.scroll_to_text("Sticker backup")
+        self.screenshot("19-backup-large-text"); self.tap("Cancel")
+        self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
+        # Both picker cancellation and the format choice leave the collection intact.
+        open_options(); self.tap("Sticker backup"); self.wait_text("Show roots")
+        self.adb("shell", "input", "keyevent", "4")
+        self.wait_text("Back up library"); assert self.counts() == before
+        open_options(); self.tap("Editable backup"); downloads(); self.wait_text("Save"); self.tap("Save")
+        self.wait_text("Editable backup saved")
+        archive = self.output / "editable-export.zip"
+        self.adb("pull", "/sdcard/Download/stickerdock-editable.zip", str(archive))
+        with zipfile.ZipFile(archive) as outer:
+            manifest = json.loads(outer.read("editable-backup.json"))
+            library = outer.read("library.zip")
+            assert hashlib.sha256(library).hexdigest() == manifest["library_sha256"]
+            project = manifest["projects"][0]
+            assert project["masks"], "Export discarded the retained brush history"
+            for digest in project["masks"]:
+                assert hashlib.sha256(outer.read(f"blobs/{digest}.png")).hexdigest() == digest
+            assert hashlib.sha256(outer.read(f"blobs/{project['source_sha256']}.webp")).hexdigest() == project["source_sha256"]
+            # Restore one project from this real export, keeping the 10k acceptance
+            # library intact without doubling every synthetic pack/sticker.
+            _, pack_id, filename = project["sticker"].split("/")
+            with zipfile.ZipFile(io.BytesIO(library)) as saved:
+                document = json.loads(saved.read("manifest.json"))
+                pack = next(p for p in document["packs"] if p["id"] == pack_id)
+                pack["name"] = "Editable backup restored"
+                pack["stickers"] = [s for s in pack["stickers"] if s["name"] == filename]
+                document["packs"] = [pack]
+                stream = io.BytesIO()
+                with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as compact:
+                    compact.writestr("manifest.json", json.dumps(document))
+                    compact.writestr(project["sticker"], saved.read(project["sticker"]))
+            library = stream.getvalue()
+            manifest["library_sha256"] = hashlib.sha256(library).hexdigest()
+            manifest["projects"] = [project]
+            restore = self.output / "qa-editable-restore.zip"
+            with zipfile.ZipFile(restore, "w", zipfile.ZIP_DEFLATED) as compact:
+                compact.writestr("editable-backup.json", json.dumps(manifest))
+                compact.writestr("library.zip", library)
+                paths = [f"blobs/{project['source_sha256']}.webp"] + [f"blobs/{mask}.png" for mask in project["masks"]]
+                for path in paths:
+                    compact.writestr(path, outer.read(path))
+        assert self.counts() == before, "Backup export changed the library"
+        self.adb("push", str(restore), "/sdcard/Download/qa-editable-restore.zip")
+        self.scroll_to_text("Restore backup"); self.tap("Restore backup"); downloads()
+        if self.nodes("List view"):
+            self.tap("List view")
+        self.scroll_to_text("qa-editable-restore.zip"); self.tap("qa-editable-restore.zip")
+        self.wait_text("Restored 1 packs")
+        assert self.counts() == (before[0] + 1, before[1] + 1)
+        self.launch(restart=True); self.wait_text("Editable backup restored")
+        self.screenshot("20-restored-editable-pack")
+        database = self.output / "editable-restored.db"
+        self.adb("pull", ROOT + "/databases/stickerdock.db", str(database))
+        with sqlite3.connect(database) as connection:
+            record = connection.execute("SELECT a.source_sha256,a.saved_history,a.draft_history FROM artwork_projects a JOIN stickers s ON a.sticker_id=s.id JOIN packs p ON s.pack_id=p.id WHERE p.name=?", ("Editable backup restored",)).fetchone()
+        assert record == (project["source_sha256"], project["saved_history"], project["draft_history"]), "Editable restore lost project history"
+
     def received_pack(self):
         before = self.counts()
         pack_id, sticker_id = str(uuid.uuid4()), str(uuid.uuid4())
@@ -338,12 +414,13 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.brush_refinement()
         self.public_pack_links()
         self.received_pack()
+        self.editable_backups()
         crashes = self.adb("logcat", "-b", "crash", "-d")
         assert "FATAL EXCEPTION" not in crashes, "App crashed during acceptance"
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
-                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import", "received pack file explicit import, cancel without mutation and restart preservation"],
+                  "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import", "received pack file explicit import, cancel without mutation and restart preservation", "editable backup format choice/200% text, picker cancellation, real DocumentsUI export, source/mask integrity, one-project DocumentsUI restore and persisted history"],
                   "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance", "Pack-code fixture is deliberately unpublished; live published-pack and HTTPS sharing acceptance remains separate"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report), flush=True)

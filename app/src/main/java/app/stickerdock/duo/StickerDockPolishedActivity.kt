@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -896,7 +898,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         if (showBackupOptions) AlertDialog(onDismissRequest = { showBackupOptions = false },
             title = { Text("Back up your library") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Choose what to keep. Both options include saved packs, labels and tags.")
                     TextButton(modifier = Modifier.fillMaxWidth(), onClick = {
                         editableBackup = true; showBackupOptions = false; saveBackup.launch("stickerdock-editable.zip")

@@ -35,6 +35,8 @@ def prepare(apk, bundle, output, source, run_url):
         "- Pack-centered Library and Discover, larger artwork previews and search grouped by pack.\n"
         "- Choose photos, name a new pack or select an existing one, then explicitly save; cancel leaves the library unchanged.\n"
         "- Simplified creation/settings and contextual WhatsApp or Business actions with an add-again recovery option.\n"
+        "- Cutout edge brushes, saved drafts, public pack codes and explicit received-pack import with retry.\n"
+        "- Private editable Android backups retain normalized originals, masks and drafts; portable saved-sticker backups remain compatible.\n"
         "- Existing library formats and signing identity preserved; optional original-art worker remains server-side, disabled by default and not live-validated.\n\n"
         f"Source: `{source}`. [Build and acceptance evidence]({run_url}).\n\n"
         "The signed APK passes native unit checks and AOSP emulator acceptance before publication. "
