@@ -2,6 +2,27 @@
 
 ## Editable backup continuation
 
+Latest source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984):
+**124 Android / 12 shared / 208 Python tests**, including all eight editable
+backup tests. Signed native build and on-screen acceptance are tracked in
+[run 39205128245](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205128245)
+both pass. The downloaded APK's SHA-256 is
+`7aaff3b68e6177337139662acadc79edbe9f0238f4b137f0646ba4f6cefb693e` and matches
+release.json, SHA256SUMS.txt and acceptance.json. Candidate:
+`work/StickerDock-0.11.0/StickerDock.apk` (3,853,283 bytes).
+
+The exact APK exports the 10k-fixture library through DocumentsUI, verifies
+source/mask hashes, restores a single-project subset through DocumentsUI, and
+retains its project history after restart without changing existing packs.
+Format/picker cancellation and 200% text pass. Inspected screenshots 18/19/20/21:
+backup body text has no curved clipping; normal viewport cropping at scroll
+boundaries remains expected, with the fixed Cancel control accessible. Import
+action text is readable. Scrolling PSS is **34,167→66,630 KB**. All earlier
+library/editor/code/share journeys pass in this same run. Fixtures remain
+synthetic/repo-owned, not proof of desirable real catalog artwork.
+Physical S24/WhatsApp/Business and third-party Files/Drive providers remain
+pending; a fresh ADB check finds no device.
+
 New Android editable backup tests cover originals/masks/saved recipes/drafts,
 Undo/Redo/restart/Reset, unchanged portable v5 imports, archive routing, damaged
 blobs/recipes and project-storage failure rollback/retry. Source `744a13d` passes

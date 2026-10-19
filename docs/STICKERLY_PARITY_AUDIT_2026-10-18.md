@@ -30,7 +30,7 @@ another app has them. No user requirement is silently removed by that decision.
 | Send a pack link/code | Portable file sharing; native public-pack codes/custom links with explicit preview/save | Signed interaction acceptance, deployed HTTPS landing/universal links and private revocable links |
 | Telegram destination | No dedicated pack exporter | Research/implementation/testing required; do not label a generic file share Telegram pack installation |
 | Follow creators / public profiles | Reviewed catalog and hide/report mechanisms | Moderated community product, identity, safety and operational review |
-| Private durable collection | Local database/media, backups, optional private cloud | Full editable-project backup, phone migration and iOS cloud parity |
+| Private durable collection | Local database/media, portable backups, verified Android editable envelope and optional private cloud | Full-resolution/video projects, phone migration and iOS parity |
 | AI-supplied initial content | Groq caption/media Factory; optional original-art worker | Live original-model trial, style consistency/cutout quality, reviewed pack breadth, native assistant |
 
 ## Every ledger requirement
@@ -54,7 +54,7 @@ not close a requirement.
 | R10 | Core checkpoint verified | New features require new matching CI/APK acceptance |
 | R11 | Partial: trend/source/caption jobs exist | Consistent reviewed daily variety and useful pack coherence |
 | R12 | Partial: Admin/Studio deployed | Current owner onboarding and operational CRUD/recovery acceptance |
-| R13 | Partial: private ratings/kinds, portable format and new Android editable backup source | Verify editable restore; iPhone/full-resolution/video projects and private links remain |
+| R13 | Partial: private ratings/kinds, portable format and verified Android editable export/restore | iPhone/full-resolution/video projects and private links remain |
 | R14 | Pending product gate | Public submissions require rights, moderation, identity, scanning and age protections |
 | R15 | Active: end-to-end owner/consumer audit | Fresh hosted operational checks after relevant deployment |
 | R16 | External gate: Pinterest approval | Keep approved reference browsing; no scraping workaround |

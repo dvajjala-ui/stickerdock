@@ -29,3 +29,9 @@ future work. This format is not encrypted.
 portable compatibility, generic importer dispatch, damaged/missing/unreferenced
 blobs, invalid recipes, duplicate references and storage failure/retry. Source
 checks do not replace the matching CI run or physical document-provider testing.
+
+Source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984)
+with eight backup tests and [complete signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205128245),
+including real DocumentsUI export, original/mask checksums, one-project restore,
+restart/history preservation, cancellation and 200% text. The full-resolution,
+video, iPhone-editable, resumable-restore and physical-provider limits above remain.

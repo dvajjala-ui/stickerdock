@@ -2,6 +2,28 @@
 
 ## Active continuation — editable backups
 
+Latest source `f1bcb0d` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205131984),
+including 124 Android / 12 shared / 208 Python tests. All eight editable-backup
+tests pass. The final card geometry and full source-pixel validation are included.
+[Signed on-screen acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39205128245)
+passes on that exact APK, including DocumentsUI editable export/restore,
+format/picker cancellation, large text and persisted project history. The
+downloaded candidate is `work/StickerDock-0.11.0/StickerDock.apk` (3,853,283 bytes),
+SHA-256 `7aaff3b68e6177337139662acadc79edbe9f0238f4b137f0646ba4f6cefb693e`.
+Its hash matches release.json, SHA256SUMS.txt and acceptance.json. Normal/200%
+backup choices, 200% Import cards and restored-pack screenshots were inspected.
+Scrolling PSS is 34,167→66,630 KB on the 334-pack/10k synthetic fixture library.
+Physical S24/WhatsApp/Business, Google Play segmentation quality and third-party
+document-provider acceptance remain pending; a fresh ADB check finds no device.
+This is a branch candidate; published stable remains unchanged. The older failed
+fixture run below is historical.
+
+Next native AI boundary is audited in NATIVE_AI_HANDOFF.md: the existing
+`api/captions.py` endpoint is owner-Studio-only, not ordinary mobile-account
+access. Build account-scoped jobs and shared provider budgets before adding a
+native suggestion UI. No provider/Studio key belongs in the APK. No new provider
+call, model installation or hosted deployment was performed in this slice.
+
 Android now has explicit editable/portable backup choices. The new bounded
 envelope retains normalized originals, saved histories, drafts and masks around
 an unchanged portable v5 library ZIP. Restore and generic ZIP imports recognize
@@ -18,7 +40,7 @@ EDITABLE_BACKUPS.md.
 
 ## October 19 — visual design and sharing continuation
 
-**Latest verified source `019c75f`** passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
+**Previous verified source `019c75f`** passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
 and [complete signed-APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161487231):
 116 Android/12 shared/208 Python tests, lint, signing/alignment, 10k library and
 all new brush/public-code/received-file journeys. Candidate APK is
