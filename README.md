@@ -13,17 +13,18 @@ emulator before advancing the download. Failed builds keep the previous release.
 The admin website follows the existing Vercel production deployment from `main`.
 See [installation, update and release verification](docs/ANDROID_RELEASES.md).
 
-October 18: the **0.11.0 pack-focused rebuild candidate** is in
+October 19: the **0.11.0 pack-focused rebuild** is implemented in
 [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21). It adds larger pack
 previews, pack-grouped search, explicit photo destinations, simpler discovery and
 contextual WhatsApp actions. The continued design pass adds distinct pack cards,
 photo/video creation cards, focused editor tools, optional on-device cutouts,
 erase/restore brushes, public pack codes and explicit opening of received pack
-files. The stable download above still points to 0.10.2
-until a release is published. Read the [product decisions and research](docs/PRODUCT_REBUILD_2026-10-18.md),
+files, editable Android backups and readable large-text import actions. The
+download above advances only after the signed release passes its tests and
+on-screen acceptance. Read the [product decisions and research](docs/PRODUCT_REBUILD_2026-10-18.md),
 [candidate verification](docs/QA_MATRIX.md) and [optional original-art worker](docs/ORIGINAL_ARTWORK_WORKER.md).
 The [parity audit](docs/STICKERLY_PARITY_AUDIT_2026-10-18.md) tracks every requirement;
-the candidate is not a complete Sticker.ly replacement yet.
+the app is not a complete Sticker.ly replacement yet.
 See the [Android design review](docs/UI_REVIEW_2026-10-19.md) for layout decisions
 and actual screenshot findings.
 Original image generation is prepared but disabled and not live-validated.
@@ -58,7 +59,7 @@ See [the requirements audit](docs/REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
 
 ## Current source features
 - **Local sticker organization:** create/rename/delete categorized packs, import images, move/copy/remove stickers, SHA-256 deduplication, search packs, globally search stickers, edit per-sticker labels/tags, and filter by topic or Static/Animated.
-- **Make and edit stickers:** choose photos directly from Library or Import to create packs automatically (30 per pack, static/animated separated). Static artwork supports rotate, mirror, zoom/crop, positioning, outlined captions and manual traced cutout, with live preview and bounded undo/redo. Local editable projects retain the 512px starting sticker and recipes; reopening can replace captions or remove cutout, and Reset restores the starting bytes. Drafts autosave locally with a visible status and Library Resume edit action. Failed saves keep edits open for retry; new exports are synced/verified before the saved recipe and sticker row commit together. Originals/drafts stay on this device; ZIP/cloud backups contain saved stickers. Full-resolution photo retention, automatic background removal and animated artwork editing remain pending. See [editable artwork and acceptance limits](docs/LOCAL_ARTWORK_PROJECTS.md).
+- **Make and edit stickers:** choose photos, name a new pack or select an existing destination, then explicitly save (30 per pack, static/animated separated). Static artwork supports rotate, mirror, zoom/crop, positioning, outlined captions, manual tracing, optional on-device cutout and erase/restore brushes, with live preview and bounded undo/redo. Editable projects retain the 512px starting sticker, masks and recipes; Reset restores the starting bytes. Drafts autosave locally and failed saves retain edits for retry. An explicit Android editable backup preserves these projects; portable ZIP sharing and cloud copies keep saved stickers only. Full-resolution photos, editable video projects and native AI caption suggestions remain pending. See [editable artwork](docs/LOCAL_ARTWORK_PROJECTS.md) and [backup scope and verification](docs/EDITABLE_BACKUPS.md).
 - **Static and animated WebP:** WhatsApp-compliant separate pack types, 512×512 static conversion, animated frame/duration checks, animated previews (real-device QA pending).
 - **Native animated creator (0.9.0):** choose a video or GIF, select a short section, framing and motion rate, add an outlined caption, preview the moving result locally and explicitly save to an animated pack. No paid provider or AI key is required for conversion. GIF decode budgets, preview invalidation and safe save guards are included. The signed local build passes real WebM/MP4/GIF and rotated-portrait emulator checks; physical WhatsApp/iPhone remain unverified. Exact artifacts and limits are tracked in [recovery progress](docs/RECOVERY_PROGRESS.md).
 - **Migrate stickers already stored on your Android device:** choose a WhatsApp / WhatsApp Business sticker folder using the Android system folder picker; recursively scan images, recover optional original pack names from WebP EXIF, retain source filenames as searchable sticker labels when available, split into 30-sticker packs, and deduplicate across previously imported items. Large scans show progress and keep a SQLite resume journal with Pause/Resume/Discard controls. This is not access to other apps' private databases.
