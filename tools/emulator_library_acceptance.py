@@ -244,7 +244,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         open_options(); self.tap("Sticker backup"); self.wait_text("Show roots")
         self.adb("shell", "input", "keyevent", "4")
         self.wait_text("Back up library"); assert self.counts() == before
-        open_options(); self.tap("Editable backup"); downloads(); self.wait_text("Save"); self.tap("Save")
+        open_options(); self.tap("Editable backup"); downloads(); self.wait_text("SAVE"); self.tap("SAVE")
         self.wait_text("Editable backup saved")
         archive = self.output / "editable-export.zip"
         self.adb("pull", "/sdcard/Download/stickerdock-editable.zip", str(archive))

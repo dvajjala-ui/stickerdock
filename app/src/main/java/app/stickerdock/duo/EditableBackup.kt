@@ -219,6 +219,8 @@ class EditableBackup(private val context: Context, private val store: StickerSto
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         require(bounds.outWidth == 512 && bounds.outHeight == 512) { "Invalid starting artwork dimensions" }
+        val image = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: error("Cannot decode starting artwork")
+        image.recycle()
     }
 
     private fun stageDirectory() = File(context.cacheDir, "editable-backup-${UUID.randomUUID()}").also { check(it.mkdir()) { "Cannot prepare editable backup" } }

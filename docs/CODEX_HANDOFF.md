@@ -6,8 +6,15 @@ Android now has explicit editable/portable backup choices. The new bounded
 envelope retains normalized originals, saved histories, drafts and masks around
 an unchanged portable v5 library ZIP. Restore and generic ZIP imports recognize
 it; sharing/cloud remain saved artwork only. New tests cover round-trip, restart,
-exact Reset, corruption and storage failure rollback. Matching CI is pending;
-the verified candidate below predates these changes. See EDITABLE_BACKUPS.md.
+exact Reset, corruption and storage failure rollback. Source `744a13d` passes
+[Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39165983862).
+Source `cf9d8b0` adds scrollable large-text backup choices and real DocumentsUI
+export/restore acceptance. Native/shared/backend tests, lint and signing pass;
+[signed emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39202677418)
+fails at the new fixture's `Save` label (system picker uses `SAVE`). The script
+is fixed and editable originals now require full pixel decoding with a malformed
+pixel/valid-checksum regression. Rerun required. The fully verified candidate below predates these changes. See
+EDITABLE_BACKUPS.md.
 
 ## October 19 — visual design and sharing continuation
 

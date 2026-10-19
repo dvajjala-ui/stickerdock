@@ -146,6 +146,30 @@ class EditableBackupTest {
         }
     }
 
+    @Test fun validChecksumWithMalformedOriginalPixelsCannotCreatePacks() {
+        val item = editableSticker()
+        val content = unzip(export()).toMutableMap()
+        // Valid 512px WebP feature headers, but no compressed pixel stream.
+        fun little(value: Int) = byteArrayOf(value.toByte(), (value ushr 8).toByte(), (value ushr 16).toByte(), (value ushr 24).toByte())
+        fun chunk(tag: String, bytes: ByteArray) = tag.toByteArray() + little(bytes.size) + bytes + (if (bytes.size % 2 == 1) byteArrayOf(0) else byteArrayOf())
+        val body = "WEBP".toByteArray() + chunk("VP8X", byteArrayOf(0, 0, 0, 0, -1, 1, 0, -1, 1, 0)) +
+            chunk("VP8L", byteArrayOf(47, -1, -63, 127, 0))
+        val damaged = "RIFF".toByteArray() + little(body.size) + body
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(damaged, 0, damaged.size, bounds)
+        assertEquals(512, bounds.outWidth)
+        assertNull(android.graphics.BitmapFactory.decodeByteArray(damaged, 0, damaged.size))
+        val manifest = JSONObject(content.getValue(EditableBackup.MANIFEST).toString(Charsets.UTF_8))
+        val project = manifest.getJSONArray("projects").getJSONObject(0)
+        content.remove("blobs/${project.getString("source_sha256")}.webp")
+        val hash = StickerFiles.sha256(damaged)
+        project.put("source_sha256", hash)
+        content["blobs/$hash.webp"] = damaged
+        content[EditableBackup.MANIFEST] = manifest.toString().toByteArray()
+        assertTrue(runCatching { EditableBackup(context, store, files).restore(uri(zip(content))) }.isFailure)
+        assertEquals(listOf(item.packId), store.listPacks().map { it.id })
+    }
+
     @Test fun projectStorageFailureRollsBackOnlyNewPacksAndRetrySucceeds() {
         val item = editableSticker()
         val snapshot = projects.snapshot(item)!!
