@@ -240,6 +240,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
             self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.SEND", "-t", mime,
                      "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", PACKAGE + "/.StickerDockPolishedActivity")
             self.wait_text("Make an animated reaction")
+            self.scroll_to_text("Preview animation")
             self.wait_enabled("Preview animation")
             assert not self.enabled("Save sticker") and self.counts() == before
             self.preview("Shared reaction QA", f"26-shared-motion-{index}")
