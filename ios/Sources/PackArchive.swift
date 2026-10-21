@@ -9,7 +9,7 @@ enum PackArchive {
         let attrs = try url.resourceValues(forKeys: [.fileSizeKey])
         try require((attrs.fileSize ?? Int.max) <= maxTotal, "Archive is too large. Import smaller batches.")
         let archive = try Archive(url: url, accessMode: .read)
-        if archive["manifest.json"] == nil { return try readGenericWebP(archive) }
+        if archive["manifest.json"] == nil { return try readGenericImages(archive) }
         var entries: [String: Data] = [:]
         var total = 0
         for entry in archive {
@@ -99,35 +99,42 @@ enum PackArchive {
         name.range(of: "^[A-Za-z0-9_-]{1,100}\\.webp$", options: .regularExpression) != nil
     }
 
-    /// Existing WhatsApp WebP ZIP batches are useful on both platforms. Reads
+    /// Existing WebP packs and ordinary photo ZIP batches work on both platforms. Reads
     /// data in memory only; never extracts caller-controlled filesystem paths.
-    private static func readGenericWebP(_ archive: Archive) throws -> [ImportedPack] {
+    private static func readGenericImages(_ archive: Archive) throws -> [ImportedPack] {
         var grouped: [StickerKind: [ImportedSticker]] = [:]
         var paths = Set<String>()
         var hashes = Set<String>()
         var total = 0
+        var retained = 0
         for entry in archive {
             try Task.checkCancellation()
             let parts = entry.path.split(separator: "/", omittingEmptySubsequences: false)
             try require(entry.path.utf16.count <= 512 && !entry.path.hasPrefix("/") && !entry.path.contains("\\") && !parts.contains("..") && !parts.contains(".") && !entry.path.unicodeScalars.contains { $0.value < 32 } && paths.insert(entry.path).inserted && paths.count <= 3001, "Unsafe or oversized archive path.")
             if entry.type == .directory { continue }
-            try require(entry.type == .file && entry.path.lowercased().hasSuffix(".webp") && entry.uncompressedSize <= 500_000, "This ZIP needs WebP stickers or a StickerDock manifest. Convert other photos in Create.")
+            let ext = URL(fileURLWithPath: entry.path).pathExtension.lowercased()
+            let photo = ["png", "jpg", "jpeg"].contains(ext)
+            let limit = photo ? 20_000_000 : 500_000
+            try require(entry.type == .file && (photo || ext == "webp") && entry.uncompressedSize <= UInt64(limit), "Use a ZIP of PNG, JPEG or WebP images, or a StickerDock backup. Choose GIF/video in Create.")
             var bytes = Data()
             let checksum = try archive.extract(entry, consumer: { chunk in
                 total += chunk.count
-                try require(bytes.count + chunk.count <= 500_000 && total <= maxTotal, "ZIP expands beyond its limit.")
+                try require(bytes.count + chunk.count <= limit && total <= maxTotal, "ZIP expands beyond its limit.")
                 bytes.append(chunk)
             })
             try require(checksum == entry.checksum, "ZIP entry failed its checksum check.")
             let bridge = StickerDockCore.AppleMediaBridge()
+            if photo { bytes = try MediaCreator.archivePhoto(bytes) }
             let info = bridge.inspect(base64: bytes.base64EncodedString())
             let kind: StickerKind = info?.animated == true ? .ANIMATED : .STATIC
-            if kind == .STATIC {
+            if kind == .STATIC && !photo {
                 guard let normalized = bridge.normalizeStatic(base64: bytes.base64EncodedString()), let output = Data(base64Encoded: normalized) else { throw StickerError.invalid("A WebP image is not a valid 512px sticker.") }
                 bytes = output
             }
             try MediaRules.validate(bytes, kind: kind)
             if hashes.insert(MediaRules.hash(bytes)).inserted {
+                retained += bytes.count
+                try require(retained <= maxTotal, "Converted stickers exceed the archive limit. Import smaller batches.")
                 let label = URL(fileURLWithPath: entry.path).deletingPathExtension().lastPathComponent
                 grouped[kind, default: []].append(ImportedSticker(data: bytes, label: label.utf16.count <= 80 ? label : "Imported sticker"))
             }
@@ -139,7 +146,7 @@ enum PackArchive {
                 packs.append(ImportedPack(name: "Imported \(kind == .ANIMATED ? "animated" : "static") stickers \(start / 30 + 1)", kind: kind, stickers: Array(items[start..<min(start + 30, items.count)])))
             }
         }
-        try require(!packs.isEmpty, "No WebP stickers found in this ZIP.")
+        try require(!packs.isEmpty, "No PNG, JPEG or WebP stickers found in this ZIP.")
         return packs
     }
 

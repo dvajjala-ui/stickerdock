@@ -1,5 +1,12 @@
 # StickerDock for iPhone / iPad — tested candidate, not store release
 
+Next candidate: **0.10.2 (build 14)** adds PNG/JPEG photo ZIPs alongside WebP.
+The native converter preserves transparency, applies EXIF orientation and bounds
+source bytes/dimensions and normalized output. Static/animated packs stay separate;
+duplicates collapse. Malformed/animated-disguised photos reject the whole archive
+before saving. Four new native tests require the candidate's own Apple CI;
+the accepted 0.10.1 checkpoint below does not validate this newer source.
+
 This native SwiftUI client uses the same Kotlin Multiplatform WebP validation/
 container code as Android. iOS 17+ is the initial target. It is independent of
 the official WhatsApp sample UI. The user has no Mac, so standard free macOS CI
