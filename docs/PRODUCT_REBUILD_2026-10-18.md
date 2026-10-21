@@ -6,6 +6,15 @@ symptoms mentioned in chat. Status below distinguishes implemented source from
 verified behavior and future work. It supersedes the presentation priorities in
 the October 15 recovery plan; previous data/format guarantees still apply.
 
+October 21 continuation: Favorites, fixed Copy/Move actions, public pack codes,
+editable Android backups and explicit received-file handling are implemented
+and have signed Android acceptance. Shared GIF/video input now opens the motion
+creator. Fresh Apple CI passes 15 native and 1 UI test; its portable photo pack
+also imports on Android with exact bytes. See [current QA](QA_MATRIX.md) and
+[the real-media/Apple acceptance record](CREATOR_ACCEPTANCE_2026-10-21.md).
+Native AI, richer reviewed content, private/HTTPS sharing and physical WhatsApp
+acceptance remain separate work; this is not complete product parity.
+
 ## Product promise
 
 Find or make a pack you actually want to send, keep it, and use it in WhatsApp.
@@ -68,11 +77,11 @@ No third-party implementation or sticker art was copied in this rebuild.
 | WhatsApp | Direct action for one installed target; chooser for two; recovery add-again action | Implemented; physical acceptance pending |
 | Account/cloud | Secondary settings; no login to use local packs | Implemented |
 | ZIP/backups | Import/backup utility, not the main sharing language | Main pack action renamed Share pack; archive interchange retained |
-| Pack sharing links | Public reviewed pack link/deep link; private capability link with revocation/expiry | Planned; this candidate still shares a portable file |
+| Pack sharing links | Public reviewed pack link/deep link; private capability link with revocation/expiry | Public codes/custom links and explicit portable-file receipt implemented; private expiring/revocable and HTTPS universal links remain planned |
 | Legacy launcher | Remove inactive duplicate activity with its second UI implementation | Removed; manifest launcher and data identities unchanged |
 | AI-generated catalog | Coherent character/theme packs with distinct useful reactions; private review first | Optional original-art worker prepared, not enabled/live-validated |
 | Automatic cutout | One-tap subject extraction, restore/erase correction, reversible source | Implemented: confidence masks retained separately, erase/restore brush, undo/redo and drafts. Automatic model quality and signed brush acceptance remain separate gates; see QA_MATRIX.md. |
-| Favorites/recents | Small personal shortcuts, backed by an additive migration | Planned after core acceptance |
+| Favorites/recents | Small personal shortcuts; keep original media authoritative | Android device-local Favorites verified in 0.11.1; separate preferences require no SQLite migration. Favorites are outside existing backups; recents remain future work |
 | Community | Defer social/feed mechanics until catalog and moderation are dependable | Existing reviewed catalog retained; no unreviewed upload feed |
 
 ## Navigation and screen contract

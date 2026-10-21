@@ -5,6 +5,13 @@ functionality and requirements with Sticker.ly. It is a working acceptance map,
 not a claim that every requirement is closed. Preserve the original IDs in
 [REQUIREMENTS_LEDGER.md](REQUIREMENTS_LEDGER.md).
 
+October 21 continuation: Android Favorites and long-library Copy/Move actions
+are verified in published 0.11.1. Shared video/GIF receipt now reaches the motion
+creator; its signed candidate also passes a licensed human-reaction preview and
+explicit animated save. Fresh Apple CI passes 15 native / 1 UI tests, and its
+actual photo archive imports on Android with exact media/private rating retained.
+See [the acceptance record](CREATOR_ACCEPTANCE_2026-10-21.md) and [release status](QA_MATRIX.md).
+
 ## Reference scope
 
 Primary sources inspected: [Sticker.ly's product and creation flow](https://sticker.ly/),
@@ -23,11 +30,11 @@ another app has them. No user requirement is silently removed by that decision.
 | Journey | Current StickerDock | Gap / acceptance |
 | --- | --- | --- |
 | Browse packs → inspect → save | Rebuilt Android pack rows and read-only Discover; explicit offline save | Small reviewed catalog; populated real-content design acceptance |
-| Name pack → photos → edit | Explicit new/existing destination; independent original/draft; automatic removal and erase/restore brushes implemented | Signed brush journey verification and physical automatic-model quality |
+| Name pack → photos → edit | Explicit new/existing destination; independent original/draft; erase/restore brushes, exact Reset and draft/restart verified on signed APK | Physical automatic-model quality and remaining iOS editing parity |
 | Text and transforms | Caption placement, rotation, mirror, scale, undo/redo | Rich text styling/free placement and iOS editor parity |
-| Video/GIF → animated stickers | Trim, caption, moving preview, explicit save, type-separated packs | Editable video projects and moving-subject segmentation |
+| Video/GIF → animated stickers | Trim, caption, moving preview, explicit save, type-separated packs; Android shared clips reach the creator and licensed reaction save is verified | Physical sender grants, editable video projects and moving-subject segmentation |
 | Add pack to WhatsApp | Official provider, app-specific personal/Business actions, add-again | Actual S24/WhatsApp refresh/cancel/Business acceptance; no intra-app account routing claim |
-| Send a pack link/code | Portable file sharing; native public-pack codes/custom links with explicit preview/save | Signed interaction acceptance, deployed HTTPS landing/universal links and private revocable links |
+| Send a pack link/code | Portable file sharing; native public-pack codes/custom links with explicit preview/save verified on signed Android | Deployed HTTPS landing/universal links and private revocable links |
 | Telegram destination | No dedicated pack exporter | Research/implementation/testing required; do not label a generic file share Telegram pack installation |
 | Follow creators / public profiles | Reviewed catalog and hide/report mechanisms | Moderated community product, identity, safety and operational review |
 | Private durable collection | Local database/media, portable backups, verified Android editable envelope and optional private cloud | Full-resolution/video projects, phone migration and iOS parity |

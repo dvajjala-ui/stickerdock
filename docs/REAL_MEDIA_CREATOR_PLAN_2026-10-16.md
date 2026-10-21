@@ -3,7 +3,9 @@
 Follow-up: [cross-platform/product decision](CROSS_PLATFORM_AND_PRODUCT_DIRECTION.md)
 now selects incremental Kotlin Multiplatform sharing, superseding the separate
 native-client direction in step 6 below. Android consumes the shared media core;
-Apple adapters/client/build acceptance remain pending. Three further source
+The merged native Apple client now passes unsigned build and 15 native / 1 UI
+tests; see [current evidence](CREATOR_ACCEPTANCE_2026-10-21.md). Physical iPhone
+and signing remain pending. Three further source
 works now produce 12 human/animal trial stickers, with native import/restart
 evidence and focal-point framing. See RECOVERY_PROGRESS.md for current evidence.
 

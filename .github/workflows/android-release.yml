@@ -11,6 +11,8 @@ on:
       - 'gradle.properties'
       - 'tools/prepare_android_release.py'
       - 'tools/emulator_library_acceptance.py'
+      - 'tools/emulator_clip_creator_smoke.py'
+      - 'tools/emulator_recovery_smoke.py'
       - '.github/workflows/android-release.yml'
   workflow_dispatch:
 

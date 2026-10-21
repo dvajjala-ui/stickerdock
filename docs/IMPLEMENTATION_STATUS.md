@@ -5,8 +5,10 @@
 > [the October 16 acceptance audit](REQUIREMENTS_ACCEPTANCE_AUDIT_2026-10-16.md),
 > [recovery progress](RECOVERY_PROGRESS.md) and [the ledger](REQUIREMENTS_LEDGER.md).
 > In particular: discovery no longer auto-imports, Android uses SQLite v8,
-> real-media creation has advanced, release signing exists, and iPhone source
-> is being built/tested through draft PR #18. Older deployment/credential claims
+> real-media creation has advanced, release signing exists, and the merged iPhone
+> client passes current Apple CI (15 native / 1 UI tests). Use
+> [current QA](QA_MATRIX.md) and [real-media/Apple checks](CREATOR_ACCEPTANCE_2026-10-21.md).
+> Older deployment/credential claims
 > below are dated evidence, not current read-back.
 
 Updated October 15, 2026. “Complete” means implemented and covered by automated

@@ -1,6 +1,9 @@
 # StickerDock recovery progress
 
-Updated October 16, 2026. This is the current implementation record for
+Historical October 16, 2026 record. Current source-bound acceptance is in
+[QA_MATRIX.md](QA_MATRIX.md), with fresh Apple and real-media checks in
+[CREATOR_ACCEPTANCE_2026-10-21.md](CREATOR_ACCEPTANCE_2026-10-21.md). The newer
+results supersede pending-build and draft-PR wording below. This records
 [the product recovery plan](PRODUCT_RECOVERY_PLAN_2026-10-15.md). The plan's
 research findings remain a historical baseline.
 

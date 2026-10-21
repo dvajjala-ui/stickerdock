@@ -268,7 +268,7 @@ PR #20 was merged while verification was running; the compact Library and final
 test-driver fixes were subsequently integrated into main before this release.
 The older sections below are historical, including their draft/deployment claims.
 
-## Latest — signed Android 0.10.1 and iPhone client verification
+## Historical — signed Android 0.10.1 and first iPhone client verification
 
 Work is on `codex/iphone-client-and-navigation`, [draft PR #18](https://github.com/dvajjala-ui/stickerdock/pull/18).
 It includes the previously local recovery changes; no production deployment or

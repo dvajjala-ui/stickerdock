@@ -4,9 +4,14 @@ This native SwiftUI client uses the same Kotlin Multiplatform WebP validation/
 container code as Android. iOS 17+ is the initial target. It is independent of
 the official WhatsApp sample UI. The user has no Mac, so standard free macOS CI
 on this verified-public repository performs Apple compilation and simulator tests.
-The first run passes an unsigned iPhone build, 6 native integration tests and 1
-navigation UI test. Expanded motion/rotation/live-catalog checks need matching
-latest CI. No signed physical-device install or App Store acceptance is claimed.
+The [October 21 Apple run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39597303190)
+passes an unsigned iPhone build, **15 native integration tests and 1 navigation
+UI test**, with no failures or skips. It runs at Android main commit `9029d13`;
+iOS and shared-core source are unchanged through `4394ac1`. Tests include native
+photo/video/GIF/rotation, archive safety, store rollback/restart and read-only
+catalog behavior. The iPhone client remains **0.10.1 (build 13)**. Android version
+numbers do not apply to it. No signed physical-device install or App Store
+acceptance is claimed.
 
 ## Implemented source
 
@@ -69,8 +74,9 @@ xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'plat
 
 `.github/workflows/apple-core.yml` prepares the same unsigned device build,
 native integration tests, navigation UI test and xcresult/artifacts on macos-15.
-It runs manually or on relevant pull requests. Draft PR #18 has started its
-first successful run; newer changes need matching results. It makes no App Store deployment.
+It runs manually or on relevant pull requests. The October 21 run above uses an
+iPhone 17 Pro / iOS 26.2 simulator. Later Apple/shared source changes need their
+own passing result. It makes no App Store deployment.
 SPM direct dependencies and the resolved transitive versions are pinned in
 `Package.resolved` from the first successful Mac run. Xcode/Swift/Kotlin compatibility errors must be
 fixed there before claiming source-build acceptance.
@@ -82,8 +88,8 @@ belongs in this app.
 
 ## Acceptance still required
 
-1. Apple framework/device/simulator builds and initial native/UI tests pass in
-   the first source-bound run. Newer source needs its own result. Windows
+1. Apple framework/device/simulator builds and 15 native / 1 UI tests pass in
+   the October 21 source-bound run. Newer source needs its own result. Windows
    Swift grammar parsing is only a syntax check, not an Apple build.
 2. Native codec, archive safety, restart, failed-save and navigation tests pass.
 3. Import real human/animal photos/GIF/video and Android-exported archives;
@@ -99,7 +105,25 @@ belongs in this app.
    manifest is not a claim that the whole product passed a privacy audit.
 6. Add opt-in private account/cloud adapter, native Groq assistant, durable
    video projects/manual mask correction and remaining Android editor parity.
-   Existing owner-only web APIs must not be exposed to consumer apps as a shortcut.
+   Current operator web APIs intentionally open under R40 are not an
+   account-scoped consumer service. Do not wire private mobile jobs to them;
+   use the boundary in [NATIVE_AI_HANDOFF.md](../docs/NATIVE_AI_HANDOFF.md).
+
+## Verified archive handoff — October 21
+
+The current Apple run's native photo test exports a schema 5 MATURE/static pack.
+That exact archive was explicitly imported on Android 0.11.2's signed candidate,
+preserving its rating and WebP bytes through restart. All prior Android library
+rows remained unchanged. Android creates new local IDs for a portable import;
+archive IDs are not cross-device identities. This uses a generated test photo,
+not a personal collection or a physical WhatsApp transfer.
+
+Unsigned IPA SHA-256:
+`e9cfca729ea2045ff130a4f6fb6e7d24b0038985ee0182c54bdad4e620652ef6`.
+Its archive CRC, bundle ID, version and absence of provisioning were checked.
+It cannot be installed on an iPhone until Apple signing is provided. Exact
+source/artifact and real-media evidence is in
+[the acceptance record](../docs/CREATOR_ACCEPTANCE_2026-10-21.md).
 
 No TestFlight/App Store account, Apple signing certificate, paid model/API or
 cloud deployment was created. This public repository uses standard free macOS

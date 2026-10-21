@@ -114,14 +114,25 @@ class ClipCreatorSmoke(RecoverySmoke):
         assert self.counts() == before, "Preview saved a sticker without acceptance"
         self.scroll_to_text("Make an animated reaction", forward=False)
         self.wait_text("Animated reaction preview")
-        self.screenshot(prefix + "-preview-a")
-        time.sleep(.35)
-        self.screenshot(prefix + "-preview-b")
-        a = Image.open(self.output / (prefix + "-preview-a.png")).convert("RGB")
-        b = Image.open(self.output / (prefix + "-preview-b.png")).convert("RGB")
         node = self.nodes("Animated reaction preview")[0]
         bounds = tuple(map(int, re.findall(r"\d+", node.get("bounds"))))
-        assert ImageChops.difference(a.crop(bounds), b.crop(bounds)).getbbox(), "Native generated preview did not move"
+        self.assert_preview_moves(prefix, bounds)
+
+    def assert_preview_moves(self, prefix, bounds):
+        # A screenshot includes adb/screencap time. Two captures can land on
+        # the same phase of a short looping GIF, even with a fixed sleep.
+        # Keep a bounded series of unequal intervals; a frozen crop still fails.
+        self.screenshot(prefix + "-preview-a")
+        with Image.open(self.output / (prefix + "-preview-a.png")) as image:
+            first = image.convert("RGB").crop(bounds)
+        for suffix, delay in zip("bcde", (.35, .17, .29, .43)):
+            time.sleep(delay)
+            self.screenshot(prefix + "-preview-" + suffix)
+            with Image.open(self.output / (prefix + "-preview-" + suffix + ".png")) as image:
+                current = image.convert("RGB").crop(bounds)
+            if ImageChops.difference(first, current).getbbox():
+                return
+        raise AssertionError("Native generated preview did not move across five captures")
 
     def save(self, first=False):
         print("Saving accepted preview", flush=True)

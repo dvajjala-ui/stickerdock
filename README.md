@@ -60,7 +60,8 @@ release lint and exact signed-APK emulator acceptance pass** in
 The live Factory also [generated and persisted 5 stickers](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037827620)
 after the response fix; a complete normal-cooldown 40/40 day remains unverified.
 The [iPhone implementation](ios/README.md) is merged and its latest
-[Apple build and simulator verification passes](https://github.com/dvajjala-ui/stickerdock/actions/runs/38914603325).
+[Apple build and simulator verification passes](https://github.com/dvajjala-ui/stickerdock/actions/runs/39597303190)
+with 15 native integration tests and 1 navigation UI test, zero failures or skips.
 It remains unsigned and requires Apple signing for installation.
 The archive path preserves private ratings and exact media across platforms;
 invalid manifest backups fail explicitly instead of falling back to image imports.

@@ -1,6 +1,10 @@
 # Requirements acceptance audit — October 16, 2026
 
 This is an evidence audit, not a declaration that every requirement is complete.
+This October 16 snapshot is superseded by the current
+[QA matrix](QA_MATRIX.md), [parity audit](STICKERLY_PARITY_AUDIT_2026-10-18.md)
+and [October 21 real-media/Apple evidence](CREATOR_ACCEPTANCE_2026-10-21.md).
+Pending-build/test wording below is historical; physical acceptance remains open.
 Read REQUIREMENTS_LEDGER.md for original IDs/history. Historical Markdown is not
 current acceptance; RECOVERY_PROGRESS.md binds accepted local Android behavior
 to exact APKs. The current user authorizes implementation and UI/integration

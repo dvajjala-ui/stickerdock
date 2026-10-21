@@ -54,6 +54,10 @@ If an authorized export supplies **actual** image files, import them with the sy
 
 The iPhone client is a tested-source candidate; a signed iPhone installation is
 still required. It cannot scan Android folders or another iPhone app's sandbox.
+The October 21 Apple native test's actual exported MATURE/static pack was
+explicitly imported on Android, preserving exact media and all pre-existing
+library rows through restart. See [the source-bound evidence and limits](CREATOR_ACCEPTANCE_2026-10-21.md).
+This is a simulator/emulator round trip, not physical-phone acceptance.
 
 1. On Android, open a pack → **Share pack**, or choose **Sticker backup** in the
    import/backup tools. Transfer the ZIP through a sharing service you choose.

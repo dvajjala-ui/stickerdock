@@ -1,5 +1,15 @@
 # StickerDock verification checklist
 
+## Android 0.11.2 publication checkpoint — October 21
+
+Shared GIF/video creation is merged in PR #24. Its signed branch candidate and
+real licensed-media/Apple archive trials pass; see
+[CREATOR_ACCEPTANCE_2026-10-21.md](CREATOR_ACCEPTANCE_2026-10-21.md). Main release
+attempts retained a Pixel Launcher ANR and a short-loop screenshot sampling
+failure. A bounded five-capture assertion fixes phase aliasing while preserving
+frozen-artwork rejection. The prior public 0.11.1 remains current until a fresh
+main run passes and its published assets are independently verified.
+
 ## Folder-import continuation — October 21, 2026
 
 The signed local Favorites APK passes actual DocumentsUI permission, UI Pause,
