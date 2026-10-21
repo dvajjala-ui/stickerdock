@@ -18,6 +18,13 @@ emulator before advancing the download. Failed builds keep the previous release.
 The admin website follows the existing Vercel production deployment from `main`.
 See [installation, update and release verification](docs/ANDROID_RELEASES.md).
 
+October 21: **Android 0.11.1 (build 16)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.1)
+after [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39572989873).
+It adds private device-local Favorites and keeps Copy/Move reachable in long
+libraries and large text. Search/restart/move/Delete-Undo and the existing 10k
+creation/backup journey pass. See [exact evidence and limitations](docs/QA_MATRIX.md)
+and [Favorites behavior](docs/FAVORITES.md). The older release records below are history.
+
 October 19: **Android 0.11.0 (build 15)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.0) after
 [signed-APK acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39208384312); [PR #21](https://github.com/dvajjala-ui/stickerdock/pull/21) is merged. It adds larger pack
 previews, pack-grouped search, explicit photo destinations, simpler discovery and
@@ -125,11 +132,12 @@ The [Pinterest and Creator Studio guide](docs/PINTEREST_AND_CREATOR_STUDIO.md)
 adds a persistent six-hour Pinterest source sync (official authorized boards by
 default; optional public-topic adapter), Supabase inbox provenance, and a Vercel
 web-editor preview. Manual meme layout, PNG download and private factory upload
-are implemented. The private Studio → Factory AI queue, atomic claim path and
+are implemented. The Studio → Factory AI queue, atomic claim path and
 Groq vision worker passed a real production smoke test. The Studio source now
 supports queue/status/result polling and the Creator worker checks the queue every
-10 minutes with a cheap idle preflight. Hosted Vercel deployment/environment
-configuration is still unverified, and the private Studio entry is hidden on Android.
+10 minutes with a cheap idle preflight. Admin/Studio are deployed and open directly
+under the requested [R40 access model](docs/OPEN_ADMIN.md); their workspace is
+shared by visitors with the URL. Studio stays outside consumer Android navigation.
 Pinterest media is private-reference-only unless a specific reusable rights
 declaration is present.
 
@@ -183,7 +191,7 @@ the daily generator also accepts `--font`. Video tests require local FFmpeg.
 - **No full Sticker.ly catalog mirror or automatic account-wide export.** Sticker.ly's public pages grant limited personal use, not blanket redistribution. Its own public user content cannot be silently copied into our community.
 - A modified Sticker.ly APK isn't itself a full sticker catalog. We have not inspected yours; avoid trusting unverified mod APKs with accounts or personal data.
 - Folder migration now journals progress in SQLite and can resume a persisted SAF folder after process death. Android picker/provider behavior and actual kill/restart recovery still need real-device QA, especially for enormous libraries.
-- The Creator Studio AI queue/worker has passed a real authenticated Supabase/Groq vision smoke test and the browser flow is covered in Chromium. Hosted Vercel deployment and its `STUDIO_ACCESS_TOKEN`/Supabase environment still need verification before treating Studio as a remotely available user feature; the private Studio entry is hidden on Android.
+- Creator Studio has historical live Supabase/Groq evidence and current deployed browser/API checks. R40 removed its owner token/login requirement; workspace controls are accessible to visitors with the URL. Native consumer AI still needs account-scoped jobs and shared provider budgets; see [the native AI handoff](docs/NATIVE_AI_HANDOFF.md).
 - GIF/MP4/WebM/MOV conversion is implemented in the production worker; live phone
   import still needs device QA. Public packs require an explicit review workflow.
 - WhatsApp sticker provider, large-library migration and account-specific install still require on-device QA. Build green is not release certification.

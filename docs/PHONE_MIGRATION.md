@@ -2,6 +2,12 @@
 
 ## What is supported
 
+October 21: signed Android 15 emulator acceptance now verifies normal SAF
+selection, pause/resume, force-stop recovery, EXIF grouping, static/animated
+separation, duplicates, invalid files and preservation of a 10,003-sticker
+baseline. See [the measured results and limits](MIGRATION_ACCEPTANCE_2026-10-21.md).
+Samsung/physical WhatsApp roots remain unverified.
+
 StickerDock can import local images you have access to, user-selected folders, ZIP archives, and its own exported pack archives. It separately stores public Sticker.ly *links* as bookmarks. It cannot retrieve the complete catalog hosted on Sticker.ly and does not claim the right to redistribute it.
 
 ### Method A — Samsung / Android folder import (recommended)

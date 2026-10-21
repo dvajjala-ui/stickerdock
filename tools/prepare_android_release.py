@@ -32,6 +32,7 @@ def prepare(apk, bundle, output, source, run_url):
     (output / "SHA256SUMS.txt").write_text("".join(f"{digest}  {name}\n" for name, digest in hashes.items()), encoding="utf-8")
     (output / "release-notes.md").write_text(
         f"Android {version} (build {code})\n\n"
+        "- Share one video or GIF from another Android app into the animated creator; trim, caption and preview locally, then save explicitly.\n"
         "- Device-local sticker Favorites with artwork, search/type/topic filters, move preservation and Delete/Undo recovery; removing a shortcut keeps the sticker.\n"
         "- Pack-centered Library and Discover, larger artwork previews and search grouped by pack.\n"
         "- Choose photos, name a new pack or select an existing one, then explicitly save; cancel leaves the library unchanged.\n"
