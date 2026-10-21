@@ -1,5 +1,16 @@
 # StickerDock verification checklist
 
+## Folder-import continuation — October 21, 2026
+
+The signed local Favorites APK passes actual DocumentsUI permission, UI Pause,
+Resume, process-stop/reopen and completion on a 1,215-recognized-file nested SAF
+fixture. All 10,003 pre-existing stickers and project/pack rows remain unchanged;
+597 imported output hashes verify and SQLite integrity is `ok`. Four animations,
+EXIF grouping, 30-item splitting and invalid inputs are checked. Near-identical
+static color inputs deduplicate after normalization. This is AOSP evidence,
+not a physical Samsung claim. See MIGRATION_ACCEPTANCE_2026-10-21.md for artifact
+binding, retained harness failures and exact counts.
+
 ## Published Android 0.11.1 — October 21, 2026
 
 [PR #22](https://github.com/dvajjala-ui/stickerdock/pull/22) and
