@@ -1,22 +1,24 @@
 # StickerDock for iPhone / iPad — tested candidate, not store release
 
-Next candidate: **0.10.2 (build 14)** adds PNG/JPEG photo ZIPs alongside WebP.
+Current tested candidate: **0.10.2 (build 14)** adds PNG/JPEG photo ZIPs alongside WebP.
 The native converter preserves transparency, applies EXIF orientation and bounds
 source bytes/dimensions and normalized output. Static/animated packs stay separate;
 duplicates collapse. Malformed/animated-disguised photos reject the whole archive
-before saving. Four new native tests require the candidate's own Apple CI;
-the accepted 0.10.1 checkpoint below does not validate this newer source.
+before saving. [PR #25](https://github.com/dvajjala-ui/stickerdock/pull/25) is
+merged after [matching Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39606440645)
+passes **19 native tests and 1 navigation UI test**, no failures or skips, at
+`53046b3`; its iOS/shared source is unchanged in merge `9940680`.
 
 This native SwiftUI client uses the same Kotlin Multiplatform WebP validation/
 container code as Android. iOS 17+ is the initial target. It is independent of
 the official WhatsApp sample UI. The user has no Mac, so standard free macOS CI
 on this verified-public repository performs Apple compilation and simulator tests.
-The [October 21 Apple run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39597303190)
+The earlier [October 21 Apple run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39597303190)
 passes an unsigned iPhone build, **15 native integration tests and 1 navigation
 UI test**, with no failures or skips. It runs at Android main commit `9029d13`;
 iOS and shared-core source are unchanged through `4394ac1`. Tests include native
 photo/video/GIF/rotation, archive safety, store rollback/restart and read-only
-catalog behavior. The iPhone client remains **0.10.1 (build 13)**. Android version
+catalog behavior. That older iPhone checkpoint is **0.10.1 (build 13)**. Android version
 numbers do not apply to it. No signed physical-device install or App Store
 acceptance is claimed.
 
@@ -33,8 +35,9 @@ acceptance is claimed.
   delete confirmation and favorites. Import/save failure preserves existing data.
 - StickerDock ZIP schema 1–5 reads/schema 5 writes, checksums, bounded archive
   expansion, duplicate/path/symlink rejection, staged validation before save.
-  Generic WebP ZIPs deduplicate and split static/animated into 30-item packs.
-  Generic PNG/JPEG/.wastickers and EXIF-based grouping are not yet iOS parity.
+  Generic PNG/JPEG/WebP ZIPs deduplicate and split static/animated into 30-item
+  packs. PNG/JPEG conversion preserves alpha/orientation and fails before save
+  on invalid input. .wastickers and EXIF pack-name grouping remain parity gaps.
 - Reviewed GENERAL catalog metadata/previews; full preview/download and save
   require explicit actions. Saved revisions deduplicate. Mature stays private.
 - Native share sheet for pack/all-library ZIPs; share archives are private cache
@@ -81,7 +84,7 @@ xcodebuild -project StickerDock.xcodeproj -scheme StickerDock -destination 'plat
 
 `.github/workflows/apple-core.yml` prepares the same unsigned device build,
 native integration tests, navigation UI test and xcresult/artifacts on macos-15.
-It runs manually or on relevant pull requests. The October 21 run above uses an
+It runs manually or on relevant pull requests. Both October 21 runs above use an
 iPhone 17 Pro / iOS 26.2 simulator. Later Apple/shared source changes need their
 own passing result. It makes no App Store deployment.
 SPM direct dependencies and the resolved transitive versions are pinned in
@@ -95,8 +98,8 @@ belongs in this app.
 
 ## Acceptance still required
 
-1. Apple framework/device/simulator builds and 15 native / 1 UI tests pass in
-   the October 21 source-bound run. Newer source needs its own result. Windows
+1. Apple framework/device/simulator builds and 19 native / 1 UI tests pass in
+   the 0.10.2 source-bound run. Newer source needs its own result. Windows
    Swift grammar parsing is only a syntax check, not an Apple build.
 2. Native codec, archive safety, restart, failed-save and navigation tests pass.
 3. Import real human/animal photos/GIF/video and Android-exported archives;
@@ -116,9 +119,9 @@ belongs in this app.
    account-scoped consumer service. Do not wire private mobile jobs to them;
    use the boundary in [NATIVE_AI_HANDOFF.md](../docs/NATIVE_AI_HANDOFF.md).
 
-## Verified archive handoff — October 21
+## Historical 0.10.1 archive handoff — October 21
 
-The current Apple run's native photo test exports a schema 5 MATURE/static pack.
+That 0.10.1 Apple run's native photo test exports a schema 5 MATURE/static pack.
 That exact archive was explicitly imported on Android 0.11.2's signed candidate,
 preserving its rating and WebP bytes through restart. All prior Android library
 rows remained unchanged. Android creates new local IDs for a portable import;
@@ -131,6 +134,13 @@ Its archive CRC, bundle ID, version and absence of provisioning were checked.
 It cannot be installed on an iPhone until Apple signing is provided. Exact
 source/artifact and real-media evidence is in
 [the acceptance record](../docs/CREATOR_ACCEPTANCE_2026-10-21.md).
+
+Current 0.10.2 unsigned IPA SHA-256:
+`2bf6b011e9e7b6865effc7264417b4b40f1f0723c714af84c7d018d7527902fb`.
+Its downloaded CI artifact, ZIP CRC, bundle ID, 0.10.2/build 14 metadata and
+absence of provisioning verify. It still requires Apple signing for installation.
+Local artifact: `work/apple-photo-archives-verified/work/StickerDock-iOS-unsigned.ipa`.
+See [photo archive scope and tests](../docs/IPHONE_PHOTO_ARCHIVES.md).
 
 No TestFlight/App Store account, Apple signing certificate, paid model/API or
 cloud deployment was created. This public repository uses standard free macOS

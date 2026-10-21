@@ -40,7 +40,23 @@ in `app/build.gradle.kts`. An existing version cannot be silently republished fr
 a different commit. Failed checks leave the previous latest release intact.
 The stable README/site links need no editing for each new version.
 
-## Android 0.11.0 — published October 19
+## Android 0.11.2 — published October 21
+
+Share one GIF or video to StickerDock, trim/caption and generate a moving preview,
+then save explicitly. The release also includes private Favorites and fixed
+Copy/Move actions for long libraries and large text. Shared packs/photos retain
+separate confirmation paths. Opening or cancelling does not fill the library.
+
+[Main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443554) and
+[signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793)
+pass at `4225302`; the exact APK passes the 10k-sticker Android 15 journey and
+cold video/warm GIF sharing. Public binaries, metadata and signing identity were
+verified after download. APK SHA-256:
+`1e84e25b7c8cd0c7813696cc7a2e38fd46cbc246b00c19009012849f0dab2c2a`.
+See [full checks and limits](QA_MATRIX.md) and
+[real-media/iPhone evidence](CREATOR_ACCEPTANCE_2026-10-21.md).
+
+## Historical Android 0.11.0 — published October 19
 
 Android **0.11.0 (build 15)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.0) from `f129430820633263316b75e44420f464f063449f`.
 [Main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39208384285) passes **124 Android / 12 shared / 208 backend tests**,

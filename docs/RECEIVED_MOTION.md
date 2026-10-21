@@ -18,6 +18,8 @@ Five regression tests cover broad sender MIME, provider MIME, generic files,
 mixed batches, multiple clips, unsupported files and remote URI rejection.
 Signed acceptance adds cold video SEND, warm GIF SEND, captioned moving previews,
 disabled Save before preview and cancel/restart without library mutations.
-Source implementation alone does not establish passing signed acceptance; see
-QA_MATRIX.md for the latest exact artifact evidence. Physical sender apps and
+Published 0.11.2 passes matching main CI and exact signed acceptance. The
+signed branch candidate also passes licensed human-reaction preview/explicit
+save; see [QA_MATRIX.md](QA_MATRIX.md) and
+[real-media acceptance](CREATOR_ACCEPTANCE_2026-10-21.md) for artifact boundaries. Physical sender apps and
 their permission lifetimes remain device acceptance work.

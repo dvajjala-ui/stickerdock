@@ -1,5 +1,70 @@
 # StickerDock development handoff — updated October 21, 2026
 
+## iPhone 0.10.2 photo ZIP acceptance — October 21, 2026
+
+[PR #25](https://github.com/dvajjala-ui/stickerdock/pull/25) is merged at
+`9940680e27e34281c52261615f82c34aa0751b12`. Its iOS/shared source matches
+`53046b3dbd5d6c36aa8f6e5562bc9e9fb8ff662d`, where
+[Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39606440645)
+passes **19 native tests and 1 navigation UI test**, zero failures/skips, plus
+shared-core tests and an unsigned device build. New native tests verify PNG
+transparency, EXIF-rotated JPEG geometry, normalized deduplication, animated
+WebP byte retention, store/restart/portable export and whole-archive rejection
+of bad later input without changing a saved library.
+
+The downloaded verification artifact's SHA-256/CRC, IPA bundle ID, 0.10.2/build 14
+metadata and absence of provisioning verify. Unsigned IPA SHA-256:
+`2bf6b011e9e7b6865effc7264417b4b40f1f0723c714af84c7d018d7527902fb`.
+Local artifact: `work/apple-photo-archives-verified/work/StickerDock-iOS-unsigned.ipa`.
+It requires Apple signing before device installation. No App Store/TestFlight
+or physical WhatsApp acceptance is claimed. See [photo ZIP behavior/bounds](IPHONE_PHOTO_ARCHIVES.md).
+
+The new native test's actual photo ZIP export also imports explicitly on the
+public Android APK: both converted photos and the animation retain exact bytes,
+all existing rows stay unchanged, and restart retains the result. Public-APK
+upgrade plus four licensed sample-pack imports also pass, with 12 exact media
+files and static/animated segregation. Details: CREATOR_ACCEPTANCE_2026-10-21.md.
+
+## Published Android 0.11.2 — October 21, 2026
+
+[PR #24](https://github.com/dvajjala-ui/stickerdock/pull/24) is merged. Android
+**0.11.2 (build 17)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.2)
+from `4225302a5a0f027c4c37b795c766f42684391133` after
+[main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443554) and
+[exact signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793)
+pass. There are **135 Android / 12 shared / 207 backend tests**, no native failures
+or skips, plus lint, signed APK/AAB and alignment checks. The exact released APK
+passes the Android 15 10k-library journey including Favorites, large text/tablet,
+photo/video creation, brush Reset/recovery, pack codes, received files and
+editable backups. New cold video/warm GIF SEND checks verify captioned moving
+previews and cancellation/restart without saving.
+
+Earlier main attempts retained a Pixel Launcher system ANR and a short-GIF
+screenshot phase collision. The exact failed APK shows movement locally. The
+revised bounded five-capture assertion passes the real loop and rejects frozen
+artwork in regression tests; no assertion is skipped. See the creator acceptance
+record for retained failure evidence. The final fresh run passes independently.
+
+Public APK SHA-256: `1e84e25b7c8cd0c7813696cc7a2e38fd46cbc246b00c19009012849f0dab2c2a`.
+Public AAB SHA-256: `c17f2108edc6743c47c254871b993a054f70430e5ddf65e34064094db8522290`.
+All five public assets were downloaded and checked against GitHub digests,
+release.json, SHA256SUMS and acceptance.json; APK signing identity is unchanged
+and both binary archives pass CRC verification. Local delivery:
+`work/StickerDock-0.11.2-published/StickerDock.apk`.
+
+A separate signed branch candidate also passes an upgrade of the existing
+licensed-media library, real captioned human-reaction video/GIF previews,
+explicit animated save and a fresh Apple-generated portable archive import.
+Candidate and public APK hashes are deliberately separate. Current Apple CI
+passes an unsigned device build, 19 native tests and 1 navigation UI test (see above).
+See [the exact real-media/Apple evidence](CREATOR_ACCEPTANCE_2026-10-21.md) and
+[SAF/process-stop evidence](MIGRATION_ACCEPTANCE_2026-10-21.md).
+
+SQLite 8, portable ZIP 5, existing projects, media and signing identities remain
+compatible. Favorites remain device-local preferences outside existing backups.
+Physical Samsung/WhatsApp/Business, Apple signing/device, native AI, automatic
+cutout quality, richer reviewed content and broader parity remain open.
+
 ## Published Android 0.11.1 — October 21, 2026
 
 [PR #22](https://github.com/dvajjala-ui/stickerdock/pull/22) and

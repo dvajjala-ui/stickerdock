@@ -8,7 +8,7 @@ not a claim that every requirement is closed. Preserve the original IDs in
 October 21 continuation: Android Favorites and long-library Copy/Move actions
 are verified in published 0.11.1. Shared video/GIF receipt now reaches the motion
 creator; its signed candidate also passes a licensed human-reaction preview and
-explicit animated save. Fresh Apple CI passes 15 native / 1 UI tests, and its
+explicit animated save. Fresh Apple CI passes 19 native / 1 UI tests, and its
 actual photo archive imports on Android with exact media/private rating retained.
 See [the acceptance record](CREATOR_ACCEPTANCE_2026-10-21.md) and [release status](QA_MATRIX.md).
 

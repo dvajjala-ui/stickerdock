@@ -1,6 +1,6 @@
 # iPhone photo archive import
 
-Candidate iPhone 0.10.2/build 14 extends **Import sticker ZIP** to archives of
+Tested iPhone 0.10.2/build 14 extends **Import sticker ZIP** to archives of
 PNG, JPG/JPEG and WebP images. Choose a ZIP in Files and explicitly import it;
 the existing cancellable checking operation converts on a detached worker.
 It does not scan other apps, upload media or add packs on startup.
@@ -30,6 +30,17 @@ packs. This does not imply public sharing. Generic EXIF pack-name recovery and
 Four native regression tests cover PNG transparency, uppercase PNG/JPEG, native
 conversion/dedup with byte-preserved animation, local store/restart/portable
 export, EXIF-rotated JPEG geometry, a bad later photo preserving the existing
-library and a renamed GIF being rejected instead of flattened. Apple build and
-simulator acceptance must pass on this candidate before merge; Windows source
-inspection is not an Apple compile. Signing/physical iPhone/WhatsApp remain open.
+library and a renamed GIF being rejected instead of flattened.
+
+[Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39606440645)
+passes at `53046b3dbd5d6c36aa8f6e5562bc9e9fb8ff662d`: unsigned device build,
+19 native tests plus 1 UI test, zero failures/skips. The downloaded artifact's
+digest, CRC and 0.10.2/build 14 metadata verify. [PR #25](https://github.com/dvajjala-ui/stickerdock/pull/25)
+is merged at `9940680` with unchanged iOS/shared source. Unsigned IPA SHA-256:
+`2bf6b011e9e7b6865effc7264417b4b40f1f0723c714af84c7d018d7527902fb`.
+Signing/physical iPhone/WhatsApp remain open.
+
+The same native test's actual exported schema-5 ZIP was explicitly imported on
+the public Android 0.11.2 APK. Both converted static images and the animation
+retain exact bytes and separate pack kinds; all prior library/project rows and
+restart state remain unchanged. See [the cross-platform evidence](CREATOR_ACCEPTANCE_2026-10-21.md).

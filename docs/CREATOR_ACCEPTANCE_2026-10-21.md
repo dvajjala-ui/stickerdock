@@ -35,7 +35,7 @@ prove that repeated loop phases can pass on a later different frame, while
 frozen artwork still fails even when surrounding system chrome changes. The
 release workflow also watches its imported emulator helpers, so changes to this
 assertion trigger full signed acceptance. These are test-runner changes; app
-media/animation source is unchanged. Passing publication requires the fresh run.
+media/animation source is unchanged. The fresh [main release run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793) passes independently and publishes 0.11.2 at `4225302`. Public hashes are in QA_MATRIX.md.
 
 That exact candidate also upgraded the existing licensed-media emulator library
 without changing any of its 11 packs, 35 stickers or artwork project rows. A real
@@ -118,3 +118,48 @@ pack ZIPs explicitly. Credits cover Rattyexalt's Facepalm.webm (CC BY-SA 4.0) an
 SecretDisc's Yawn.gif (CC BY-SA 3.0), source/license links and the transformations.
 The sources and derivative licenses remain separate from StickerDock code.
 Neither the app nor this bundle automatically installs a WhatsApp pack.
+
+## Public Android upgrade and sample acceptance
+
+The actual public Android 0.11.2 download from source `4225302` has SHA-256
+`1e84e25b7c8cd0c7813696cc7a2e38fd46cbc246b00c19009012849f0dab2c2a`.
+Its metadata/hashes/signature verify independently of the earlier branch trial.
+Installed in place on the licensed-media emulator, it retains all 13 existing
+packs, 37 stickers and artwork project rows exactly. Each of the four sample
+ZIPs above then opens a confirmation without changing counts; explicit import
+adds its three stickers. Names, kinds, ratings and all 12 media bytes match the
+archives. Restart retains 17 packs / 49 stickers and all prior rows.
+
+Local proof: `work/public-motion-real-acceptance/report.json`, per-import SQLite
+snapshots, exact imported files and the populated real-artwork Library screenshot.
+Sample duplicates already present from previous trials remain authoritative;
+no existing pack or media is removed to make the test counts look cleaner.
+
+## iPhone 0.10.2 and its actual photo ZIP export
+
+[PR #25](https://github.com/dvajjala-ui/stickerdock/pull/25) merges at `9940680`.
+Its source `53046b3` passes [Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39606440645):
+19 native tests plus 1 navigation UI test, zero failures/skips, shared tests
+and an unsigned device build. New PNG/JPEG ZIP conversion tests verify alpha,
+EXIF rotation, dedup, byte-preserved animation, store/restart/portable export,
+bad-later-input preservation and GIF-disguised-as-photo rejection.
+See [the feature bounds](IPHONE_PHOTO_ARCHIVES.md).
+
+Downloaded artifact SHA-256:
+`72ee6946e5270b346bb5697ed703174210d065aea4a706258a168878cee4f8f0`.
+Unsigned IPA SHA-256:
+`2bf6b011e9e7b6865effc7264417b4b40f1f0723c714af84c7d018d7527902fb`.
+CRC, bundle/version/build and absence of provisioning verify. This is a distinct
+0.10.2/build 14 artifact, separate from the historical 0.10.1 proof above.
+
+The native test's actual exported ZIP contains two converted static photos and
+one animated WebP, separated into two packs. The public Android APK explicitly
+imports that exact export, retaining metadata and all three WebP byte strings.
+Opening saves nothing, all previous 17 packs / 49 stickers and project rows stay
+exact, and restart retains 19 packs / 52 stickers. SQLite integrity is `ok`.
+Export ZIP SHA-256:
+`06b79010d6644777741023588a647355b38af5e28d806afd9f5180234db36989`.
+Evidence: `work/apple-photo-to-public-android/report.json`, snapshots, media and
+restart screenshot. These are generated native test images, not licensed
+human-reaction samples or a user's personal collection. Apple signing, physical
+phone/WhatsApp and broader product acceptance remain open.

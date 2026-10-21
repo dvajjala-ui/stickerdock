@@ -72,8 +72,9 @@ This is a simulator/emulator round trip, not physical-phone acceptance.
    ZIP**, then Android **Create** → **Import and backups** → **Sticker ZIPs**.
 
 StickerDock schema-5 ZIPs preserve media bytes and metadata; supported older
-schemas 1–4 remain readable. iPhone generic ZIP import currently supports WebP,
-not all Android PNG/JPEG/.wastickers or EXIF-grouping paths. Use a StickerDock
+schemas 1–4 remain readable. iPhone 0.10.2 generic ZIP import supports PNG/JPEG
+with bounded native conversion and WebP byte retention, but .wastickers metadata
+and EXIF pack-name grouping remain separate work. See [photo ZIP acceptance](IPHONE_PHOTO_ARCHIVES.md). Use a StickerDock
 export for that migration. Editing recipes/full-resolution originals are not
 included in portable backups. Unsigned IPA/CI results do not prove a physical
 iPhone or WhatsApp installation.

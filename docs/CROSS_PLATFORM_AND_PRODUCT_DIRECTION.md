@@ -7,8 +7,8 @@ passes initial simulator tests in public-repository macOS CI. Distribution
 signing, physical WhatsApp and full parity remain pending; see ios/README.md
 and RECOVERY_PROGRESS.md for exact source/run evidence.
 
-October 21: [current Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39597303190)
-passes the unsigned device build and 15 native / 1 UI tests, including photo,
+October 21: [current Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39606440645)
+passes the unsigned device build and 19 native / 1 UI tests, including photo,
 motion/rotation, archive integrity, store rollback/restart and read-only catalog
 behavior. A fresh actual native photo export imports on Android with exact bytes
 and MATURE rating retained. See [the acceptance record](CREATOR_ACCEPTANCE_2026-10-21.md).

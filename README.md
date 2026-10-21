@@ -18,6 +18,15 @@ emulator before advancing the download. Failed builds keep the previous release.
 The admin website follows the existing Vercel production deployment from `main`.
 See [installation, update and release verification](docs/ANDROID_RELEASES.md).
 
+October 21: **Android 0.11.2 (build 17)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.2)
+after [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793).
+Share one video/GIF into the animated creator, trim/caption, preview and save
+explicitly. Real human-reaction media and a fresh iPhone archive round trip also
+pass on the signed branch candidate. See [exact artifact evidence](docs/QA_MATRIX.md)
+and [real-media/Apple checks and limits](docs/CREATOR_ACCEPTANCE_2026-10-21.md).
+iPhone 0.10.2 adds PNG/JPEG photo ZIPs with alpha/EXIF handling and passes 19 native
+tests plus 1 UI test. It remains unsigned; see [iPhone archive scope](docs/IPHONE_PHOTO_ARCHIVES.md).
+
 October 21: **Android 0.11.1 (build 16)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.1)
 after [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39572989873).
 It adds private device-local Favorites and keeps Copy/Move reachable in long
@@ -60,8 +69,8 @@ release lint and exact signed-APK emulator acceptance pass** in
 The live Factory also [generated and persisted 5 stickers](https://github.com/dvajjala-ui/stickerdock/actions/runs/39037827620)
 after the response fix; a complete normal-cooldown 40/40 day remains unverified.
 The [iPhone implementation](ios/README.md) is merged and its latest
-[Apple build and simulator verification passes](https://github.com/dvajjala-ui/stickerdock/actions/runs/39597303190)
-with 15 native integration tests and 1 navigation UI test, zero failures or skips.
+[Apple build and simulator verification passes](https://github.com/dvajjala-ui/stickerdock/actions/runs/39606440645)
+with 19 native integration tests and 1 navigation UI test, zero failures or skips.
 It remains unsigned and requires Apple signing for installation.
 The archive path preserves private ratings and exact media across platforms;
 invalid manifest backups fail explicitly instead of falling back to image imports.
