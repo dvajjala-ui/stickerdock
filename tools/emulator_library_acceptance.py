@@ -185,6 +185,11 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.wait_text(label); self.screenshot("22-favorites-search")
         self.adb("shell", "settings", "put", "system", "font_scale", "2.0")
         open_favorites(); self.screenshot("23-favorites-large-text")
+        self.tap(label)
+        self.scroll_to_text("Copy or move to another pack"); self.tap("Copy or move to another pack")
+        self.wait_text("New pack name")
+        self.wait_text("Copy"); self.wait_text("Move")
+        self.screenshot("25-transfer-large-text")
         self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
         open_favorites(); self.tap(label)
         self.scroll_to_text("Copy or move to another pack"); self.tap("Copy or move to another pack")
@@ -212,7 +217,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert old_rows - {entry for entry in old_rows if entry[0] == original_id} <= set(database_rows("SELECT id,pack_id,file_name,sha256 FROM stickers")), "Favorites changed unrelated saved rows"
         self.launch(restart=True); self.wait_text("Favorites (0)")
         report = {"passed": True, "before": before, "after": self.counts(), "sticker_sha256": digest,
-                  "checks": ["explicit favorite does not change media, pack version or saved count", "favorites search and cold restart", "200% text", "favorite follows move to new pack", "delete and Undo restores favorite", "unfavorite preserves media and all unrelated rows"]}
+                  "checks": ["explicit favorite does not change media, pack version or saved count", "favorites search and cold restart", "200% text including reachable transfer actions", "favorite follows move to new pack", "delete and Undo restores favorite", "unfavorite preserves media and all unrelated rows"]}
         (self.output / "favorites.json").write_text(json.dumps(report, indent=2))
 
     def brush_refinement(self):
