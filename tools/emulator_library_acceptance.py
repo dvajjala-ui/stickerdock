@@ -173,7 +173,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         row = database_rows("SELECT s.id,s.label,s.sha256,p.version FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=?", ("My photo reactions",))[0]
         original_id, label, digest, version = row
         before = self.counts()
-        self.launch(restart=True); self.wait_text("Search library"); self.fill("Search library", "My photo reactions")
+        self.launch(restart=True); self.wait_text("Search library"); self.fill("Search library", "My photo")
         self.wait_text("My photo reactions"); self.tap("My photo reactions")
         self.wait_text(label); self.tap(label)
         self.scroll_to_text("Add to favorites"); self.tap("Add to favorites")
@@ -191,7 +191,14 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.fill("New pack name", "Favorite destination QA")
         self.tap("Create new pack"); self.wait_enabled("Move"); self.tap("Move")
         self.wait_hidden("Copy or move sticker")
-        moved_id = database_rows("SELECT s.id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=? AND s.sha256=?", ("Favorite destination QA", digest))[0][0]
+        deadline = time.monotonic() + 35
+        while True:
+            moved = database_rows("SELECT s.id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=? AND s.sha256=?", ("Favorite destination QA", digest))
+            if moved and favorite_ids() == {moved[0][0]}:
+                break
+            assert time.monotonic() < deadline, "Move did not persist its sticker and favorite shortcut"
+            time.sleep(0.3)
+        moved_id = moved[0][0]
         assert moved_id != original_id and favorite_ids() == {moved_id}
         assert self.counts() == (before[0] + 1, before[1])
         open_favorites(); self.wait_text("Favorite destination QA"); self.tap(label)
