@@ -105,7 +105,8 @@ jobs:
           target: google_apis
           profile: pixel_2
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 2048
+          # Use the supported GLES software backend; these UI checks do not need Vulkan.
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048
           script: python tools/emulator_library_acceptance.py --apk work/release/StickerDock.apk --output work/android-acceptance
       - name: Publish latest successful Android download
         if: github.ref == 'refs/heads/main'
@@ -136,6 +137,7 @@ jobs:
             work/android-acceptance/*.json
             work/android-acceptance/*.png
             work/android-acceptance/meminfo.txt
+            work/android-acceptance/*diagnostic.log
             app/build/reports/tests/
             app/build/test-results/
             app/build/reports/lint-results-release.html

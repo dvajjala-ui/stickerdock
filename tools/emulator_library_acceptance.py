@@ -173,7 +173,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         row = database_rows("SELECT s.id,s.label,s.sha256,p.version FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=?", ("My photo reactions",))[0]
         original_id, label, digest, version = row
         before = self.counts()
-        self.launch(restart=True); self.wait_text("Search library"); self.fill("Search library", "My photo reactions")
+        self.launch(restart=True); self.wait_text("Search library"); self.fill("Search library", "My photo")
         self.wait_text("My photo reactions"); self.tap("My photo reactions")
         self.wait_text(label); self.tap(label)
         self.scroll_to_text("Add to favorites"); self.tap("Add to favorites")
@@ -185,13 +185,25 @@ class LibraryAcceptance(ClipCreatorSmoke):
         self.wait_text(label); self.screenshot("22-favorites-search")
         self.adb("shell", "settings", "put", "system", "font_scale", "2.0")
         open_favorites(); self.screenshot("23-favorites-large-text")
+        self.tap(label)
+        self.scroll_to_text("Copy or move to another pack"); self.tap("Copy or move to another pack")
+        self.wait_text("New pack name")
+        self.wait_text("Copy"); self.wait_text("Move")
+        self.screenshot("25-transfer-large-text")
         self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
         open_favorites(); self.tap(label)
         self.scroll_to_text("Copy or move to another pack"); self.tap("Copy or move to another pack")
         self.fill("New pack name", "Favorite destination QA")
         self.tap("Create new pack"); self.wait_enabled("Move"); self.tap("Move")
         self.wait_hidden("Copy or move sticker")
-        moved_id = database_rows("SELECT s.id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=? AND s.sha256=?", ("Favorite destination QA", digest))[0][0]
+        deadline = time.monotonic() + 35
+        while True:
+            moved = database_rows("SELECT s.id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=? AND s.sha256=?", ("Favorite destination QA", digest))
+            if moved and favorite_ids() == {moved[0][0]}:
+                break
+            assert time.monotonic() < deadline, "Move did not persist its sticker and favorite shortcut"
+            time.sleep(0.3)
+        moved_id = moved[0][0]
         assert moved_id != original_id and favorite_ids() == {moved_id}
         assert self.counts() == (before[0] + 1, before[1])
         open_favorites(); self.wait_text("Favorite destination QA"); self.tap(label)
@@ -205,7 +217,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert old_rows - {entry for entry in old_rows if entry[0] == original_id} <= set(database_rows("SELECT id,pack_id,file_name,sha256 FROM stickers")), "Favorites changed unrelated saved rows"
         self.launch(restart=True); self.wait_text("Favorites (0)")
         report = {"passed": True, "before": before, "after": self.counts(), "sticker_sha256": digest,
-                  "checks": ["explicit favorite does not change media, pack version or saved count", "favorites search and cold restart", "200% text", "favorite follows move to new pack", "delete and Undo restores favorite", "unfavorite preserves media and all unrelated rows"]}
+                  "checks": ["explicit favorite does not change media, pack version or saved count", "favorites search and cold restart", "200% text including reachable transfer actions", "favorite follows move to new pack", "delete and Undo restores favorite", "unfavorite preserves media and all unrelated rows"]}
         (self.output / "favorites.json").write_text(json.dumps(report, indent=2))
 
     def brush_refinement(self):
@@ -502,8 +514,19 @@ if __name__ == "__main__":
     try:
         test.run_acceptance(args.apk)
     except Exception:
-        test.screenshot("failure")
-        print("Visible controls at failure:", json.dumps([
-            node.get("text") or node.get("content-desc") for node in test.tree().iter("node")
-            if test.visible(node) and (node.get("text") or node.get("content-desc"))]), flush=True)
+        # A disconnected emulator must not replace the original failure with a
+        # second screenshot/transport exception. Preserve useful crash evidence.
+        for name, command in (("crash", ("logcat", "-b", "crash", "-d")),
+                              ("system", ("logcat", "-d", "-t", "500"))):
+            try:
+                (args.output / (name + "-diagnostic.log")).write_text(test.adb(*command), encoding="utf-8")
+            except Exception as diagnostic_error:
+                print("Could not collect", name, "diagnostics:", str(diagnostic_error), flush=True)
+        try:
+            test.screenshot("failure")
+            print("Visible controls at failure:", json.dumps([
+                node.get("text") or node.get("content-desc") for node in test.tree().iter("node")
+                if test.visible(node) and (node.get("text") or node.get("content-desc"))]), flush=True)
+        except Exception as diagnostic_error:
+            print("Could not collect failure screen:", str(diagnostic_error), flush=True)
         raise
