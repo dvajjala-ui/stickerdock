@@ -40,10 +40,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class PolishedHomeSection(val label: String, val mark: String) {
-    LIBRARY("Library", "▦"),
+    LIBRARY("Library", "â–¦"),
     CREATE("Create", "+"),
-    IMPORT("Import", "⇩"),
-    FACTORY("Discover", "✦")
+    IMPORT("Import", "â‡©"),
+    FACTORY("Discover", "âœ¦")
 }
 
 private data class LibrarySnapshot(
@@ -51,7 +51,8 @@ private data class LibrarySnapshot(
     val stickers: List<StickerItem>,
     val counts: Map<String, Int>,
     val previews: Map<String, List<StickerItem>>,
-    val drafts: List<StickerItem>
+    val drafts: List<StickerItem>,
+    val favorites: List<StickerSearchResult>
 )
 
 class StickerDockPolishedActivity : ComponentActivity() {
@@ -116,6 +117,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         val snackbar = remember { SnackbarHostState() }
         val previewCache = remember { libraryPreviewCache }
         val artworkProjects = remember { ArtworkProjects(applicationContext, store, files) }
+        val favorites = remember { StickerFavorites(applicationContext, store) }
         val pausePhoneImport = remember { AtomicBoolean(false) }
 
         var sectionName by rememberSaveable { mutableStateOf(PolishedHomeSection.LIBRARY.name) }
@@ -127,6 +129,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var counts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
         var previewItems by remember { mutableStateOf<Map<String, List<StickerItem>>>(emptyMap()) }
         var artworkDrafts by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
+        var favoriteStickers by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
+        var favoritesOnly by rememberSaveable { mutableStateOf(false) }
         var clipUri by rememberSaveable { mutableStateOf<String?>(null) }
 
         var searchText by rememberSaveable { mutableStateOf("") }
@@ -222,6 +226,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
             packSort != "Newest",
             categoryFilter != null
         ).count { it }
+        val favoriteIds = favoriteStickers.mapTo(mutableSetOf()) { it.item.id }
+        val filteredFavorites = StickerFavorites.filter(favoriteStickers, searchText, packFilter, categoryFilter, packSort, counts)
 
         fun clearFilters() {
             packFilter = "All"
@@ -240,7 +246,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         stickers = requestedId?.let(store::listStickers).orEmpty(),
                         counts = store.stickerCounts(),
                         previews = store.stickerPreviews(),
-                        drafts = store.artworkDrafts()
+                        drafts = store.artworkDrafts(),
+                        favorites = favorites.snapshot()
                     )
                 }
                 packs = snapshot.packs
@@ -249,6 +256,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 counts = snapshot.counts
                 previewItems = snapshot.previews
                 artworkDrafts = snapshot.drafts
+                favoriteStickers = snapshot.favorites
                 if (selectedId != null && packs.none { it.id == selectedId }) selectedId = null
                 selectedStickerIds = selectedStickerIds.intersect(stickers.mapTo(mutableSetOf()) { it.id })
             }
@@ -273,12 +281,21 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
 
+        fun toggleFavorite(item: StickerItem) {
+            val makeFavorite = item.id !in favoriteIds
+            operation("Saving favorite") {
+                favorites.set(item.id, makeFavorite)
+                if (makeFavorite) "Added to favorites on this device" else "Removed from favorites"
+            }
+        }
+
         fun deleteStickerWithUndo(item: StickerItem) {
             if (busy) return
             managingSticker = null
             busyLabel = "Removing sticker"
             scope.launch {
                 try {
+                    val wasFavorite = favorites.contains(item.id)
                     val deleted = withContext(Dispatchers.IO) {
                         val source = files.stickerFile(item.packId, item.fileName)
                         val snapshot = source.readBytes()
@@ -296,9 +313,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     if (result == SnackbarResult.ActionPerformed) {
                         busyLabel = "Restoring sticker"
                         val restored = withContext(Dispatchers.IO) {
-                            files.restoreBytes(item.packId, deleted.first, item.sha256, item.label, item.tags) { restored ->
+                            var restoredItem: StickerItem? = null
+                            val outcome = files.restoreBytes(item.packId, deleted.first, item.sha256, item.label, item.tags) { restored ->
+                                restoredItem = restored
                                 deleted.second?.let { artworkProjects.restoreSnapshot(restored, it) }
                             }
+                            if (outcome == ImportResult.Added && wasFavorite) restoredItem?.let { favorites.set(it.id, true) }
+                            outcome
                         }
                         refresh()
                         snackbar.showSnackbar(if (restored == ImportResult.Added) "Sticker restored" else "Could not restore sticker")
@@ -423,7 +444,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         is ImportResult.Failed -> failed++
                     }
                 }
-                "Imported $added • $duplicates duplicate • $failed failed"
+                "Imported $added â€¢ $duplicates duplicate â€¢ $failed failed"
             }
         }
 
@@ -475,7 +496,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         if (firstError == null) firstError = error.message?.take(160) ?: "Cannot read this archive"
                     }
                 }
-                "${uris.size} ZIPs • $packsCreated packs • $added stickers • $skipped skipped • $failed failed" + firstError?.let { ". $it" }.orEmpty()
+                "${uris.size} ZIPs â€¢ $packsCreated packs â€¢ $added stickers â€¢ $skipped skipped â€¢ $failed failed" + firstError?.let { ". $it" }.orEmpty()
             }
         }
 
@@ -491,7 +512,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         val loadBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) operation("Restoring backup") {
                 val restored = EditableBackup(this@StickerDockPolishedActivity, store, files).restoreOrSaved(uri)
-                "Restored ${restored.packs} packs • ${restored.stickers} stickers • ${restored.rejected} skipped"
+                "Restored ${restored.packs} packs â€¢ ${restored.stickers} stickers â€¢ ${restored.rejected} skipped"
             }
         }
         val whatsAppInstaller = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -696,7 +717,11 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                 { selectedId = it },
                                                 { photoPackPicker.launch(arrayOf("image/*")) },
                                                 artworkDrafts, { selectedId = it.packId; artworkSticker = it },
-                                                { clipPicker.launch(arrayOf("video/*", "image/gif")) }, packFilter, { packFilter = it }
+                                                { clipPicker.launch(arrayOf("video/*", "image/gif")) }, packFilter, { packFilter = it },
+                                                favoriteStickers = filteredFavorites, favoriteCount = favoriteStickers.size,
+                                                favoritesOnly = favoritesOnly, onFavoritesOnlyChange = { favoritesOnly = it },
+                                                onOpenFavorite = { selectedId = it.packId; managingSticker = it },
+                                                onRemoveFavorite = ::toggleFavorite
                                             )
                                         }
                                         VerticalDivider()
@@ -730,7 +755,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                     transferTarget = packs.firstOrNull { it.id != pack.id && it.kind == pack.kind }?.id
                                                 },
                                                 { bulkDeletePending = true },
-                                                { target -> launchWhatsApp(pack, target, addAgain = true) }
+                                                { target -> launchWhatsApp(pack, target, addAgain = true) },
+                                                favoriteIds = favoriteIds
                                             )
                                         }
                                     }
@@ -758,7 +784,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         transferTarget = packs.firstOrNull { it.id != pack.id && it.kind == pack.kind }?.id
                                     },
                                     { bulkDeletePending = true },
-                                    { target -> launchWhatsApp(pack, target, addAgain = true) }
+                                    { target -> launchWhatsApp(pack, target, addAgain = true) },
+                                    favoriteIds = favoriteIds
                                 )
                                 section == PolishedHomeSection.LIBRARY -> AnimatedScreenSwap("library") {
                                     LibraryScreen(
@@ -773,7 +800,11 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         { selectedId = it },
                                         { photoPackPicker.launch(arrayOf("image/*")) },
                                         artworkDrafts, { selectedId = it.packId; artworkSticker = it },
-                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) }, packFilter, { packFilter = it }
+                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) }, packFilter, { packFilter = it },
+                                        favoriteStickers = filteredFavorites, favoriteCount = favoriteStickers.size,
+                                        favoritesOnly = favoritesOnly, onFavoritesOnlyChange = { favoritesOnly = it },
+                                        onOpenFavorite = { selectedId = it.packId; managingSticker = it },
+                                        onRemoveFavorite = ::toggleFavorite
                                     )
                                 }
                                 section == PolishedHomeSection.CREATE -> AnimatedScreenSwap("create") {
@@ -791,7 +822,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             operation("Discarding saved import") {
                                                 val removed = FolderStickerImporter(this@StickerDockPolishedActivity, store, files).discardPendingImport()
                                                 runOnUiThread { pendingFolderImportUri = null; phoneImportProgress = null }
-                                                "Discarded saved import${if (removed > 0) " • removed $removed empty packs" else ""}"
+                                                "Discarded saved import${if (removed > 0) " â€¢ removed $removed empty packs" else ""}"
                                             }
                                         },
                                         { folderImporter.launch(null) },
@@ -861,13 +892,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
                             .import(chosen, title, target, deduplicateLibrary = false)
                         runOnUiThread {
                             pendingPhotoUris = result.failedUris.map { it.toString() }
-                            photoSaveError = result.firstError?.let { "${result.added} saved · ${result.failed} need attention. $it" }
+                            photoSaveError = result.firstError?.let { "${result.added} saved Â· ${result.failed} need attention. $it" }
                             result.packIds.firstOrNull()?.let { selectedId = it; sectionName = PolishedHomeSection.LIBRARY.name }
                         }
                         buildString {
                             append("${result.added} ${if (result.added == 1) "sticker" else "stickers"} saved")
-                            if (result.duplicates > 0) append(" · ${result.duplicates} already in this selection")
-                            if (result.failed > 0) append(" · ${result.failed} need attention")
+                            if (result.duplicates > 0) append(" Â· ${result.duplicates} already in this selection")
+                            if (result.failed > 0) append(" Â· ${result.failed} need attention")
                         }
                     } catch (error: Exception) {
                         runOnUiThread { photoSaveError = error.message ?: "Couldn't save. Your selection is still here." }
@@ -956,7 +987,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     }
                     result.message
                 }
-            }) { Text(if (busy) "Importing…" else "Import packs") } },
+            }) { Text(if (busy) "Importingâ€¦" else "Import packs") } },
             dismissButton = { TextButton(enabled = !busy, onClick = { pendingSharedFiles = emptyList() }) { Text("Cancel") } })
 
         if (showFilters) {
@@ -1038,7 +1069,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     transferTarget = packs.firstOrNull { it.id != item.packId && it.kind == pack?.kind }?.id
                 },
                 onDelete = { deleteStickerWithUndo(item) },
-                onDismiss = { managingSticker = null }
+                onDismiss = { managingSticker = null },
+                favorite = item.id in favoriteIds,
+                onToggleFavorite = { toggleFavorite(item) }
             )
         }
 
@@ -1232,17 +1265,23 @@ class StickerDockPolishedActivity : ComponentActivity() {
     }
 
     private fun transferBatch(items: List<StickerItem>, targetId: String, move: Boolean): String {
+        val favorites = StickerFavorites(applicationContext, store)
         var added = 0
         var duplicates = 0
         var failed = 0
         items.forEach { item ->
             when (files.transferSticker(item, targetId, move)) {
-                ImportResult.Added -> added++
+                ImportResult.Added -> {
+                    added++
+                    if (move && favorites.contains(item.id)) {
+                        store.listStickers(targetId).firstOrNull { it.sha256 == item.sha256 }?.let { favorites.move(item.id, it.id) }
+                    }
+                }
                 ImportResult.Duplicate -> duplicates++
                 is ImportResult.Failed -> failed++
             }
         }
-        return "${if (move) "Moved" else "Copied"} $added • $duplicates duplicate • $failed failed"
+        return "${if (move) "Moved" else "Copied"} $added â€¢ $duplicates duplicate â€¢ $failed failed"
     }
 
 }

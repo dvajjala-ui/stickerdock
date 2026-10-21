@@ -2,8 +2,9 @@
   "git": {
     "deploymentEnabled": {
       "codex/iphone-client-and-navigation": false,
-      "codex/sticker-first-redesign": false
-      ,"codex/open-admin-dashboard": false
+      "codex/sticker-first-redesign": false,
+      "codex/open-admin-dashboard": false,
+      "codex/android-favorites": false
     }
   },
   "rewrites": [

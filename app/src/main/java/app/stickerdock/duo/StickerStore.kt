@@ -161,6 +161,23 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         "SELECT id,pack_id,file_name,sha256,created_at,label,tags FROM stickers WHERE id=? LIMIT 1", arrayOf(id)
     ).use { if (it.moveToFirst()) readSticker(it, 0) else null }
 
+    /** Batches bind arguments below SQLite's limit without loading an entire large library. */
+    fun stickersByIds(ids: Set<String>): List<StickerSearchResult> {
+        val result = mutableListOf<StickerSearchResult>()
+        ids.toList().chunked(400).forEach { batch ->
+            val placeholders = batch.joinToString(",") { "?" }
+            readableDatabase.rawQuery("""
+                SELECT s.id,s.pack_id,s.file_name,s.sha256,s.created_at,s.label,s.tags,
+                       p.id,p.name,p.version,p.created_at,p.kind,p.rating,p.category
+                FROM stickers s JOIN packs p ON p.id=s.pack_id
+                WHERE s.id IN ($placeholders)
+            """.trimIndent(), batch.toTypedArray()).use { cursor ->
+                while (cursor.moveToNext()) result += StickerSearchResult(readSticker(cursor, 0), readPack(cursor, 7))
+            }
+        }
+        return result.sortedWith(compareByDescending<StickerSearchResult> { it.item.createdAt }.thenBy { it.item.id })
+    }
+
     fun artworkProject(stickerId: String): ArtworkProjectRecord? = readableDatabase.rawQuery(
         "SELECT sticker_id,source_sha256,saved_sha256,saved_history,draft_history,updated_at FROM artwork_projects WHERE sticker_id=?",
         arrayOf(stickerId)

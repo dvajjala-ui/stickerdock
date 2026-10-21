@@ -15,6 +15,7 @@ import tarfile
 import time
 import uuid
 import zipfile
+import xml.etree.ElementTree as ET
 
 from PIL import Image
 from emulator_clip_creator_smoke import ClipCreatorSmoke
@@ -150,6 +151,62 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert uid.isdigit()
         self.adb("shell", "chown", "-R", f"{uid}:{uid}", ROOT + "/files/stickers", ROOT + "/databases")
         self.adb("shell", "restorecon", "-RF", ROOT + "/files", ROOT + "/databases")
+
+    def favorites(self):
+        """Exercise shortcuts on the newly created QA photo; retain the 10k seed."""
+        def database_rows(query, args=()):
+            target = self.output / "favorites.db"
+            self.adb("pull", ROOT + "/databases/stickerdock.db", str(target))
+            with sqlite3.connect(target) as db:
+                return db.execute(query, args).fetchall()
+
+        def favorite_ids():
+            raw = self.adb("shell", "cat", ROOT + "/shared_prefs/sticker_favorites.xml")
+            return {node.text for node in ET.fromstring(raw).findall("./set[@name='sticker_ids']/string")}
+
+        def open_favorites():
+            self.launch(restart=True); self.wait_text("Search library")
+            self.tap("Favorites (1)")
+            self.wait_text("1 favorite stickers")
+
+        old_rows = set(database_rows("SELECT id,pack_id,file_name,sha256 FROM stickers"))
+        row = database_rows("SELECT s.id,s.label,s.sha256,p.version FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=?", ("My photo reactions",))[0]
+        original_id, label, digest, version = row
+        before = self.counts()
+        self.launch(restart=True); self.wait_text("Search library"); self.fill("Search library", "My photo reactions")
+        self.wait_text("My photo reactions"); self.tap("My photo reactions")
+        self.wait_text(label); self.tap(label)
+        self.scroll_to_text("Add to favorites"); self.tap("Add to favorites")
+        self.wait_text("Remove from favorites")
+        assert favorite_ids() == {original_id}
+        assert database_rows("SELECT s.sha256,p.version FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE s.id=?", (original_id,))[0] == (digest, version), "Favoriting changed exported data/version"
+        assert self.counts() == before
+        open_favorites(); self.fill("Search library", "My photo reactions")
+        self.wait_text(label); self.screenshot("22-favorites-search")
+        self.adb("shell", "settings", "put", "system", "font_scale", "2.0")
+        open_favorites(); self.screenshot("23-favorites-large-text")
+        self.adb("shell", "settings", "put", "system", "font_scale", "1.0")
+        open_favorites(); self.tap(label)
+        self.scroll_to_text("Copy or move to another pack"); self.tap("Copy or move to another pack")
+        self.fill("New pack name", "Favorite destination QA")
+        self.tap("Create new pack"); self.wait_enabled("Move"); self.tap("Move")
+        self.wait_hidden("Copy or move sticker")
+        moved_id = database_rows("SELECT s.id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=? AND s.sha256=?", ("Favorite destination QA", digest))[0][0]
+        assert moved_id != original_id and favorite_ids() == {moved_id}
+        assert self.counts() == (before[0] + 1, before[1])
+        open_favorites(); self.wait_text("Favorite destination QA"); self.tap(label)
+        self.scroll_to_text("Remove sticker"); self.tap("Remove sticker")
+        self.tap("Undo"); self.wait_text("Sticker restored")
+        restored_id = database_rows("SELECT s.id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE p.name=? AND s.sha256=?", ("Favorite destination QA", digest))[0][0]
+        assert restored_id != moved_id and favorite_ids() == {restored_id}, "Undo did not restore the shortcut to the replacement row"
+        open_favorites(); self.wait_text("Favorite destination QA"); self.screenshot("24-favorites-after-undo")
+        self.tap("Remove " + label + " from favorites"); self.wait_text("Favorites (0)")
+        assert not favorite_ids() and self.counts() == (before[0] + 1, before[1])
+        assert old_rows - {entry for entry in old_rows if entry[0] == original_id} <= set(database_rows("SELECT id,pack_id,file_name,sha256 FROM stickers")), "Favorites changed unrelated saved rows"
+        self.launch(restart=True); self.wait_text("Favorites (0)")
+        report = {"passed": True, "before": before, "after": self.counts(), "sticker_sha256": digest,
+                  "checks": ["explicit favorite does not change media, pack version or saved count", "favorites search and cold restart", "200% text", "favorite follows move to new pack", "delete and Undo restores favorite", "unfavorite preserves media and all unrelated rows"]}
+        (self.output / "favorites.json").write_text(json.dumps(report, indent=2))
 
     def brush_refinement(self):
         sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-qa-sticker:1:0"))
@@ -412,6 +469,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
             after = (connection.execute("SELECT count(*) FROM packs").fetchone()[0], connection.execute("SELECT count(*) FROM stickers").fetchone()[0])
         assert before == after, "Browsing or preview changed saved data"
         self.photo_destination()
+        self.favorites()
         self.brush_refinement()
         self.public_pack_links()
         self.received_pack()
@@ -421,6 +479,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         report = {"passed": True, "apk_sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "packs": 334, "stickers": 10000,
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
+                  "favorites": json.loads((self.output / "favorites.json").read_text()),
                   "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import", "received pack file explicit import, cancel without mutation and restart preservation", "editable backup format choice/200% text, picker cancellation, real DocumentsUI export, source/mask integrity, one-project DocumentsUI restore and persisted history"],
                   "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance", "Pack-code fixture is deliberately unpublished; live published-pack and HTTPS sharing acceptance remains separate"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))
