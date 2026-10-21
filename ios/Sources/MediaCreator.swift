@@ -64,8 +64,8 @@ actor MediaCreator {
             try Task.checkCancellation()
             progress("Preparing your sticker")
             let image = recipe.removeBackground ? try cutout(cg) : UIImage(cgImage: cg)
-            let rendered = render(image, recipe: recipe)
-            let bytes = try encode(rendered, limit: 99_950)
+            let rendered = Self.render(image, recipe: recipe)
+            let bytes = try Self.encode(rendered, limit: 99_950)
             guard let normalized = bridge.normalizeStatic(base64: bytes.base64EncodedString()), let output = Data(base64Encoded: normalized) else { throw StickerError.invalid("Could not validate the encoded photo.") }
             try MediaRules.validate(output, kind: .STATIC)
             return ImportedPack(name: "My reactions", kind: .STATIC, stickers: [ImportedSticker(data: output, label: recipe.caption)])
@@ -101,7 +101,7 @@ actor MediaCreator {
                 } else {
                     cg = try generator.copyCGImage(at: CMTime(seconds: time, preferredTimescale: 600), actualTime: nil)
                 }
-                return try encode(render(UIImage(cgImage: cg), recipe: recipe), limit: min(24_000, 460_000 / count))
+                return try Self.encode(Self.render(UIImage(cgImage: cg), recipe: recipe), limit: min(24_000, 460_000 / count))
             }
             total += frame.count
             try require(total <= 490_000, "Clip is too detailed. Shorten the section or lower the motion rate.")
@@ -120,7 +120,35 @@ actor MediaCreator {
         return png
     }
 
-    private func encode(_ image: UIImage, limit: Int) throws -> Data {
+    /// Called by the detached archive reader. Reject animation rather than silently
+    /// flattening it; downsample with EXIF transform before allocating the canvas.
+    static func archivePhoto(_ data: Data) throws -> Data {
+        try require(data.count <= 20_000_000, "Archive photo exceeds the 20 MB limit.")
+        return try autoreleasepool {
+            try Task.checkCancellation()
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let identifier = CGImageSourceGetType(source),
+                  [UTType.png.identifier, UTType.jpeg.identifier].contains(identifier as String) else {
+                throw StickerError.invalid("A PNG/JPEG archive entry is not a readable photo.")
+            }
+            try require(CGImageSourceGetCount(source) == 1, "Animated images cannot be flattened into photos. Choose GIF/video in Create.")
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
+            let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
+            let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
+            try require(width > 0 && height > 0 && width <= 16000 && height <= 16000 && Int64(width) * Int64(height) <= 20_000_000, "Archive photo dimensions exceed the local creator limit.")
+            guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 1600, kCGImageSourceCreateThumbnailWithTransform: true] as CFDictionary) else {
+                throw StickerError.invalid("Could not decode an archive photo.")
+            }
+            let encoded = try encode(render(UIImage(cgImage: image), recipe: CreationRecipe()), limit: 99_950)
+            guard let normalized = AppleMediaBridge().normalizeStatic(base64: encoded.base64EncodedString()), let output = Data(base64Encoded: normalized) else {
+                throw StickerError.invalid("Could not validate an archive photo.")
+            }
+            try MediaRules.validate(output, kind: .STATIC)
+            return output
+        }
+    }
+
+    private static func encode(_ image: UIImage, limit: Int) throws -> Data {
         // WebP target size is an estimate, not a hard byte guarantee. Keep a
         // margin and bounded quality retries; enforce the actual saved size.
         for quality in [0.85, 0.70, 0.55, 0.40, 0.25, 0.15] {
@@ -144,7 +172,7 @@ actor MediaCreator {
         return value.isFinite ? max(0.008, min(value, 10)) : 0.1
     }
 
-    private func render(_ image: UIImage, recipe: CreationRecipe) -> UIImage {
+    private static func render(_ image: UIImage, recipe: CreationRecipe) -> UIImage {
         let format = UIGraphicsImageRendererFormat(); format.scale = 1; format.opaque = false
         return UIGraphicsImageRenderer(size: CGSize(width: 512, height: 512), format: format).image { context in
             let area = CGRect(x: 8, y: 8, width: 496, height: recipe.caption.isEmpty ? 496 : 390)

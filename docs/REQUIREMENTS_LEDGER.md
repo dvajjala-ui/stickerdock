@@ -1,5 +1,11 @@
 # StickerDock requirements ledger
 
+October 21 iPhone continuation (R13/R24/R32): candidate 0.10.2/build 14 adds
+bounded native PNG/JPEG photo ZIP conversion, alpha/EXIF orientation, normalized
+dedup and static/animated segregation. Four new native tests require matching
+Apple build/simulator CI before merge. See IPHONE_PHOTO_ARCHIVES.md; prior
+0.10.1 acceptance does not validate this changed source.
+
 October 21 received-motion continuation (R05/R06/R26): shared Android GIF/video
 input now routes to the existing local animated creator for explicit trim,
 caption, preview and save. Photo/pack routes stay separate; mixed or multiple
