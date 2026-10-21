@@ -514,8 +514,19 @@ if __name__ == "__main__":
     try:
         test.run_acceptance(args.apk)
     except Exception:
-        test.screenshot("failure")
-        print("Visible controls at failure:", json.dumps([
-            node.get("text") or node.get("content-desc") for node in test.tree().iter("node")
-            if test.visible(node) and (node.get("text") or node.get("content-desc"))]), flush=True)
+        # A disconnected emulator must not replace the original failure with a
+        # second screenshot/transport exception. Preserve useful crash evidence.
+        for name, command in (("crash", ("logcat", "-b", "crash", "-d")),
+                              ("system", ("logcat", "-d", "-t", "500"))):
+            try:
+                (args.output / (name + "-diagnostic.log")).write_text(test.adb(*command), encoding="utf-8")
+            except Exception as diagnostic_error:
+                print("Could not collect", name, "diagnostics:", str(diagnostic_error), flush=True)
+        try:
+            test.screenshot("failure")
+            print("Visible controls at failure:", json.dumps([
+                node.get("text") or node.get("content-desc") for node in test.tree().iter("node")
+                if test.visible(node) and (node.get("text") or node.get("content-desc"))]), flush=True)
+        except Exception as diagnostic_error:
+            print("Could not collect failure screen:", str(diagnostic_error), flush=True)
         raise
