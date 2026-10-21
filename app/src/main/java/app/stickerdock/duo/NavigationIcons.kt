@@ -22,6 +22,17 @@ fun StickerDockNavIcon(label: String) {
         val u = size.width / 24f
         val stroke = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
         when (label) {
+            "Favorite", "FavoriteFilled" -> {
+                val heart = Path().apply {
+                    moveTo(12f * u, 21f * u)
+                    cubicTo(9f * u, 18f * u, 2f * u, 13f * u, 2f * u, 8f * u)
+                    cubicTo(2f * u, 2f * u, 9f * u, 1f * u, 12f * u, 6f * u)
+                    cubicTo(15f * u, 1f * u, 22f * u, 2f * u, 22f * u, 8f * u)
+                    cubicTo(22f * u, 13f * u, 15f * u, 18f * u, 12f * u, 21f * u)
+                    close()
+                }
+                if (label == "FavoriteFilled") drawPath(heart, color) else drawPath(heart, color, style = stroke)
+            }
             "Search" -> {
                 drawCircle(color, 6.5f * u, Offset(10.5f * u, 10.5f * u), style = stroke)
                 drawLine(color, Offset(15.5f * u, 15.5f * u), Offset(21f * u, 21f * u), 1.8f * u, StrokeCap.Round)

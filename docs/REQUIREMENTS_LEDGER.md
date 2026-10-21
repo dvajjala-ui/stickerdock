@@ -1,5 +1,13 @@
 # StickerDock requirements ledger
 
+October 21 continuation: after pulling current main, resume the unfinished R05
+Android Favorites slice on the redesigned Library. Retain the original saved
+work separately; port shortcuts/actions/filtering without undoing the newer
+editor, backup or WhatsApp behavior. Candidate 0.11.1 preserves SQLite 8/ZIP 5 and
+requires unit/lint/build plus signed on-screen acceptance before publication.
+See FAVORITES.md. This is a continuation of R05/R06/R13, not closure of broader
+AI, content, iPhone or physical-device requirements.
+
 Updated 2026-10-19. Preserve IDs and history. Add new user requests here before implementation. Never delete a requirement; mark it Updated (with a replacement ID) or Removed with the user's decision and date. Active means still required; Partial and Pending identify unfinished work. Source implementation is not device acceptance.
 
 Latest direction: [Product rebuild, October 18](PRODUCT_REBUILD_2026-10-18.md), with [verbatim user requests](PRODUCT_REBUILD_REQUEST_2026-10-18.md). Reconsider the full product, remove clutter and implement pack-centered creation/discovery/WhatsApp use; the complaints are examples, not the entire scope. The October 15 recovery/data guarantees and Android/iPhone requirements remain active. Automatic library population is superseded by R22.

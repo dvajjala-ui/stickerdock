@@ -57,7 +57,10 @@ fun LibraryScreen(
     onCreatePack: () -> Unit, onImportPhone: () -> Unit, onOpenPack: (String) -> Unit,
     onPhotos: () -> Unit, drafts: List<StickerItem> = emptyList(),
     onResumeDraft: (StickerItem) -> Unit = {}, onClip: () -> Unit = {},
-    packFilter: String = "All", onPackFilterChange: (String) -> Unit = {}
+    packFilter: String = "All", onPackFilterChange: (String) -> Unit = {},
+    favoriteStickers: List<StickerSearchResult> = emptyList(), favoriteCount: Int = 0,
+    favoritesOnly: Boolean = false, onFavoritesOnlyChange: (Boolean) -> Unit = {},
+    onOpenFavorite: (StickerItem) -> Unit = {}, onRemoveFavorite: (StickerItem) -> Unit = {}
 ) {
     val matchesByPack = remember(stickerMatches) { stickerMatches.groupBy { it.pack.id } }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -78,14 +81,20 @@ fun LibraryScreen(
             }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item { FilterChip(!favoritesOnly, { onFavoritesOnlyChange(false) }, { Text("Your packs") }) }
+                    item { FilterChip(favoritesOnly, { onFavoritesOnlyChange(true) }, { Text("Favorites ($favoriteCount)") }, leadingIcon = { StickerDockNavIcon("Favorite") }) }
+                }
+            }
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Static", "Animated")) { type ->
-                        FilterChip(selected = packFilter == type, onClick = { onPackFilterChange(type) }, label = { Text(if (type == "All") "All packs" else type) },
+                        FilterChip(selected = packFilter == type, onClick = { onPackFilterChange(type) }, label = { Text(if (type == "All") if (favoritesOnly) "All types" else "All packs" else type) },
                             colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary,
                                 selectedLabelColor = MaterialTheme.colorScheme.onPrimary), border = null)
                     }
                 }
             }
-            if (drafts.isNotEmpty() && searchText.isBlank()) item {
+            if (drafts.isNotEmpty() && searchText.isBlank() && !favoritesOnly) item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(drafts, key = { it.id }) { draft ->
                         Surface(onClick = { onResumeDraft(draft) }, enabled = !busy,
@@ -103,10 +112,25 @@ fun LibraryScreen(
             }
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (searchText.isBlank()) "${packs.size} packs · ${counts.values.sum()} stickers" else "${filteredPacks.size} matching packs",
+                    Text(if (favoritesOnly) "${favoriteStickers.size} favorite stickers" else if (searchText.isBlank()) "${packs.size} packs · ${counts.values.sum()} stickers" else "${filteredPacks.size} matching packs",
                         modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(enabled = !busy, onClick = onCreatePack) { Text("New pack") }
                 }
+            }
+            if (favoritesOnly) {
+                if (favoriteStickers.isEmpty()) item {
+                    EmptyStateCard(if (favoriteCount == 0) "Keep your best reactions here" else "No favorites match",
+                        if (favoriteCount == 0) "Open a sticker and choose Add to favorites. It stays in its original pack, with the same privacy rating." else "Try another search or clear your filters.",
+                        if (favoriteCount == 0) "Browse your packs" else "Clear search & filters",
+                        { if (favoriteCount == 0) onFavoritesOnlyChange(false) else { onSearchChange(""); onClearFilters() } })
+                }
+                items(favoriteStickers, key = { it.item.id }) { result ->
+                    FavoriteStickerCard(result, files, previewCache, !busy, { onOpenFavorite(result.item) }, { onRemoveFavorite(result.item) })
+                }
+                item { Text("Favorites stay on this device. Backups and cloud copies contain the saved stickers, without favorite shortcuts.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                item { Spacer(Modifier.height(20.dp)) }
+                return@LazyColumn
             }
             items(filteredPacks, key = { it.id }) { pack ->
                 val matching = matchesByPack[pack.id].orEmpty()
@@ -122,6 +146,23 @@ fun LibraryScreen(
                     { onSearchChange(""); onClearFilters() })
             }
             item { Spacer(Modifier.height(20.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteStickerCard(result: StickerSearchResult, files: StickerFiles, previewCache: StickerPreviewCache,
+    enabled: Boolean, onOpen: () -> Unit, onRemove: () -> Unit) {
+    Surface(onClick = onOpen, enabled = enabled, shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)), modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PackPreviewImage(files.stickerFile(result.pack.id, result.item.fileName).path, result.item.displayName, previewCache, Modifier.size(80.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(result.item.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(result.pack.name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${if (result.pack.kind == StickerKind.ANIMATED) "Animated" else "Static"}${if (result.pack.rating == PackRating.MATURE) " · Private" else ""}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(enabled = enabled, onClick = onRemove, modifier = Modifier.semantics { contentDescription = "Remove ${result.item.displayName} from favorites" }) { StickerDockNavIcon("FavoriteFilled") }
         }
     }
 }
@@ -311,7 +352,8 @@ fun PackDetailScreen(
     onClearSelection: () -> Unit,
     onBulkTransfer: () -> Unit,
     onBulkDelete: () -> Unit,
-    onAddAgain: (WhatsAppTarget) -> Unit = {}
+    onAddAgain: (WhatsAppTarget) -> Unit = {},
+    favoriteIds: Set<String> = emptySet()
 ) {
     val haptics = LocalHapticFeedback.current
     var showWhatsApp by remember(pack.id) { mutableStateOf(false) }
@@ -355,7 +397,8 @@ fun PackDetailScreen(
                     StickerTile(
                         item, pack.kind, previewCache, files, !busy, selected, selectedStickerIds.isNotEmpty(),
                         onClick = { if (selectedStickerIds.isNotEmpty()) onToggleSelection(item) else onManageSticker(item) },
-                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onStartSelection(item) }
+                        onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onStartSelection(item) },
+                        favorite = item.id in favoriteIds
                     )
                 }
             }
@@ -470,7 +513,8 @@ private fun StickerTile(
     selected: Boolean,
     selectionMode: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    favorite: Boolean = false
 ) {
     val path = files.stickerFile(item.packId, item.fileName).path
     // BitmapFactory decodes a single poster for animated WebP too. Never hold
@@ -505,6 +549,12 @@ private fun StickerTile(
                         Box(contentAlignment = Alignment.Center) { Text(if (selected) "✓" else "○", color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface) }
                     }
                 }
+                if (favorite && !selectionMode) {
+                    Surface(Modifier.align(Alignment.TopStart).padding(5.dp).size(28.dp).semantics { contentDescription = "Favorite" },
+                        shape = CircleShape, color = MaterialTheme.colorScheme.surface.copy(alpha = .95f)) {
+                        Box(contentAlignment = Alignment.Center) { StickerDockNavIcon("FavoriteFilled") }
+                    }
+                }
             }
         }
     }
@@ -530,12 +580,19 @@ fun StickerManageSheet(
     onEditArtwork: () -> Unit,
     onTransfer: () -> Unit,
     onDelete: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    favorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(item.displayName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             StickerLargePreview(item, kind, files, previewCache)
+            if (onToggleFavorite != null) OutlinedButton(enabled = !busy, onClick = onToggleFavorite, modifier = Modifier.fillMaxWidth()) {
+                StickerDockNavIcon(if (favorite) "FavoriteFilled" else "Favorite")
+                Spacer(Modifier.width(8.dp))
+                Text(if (favorite) "Remove from favorites" else "Add to favorites")
+            }
             if (kind == StickerKind.STATIC) {
                 Button(enabled = !busy, onClick = onEditArtwork, modifier = Modifier.fillMaxWidth()) { Text("Edit artwork and captions") }
             }
