@@ -1,5 +1,44 @@
 # StickerDock verification checklist
 
+## Published Android 0.11.1 — October 21, 2026
+
+[PR #22](https://github.com/dvajjala-ui/stickerdock/pull/22) and
+[follow-up #23](https://github.com/dvajjala-ui/stickerdock/pull/23) are merged.
+Android **0.11.1 (build 16)** is
+[published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.1)
+from `9029d136698a9361df9a0e6f61e64585a72d5fd7` after
+[main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39572989958) and
+[exact signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39572989873)
+pass. Verification includes 130 Android / 12 shared / 205 backend tests, lint,
+signed APK/AAB, 16 KB alignment and a fresh Android 15 emulator journey.
+
+Favorites search/restart/type/topic filters, move, Delete/Undo and non-destructive
+removal are included. The transfer sheet keeps Copy/Move fixed below one scrolling
+form/list, including 200% text. Earlier emulator transport/graphics failures remain
+recorded; the successful run starts fresh using supported SwiftShader GLES.
+The original acceptance error is preserved if failure-screen capture also fails.
+The existing 10k-sticker, tablet, video/photo creation, brush recovery/exact Reset,
+pack-code/received-file and editable backup/restore checks pass.
+
+Public APK SHA-256:
+`02929806634f5414d4bb76b8089041e7139a0720e6c7f38473444b04a9ad022f`.
+APK/AAB/metadata hashes were downloaded and verified against the public assets,
+release.json, SHA256SUMS and acceptance.json; signing identity is retained.
+Local public artifact: `work/StickerDock-0.11.1-published/StickerDock.apk`.
+
+A separate local APK with the same app source passed an in-place upgrade and
+actual licensed human-photo Favorites journey: all 11 prior packs / 35 stickers
+and project rows remained exact, as did the selected photo hash. Evidence:
+`work/release-0.11.1-acceptance/fixed/real-media/report.json`. Its APK hash is
+`d984ad1daf61a030eb7512e86b103f8adc2f85e38582d8682d4dcb7ea8d3997b`;
+do not substitute it for the public APK evidence above. Local full acceptance
+needed an emulator restart; fresh CI is the uninterrupted release evidence.
+
+This does not close physical Samsung/WhatsApp/Business, Apple signing/device,
+automatic-cutout quality, native AI, wider reviewed content or full product parity.
+Favorites are device-local shortcuts and intentionally outside existing backups.
+SQLite 8, portable ZIP 5, saved artwork and cloud ownership remain compatible.
+
 ## Current website change — R40
 
 Local and [main CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39214400846)

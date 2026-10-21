@@ -220,6 +220,37 @@ class LibraryAcceptance(ClipCreatorSmoke):
                   "checks": ["explicit favorite does not change media, pack version or saved count", "favorites search and cold restart", "200% text including reachable transfer actions", "favorite follows move to new pack", "delete and Undo restores favorite", "unfavorite preserves media and all unrelated rows"]}
         (self.output / "favorites.json").write_text(json.dumps(report, indent=2))
 
+    def shared_motion(self):
+        """Cold/warm local video/GIF shares enter creation without an implicit save."""
+        before = self.counts()
+        gif = self.output / "qa-shared.gif"
+        frames = [Image.new("RGB", (160, 120), color) for color in ("red", "blue", "green", "yellow")]
+        frames[0].save(gif, save_all=True, append_images=frames[1:], duration=200, loop=0)
+        directory = ROOT + "/cache/shared"
+        self.adb("shell", "mkdir", "-p", directory)
+        for index, (fixture, mime) in enumerate(((self.output / "qa-motion.mp4", "video/mp4"), (gif, "image/gif"))):
+            self.adb("push", str(fixture), directory + "/" + fixture.name)
+            uid = self.adb("shell", "stat", "-c", "%u", ROOT).strip()
+            assert uid.isdigit()
+            self.adb("shell", "chown", "-R", f"{uid}:{uid}", directory)
+            self.adb("shell", "restorecon", "-RF", directory)
+            if index == 0:
+                self.adb("shell", "am", "force-stop", PACKAGE)
+            uri = "content://" + PACKAGE + ".exports/shared/" + fixture.name
+            self.adb("shell", "am", "start", "-W", "-a", "android.intent.action.SEND", "-t", mime,
+                     "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", PACKAGE + "/.StickerDockPolishedActivity")
+            self.wait_text("Make an animated reaction")
+            self.wait_enabled("Preview animation")
+            assert not self.enabled("Save sticker") and self.counts() == before
+            self.preview("Shared reaction QA", f"26-shared-motion-{index}")
+            self.tap("Cancel"); self.wait_text("Close creation"); self.tap("Close creation")
+            self.wait_hidden("Make an animated reaction")
+            assert self.counts() == before, "Shared media preview/cancellation changed the library"
+        self.launch(restart=True); self.wait_text("Search library")
+        assert self.counts() == before
+        (self.output / "shared-motion.json").write_text(json.dumps({"passed": True, "before": before, "after": self.counts(),
+            "checks": ["cold video SEND and warm GIF SEND", "local granted FileProvider media", "moving preview with caption", "Save disabled until preview", "cancel and restart retain the library"]}, indent=2))
+
     def brush_refinement(self):
         sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-qa-sticker:1:0"))
 
@@ -482,6 +513,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert before == after, "Browsing or preview changed saved data"
         self.photo_destination()
         self.favorites()
+        self.shared_motion()
         self.brush_refinement()
         self.public_pack_links()
         self.received_pack()
@@ -492,6 +524,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
                   "initial_pss_kb": initial_memory, "scrolled_pss_kb": scrolled_memory,
                   "preview_interaction_seconds": round(preview_seconds, 2),
                   "favorites": json.loads((self.output / "favorites.json").read_text()),
+                  "shared_motion": json.loads((self.output / "shared-motion.json").read_text()),
                   "checks": ["large library and scrolling", "animated grid posters and detail playback", "360dp at 200% text", "Android tablet two-pane layout", "scrollable filters and WhatsApp targets", "memory trim and restart preservation", "real MP4 streaming preview without saving", "photo picker, named destination, cancel without mutation, explicit save and restart", "brush undo/redo/cancel, durable mask draft, process restart, save and exact-original reset", "public pack custom-link cold start, warm intent, shared code and cancellation without import", "received pack file explicit import, cancel without mutation and restart preservation", "editable backup format choice/200% text, picker cancellation, real DocumentsUI export, source/mask integrity, one-project DocumentsUI restore and persisted history"],
                   "limitations": ["AOSP emulator; physical WhatsApp/Business acceptance remains separate", "low-storage rollback covered by native unit tests", "Google Play subject-model inference and cutout quality require separate device acceptance", "Pack-code fixture is deliberately unpublished; live published-pack and HTTPS sharing acceptance remains separate"]}
         (self.output / "acceptance.json").write_text(json.dumps(report, indent=2))

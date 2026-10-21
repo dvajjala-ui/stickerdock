@@ -598,12 +598,14 @@ class StickerDockPolishedActivity : ComponentActivity() {
             val shared = incomingShare ?: return@LaunchedEffect
             if (packCode(shared) == null && shared.action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE, Intent.ACTION_VIEW)) {
                 try {
-                    val streams = IncomingStickers.streams(shared)
-                    when {
-                        streams.isNotEmpty() && shared.type?.startsWith("image/") == true -> { pendingPhotoUris = streams.map { it.toString() }; photoSaveError = null }
-                        streams.isNotEmpty() -> { pendingSharedFiles = streams.map { it.toString() }; pendingSharedType = shared.type ?: "application/zip"; sharedImportError = null }
-                        shared.action == Intent.ACTION_SEND -> operation("Saving shared links") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(shared) }
+                    val selection = withContext(Dispatchers.IO) { IncomingMedia.selection(this@StickerDockPolishedActivity, shared) }
+                    when (selection?.kind) {
+                        IncomingMedia.Kind.MOTION -> clipUri = selection.uris.single().toString()
+                        IncomingMedia.Kind.PHOTO -> { pendingPhotoUris = selection.uris.map { it.toString() }; photoSaveError = null }
+                        IncomingMedia.Kind.PACK -> { pendingSharedFiles = selection.uris.map { it.toString() }; pendingSharedType = "application/zip"; sharedImportError = null }
+                        null -> if (shared.action == Intent.ACTION_SEND) operation("Saving shared links") { IncomingStickers(this@StickerDockPolishedActivity, store, files).import(shared) }
                     }
+                } catch (e: CancellationException) { throw e
                 } catch (e: Exception) { snackbar.showSnackbar(e.message ?: "Couldn't open shared files") }
             }
             incomingShare = null

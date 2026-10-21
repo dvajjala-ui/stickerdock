@@ -4,7 +4,8 @@
       "codex/iphone-client-and-navigation": false,
       "codex/sticker-first-redesign": false,
       "codex/open-admin-dashboard": false,
-      "codex/android-favorites": false
+      "codex/android-favorites": false,
+      "codex/received-motion": false
     }
   },
   "rewrites": [

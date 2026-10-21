@@ -1,5 +1,11 @@
 # Pinterest sources and Creator Studio
 
+Current access model: October 19 R40 removed Admin/Studio login and token gates.
+The deployed shared workspace opens directly to anyone with the URL; phone cloud
+remains authenticated. See [OPEN_ADMIN.md](OPEN_ADMIN.md). The older setup and
+token instructions below are historical and must not be used as current access
+requirements. Pinterest reconnection and native AI are separate pending work.
+
 StickerDock has one private source inbox. Manual uploads, approved Pinterest
 boards and reusable Wikimedia Commons media enter that inbox, then the scheduled
 factory can turn them into photo or short-video stickers. Creator Studio can open

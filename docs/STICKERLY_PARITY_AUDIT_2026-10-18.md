@@ -46,7 +46,7 @@ not close a requirement.
 | R02 | Partial + external gate: SAF journal/EXIF/dedup/resume | S24 personal/Business folders, thousands of files, interrupted process |
 | R03 | Superseded by R22 | Preserve explicit saving; never restore launch-time imports |
 | R04 | Partial + external gate | Consumer/Business app checks; intra-app accounts not independently targetable |
-| R05 | Partial; db6c979 core verified | Real-artwork library, edge editor, remaining parity |
+| R05 | Partial; published 0.11.1 adds verified private Favorites and reachable transfer actions | Wider reviewed content, physical-phone and remaining parity |
 | R06 | Partial; CRUD and reversible static editor | Automatic cutout verification, selective repair and advanced animation editing |
 | R07 | Partial + external gate | Device cache refresh/update/delete behavior controlled by WhatsApp |
 | R08 | Partial; operator tools moved out of primary navigation | Review all empty/error/progress states in a populated collection |
@@ -62,7 +62,7 @@ not close a requirement.
 | R18 | External gate: private phone collection unavailable | Authorized personal-style review when device/media is accessible |
 | R19 | Partial: opt-in Android cloud exists | Device onboarding/restore and native iOS cloud adapter |
 | R20 | Partial: submission/review/report/hide code exists | Production safety/isolation and rights-review acceptance |
-| R21 | Partial: normal owner sign-in exists | Owner must complete their own account credentials; no agent-created password |
+| R21 | Superseded by R40 | Admin/Studio open directly by request; phone-cloud accounts remain authenticated |
 | R22 | Core checkpoint verified; keep active | Preview/selection/cancel must never silently save |
 | R23 | Active | Match every claim to current source and evidence |
 | R24 | Partial: native Android/iOS + shared core | Apple distribution signing and physical-device WhatsApp acceptance |
@@ -83,7 +83,9 @@ not close a requirement.
 
 ## Evidence and next work
 
-Latest verified continuation `019c75f` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
+October 21: published 0.11.1 passes [main signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39572989873), including Favorites and editable backups. See QA_MATRIX.md for current hashes, all requirements and remaining gates. R39 publication and R40 requested open Admin access are recorded in the ledger. Native AI remains account-scoped work under NATIVE_AI_HANDOFF.md.
+
+Historical continuation `019c75f` passes [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161490697)
 and [complete signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39161487231):
 116 Android/12 shared/208 Python tests, the existing large-library/creation checks,
 brush undo/cancel/draft recovery/exact Reset, public-code intent delivery and
@@ -95,8 +97,7 @@ See UI_REVIEW_2026-10-19.md and QA_MATRIX.md for screenshots, hashes and limits.
 and [signed emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39070094081):
 105 Android, 12 shared, 208 Python tests; 10k-sticker browsing, large text, tablet,
 animation, picker/cancel/save/restart. See QA_MATRIX.md for hash and limits.
-Source after that checkpoint is not covered by it. Local ADB currently sees no
-device. Image-generation provider keys are absent; no paid render was made.
+Source after that checkpoint is not covered by it. That checkpoint did not establish physical-device acceptance or a live original-image generation trial.
 
 Implementation sequence: verify cutout/edge correction and public pack codes →
 HTTPS sharing and durable editable-project backup → native AI assistance and broader
