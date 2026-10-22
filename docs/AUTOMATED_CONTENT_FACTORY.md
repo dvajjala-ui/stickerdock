@@ -91,6 +91,12 @@ original illustrated and animated reactions locally. It also consumes:
 Groq provides research, caption writing and source-image analysis here; it is
 not used as an image-synthesis provider. Search results, movie stills, celebrity
 photos and arbitrary memes are not downloaded merely because they are popular.
+The production real-media selector accepts owner SOURCE uploads and licensed
+discovered assets whose titles suggest an expressive animal/person reaction.
+It excludes scenery/astronomy by default and never recycles a generated RESULT
+or REFERENCE image as a new Factory input. Title filtering is only a curation
+hint; a person must still judge the image, caption fit, reuse rights and pack
+quality before publication.
 
 ## Activation and proof boundary
 

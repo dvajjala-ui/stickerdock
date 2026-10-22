@@ -376,6 +376,23 @@ def sync_inbox(client, runtime, max_files=30):
     return added
 
 
+REACTION_SUBJECT = re.compile(
+    r"\b(?:cat|kitten|dog|puppy|animal|face|portrait|laugh(?:ing)?|smil(?:e|ing)|"
+    r"grin(?:ning)?|yawn(?:ing)?|surpris(?:e|ed)|angry|crying|reaction|"
+    r"gesture|hamster|chicken|bird)\b", re.IGNORECASE)
+
+
+def reaction_media(asset):
+    """Prefer relatable subjects over arbitrary licensed illustrations/scenery.
+
+    Metadata is only a curation hint, never proof of rights or visual quality.
+    Owner uploads explicitly marked SOURCE remain eligible regardless of title.
+    """
+    if asset.get("license") == "USER_OWNED" and asset.get("purpose") == "SOURCE":
+        return True
+    return bool(REACTION_SUBJECT.search(str(asset.get("title") or "")))
+
+
 def configure(config, runtime, now):
     config = dict(config)
     target = os.environ.get("FACTORY_DAILY_TARGET", "").strip()
@@ -399,8 +416,10 @@ def configure(config, runtime, now):
         manifest_path = references / "library.json"
         assets = json.loads(manifest_path.read_text()).get("assets", []) if manifest_path.exists() else []
         allowed = [item["file"] for item in assets if item.get("license") in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
+                   and item.get("purpose") not in {"REFERENCE", "RESULT"}
                    and not str(item.get("source", "")).startswith("pinterest")
-                   and "pinterest.com" not in str(item.get("source_url", ""))]
+                   and "pinterest.com" not in str(item.get("source_url", ""))
+                   and (not config.get("require_reaction_media") or reaction_media(item))]
         config["allowed_media_files"] = allowed
         files = [path for path in files if path.name in allowed]
         has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)

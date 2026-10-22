@@ -7,6 +7,7 @@
   "vision_model": "qwen/qwen3.8-27b",
   "modes": ["photo", "clip"],
   "require_real_media": true,
+  "require_reaction_media": true,
   "topics": [
     "TECHNOLOGY | Latest technology and light news reactions in Hinglish",
     "EVERYDAY | Everyday desi reactions in Hinglish",
@@ -33,7 +34,7 @@
     "daily_download_limit": 6,
     "max_downloads_per_run": 2,
     "interval_seconds": 3600,
-    "commons_queries": ["funny cat", "dog", "space", "tea"],
+    "commons_queries": ["funny cat", "dog", "laughing animal", "reaction face"],
     "queue": [
       {"title":"Yawning cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Yawning_cat.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/a/a8/Yawning_cat.jpg", "license":"PUBLIC_DOMAIN", "credit":"Scobull, public domain"},
       {"title":"Yawning cat by David Montolio", "source_url":"https://commons.wikimedia.org/wiki/File:Yawning_cat_by_David_Montolio.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/8/88/Yawning_cat_by_David_Montolio.jpg", "license":"CC0", "credit":"David Montolio, CC0 1.0"},

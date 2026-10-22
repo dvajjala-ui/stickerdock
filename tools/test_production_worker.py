@@ -200,6 +200,28 @@ class ProductionWorkerTest(unittest.TestCase):
             self.assertEqual(result["modes"],["photo"])
             self.assertEqual(result["allowed_media_files"],["owned.png"])
 
+    def test_reaction_mode_excludes_scenery_and_generated_results(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            refs = Path(temporary) / "reference-images"
+            refs.mkdir()
+            assets = [
+                {"file": "cat.png", "license": "CC0", "title": "Yawning cat"},
+                {"file": "space.png", "license": "PUBLIC_DOMAIN", "title": "Hubble ultra deep field"},
+                {"file": "uploaded.png", "license": "USER_OWNED", "source": "creator-studio",
+                 "purpose": "SOURCE", "title": "My original photo"},
+                {"file": "result.png", "license": "USER_OWNED", "source": "creator-studio",
+                 "purpose": "RESULT", "title": "Funny cat AI result"},
+                {"file": "reference.png", "license": "CC0", "purpose": "REFERENCE",
+                 "title": "Happy dog"},
+            ]
+            for asset in assets:
+                (refs / asset["file"]).write_bytes(png_bytes())
+            (refs / "library.json").write_text(json.dumps({"assets": assets}))
+            result = worker.configure({"modes": ["photo"], "require_real_media": True,
+                                       "require_reaction_media": True,
+                                       "vision_model": "test-vision"}, Path(temporary), NOW)
+            self.assertEqual(result["allowed_media_files"], ["cat.png", "uploaded.png"])
+
     def test_daily_brief_drives_categories_and_complete_pack_auto_migrates(self):
         client = FakeSupabase()
         client.rows[("factory_settings", "default")] = {

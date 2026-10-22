@@ -59,7 +59,8 @@ endpoint with an authorized live provider trial; mocked tests and an owner web
 job are insufficient. Test useful captions with varied owned/licensed reaction
 photos and clips. Original-image quality and cost require their own evidence.
 
-Pinterest remains a separate live-reference integration, currently blocked by
-the invalid/expired token recorded in PINTEREST_RECONNECTION.md. It must not be
-used as an image-download or automatic rehosting source. The existing licensed
+Pinterest remains a separate live-reference integration. App 1624615 now has
+Trial access and a verified read-only OAuth connection; the connected board was
+empty at inspection, so nonempty Pin browsing is still unverified. It must not
+be used as an image-download or automatic rehosting source. The licensed
 media/Commons adapters and reviewed content supply remain independent work.
