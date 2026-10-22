@@ -203,6 +203,26 @@ class DailyStickersTest(unittest.TestCase):
                     samples.append(sticker.convert("RGBA").getpixel((256, 150))[:3])
             self.assertEqual(len(set(samples)), 5)
 
+    def test_photo_batches_prefer_recently_unused_sources(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            for index, color in enumerate(("red", "green", "blue", "yellow", "purple")):
+                Image.new("RGB", (500, 500), color).save(inputs / f"photo-{index}.png")
+            config = {"modes": ["photo"], "image_directory": str(inputs),
+                      "vision_model": "test-vision", "daily_target": 6,
+                      "batch_size": 3, "interval_seconds": 60}
+            second = [{**idea, "caption": "Next " + idea["caption"]} for idea in ideas(3)]
+            with patch.object(generator, "groq_ideas", side_effect=[ideas(3), second]) as call:
+                generator.run(config, root / "outputs", FONT, NOW)
+                generator.run(config, root / "outputs", FONT, NOW + 61)
+            first_paths = set(call.call_args_list[0].args[-1])
+            second_paths = set(call.call_args_list[1].args[-1])
+            self.assertEqual(len(first_paths), 3)
+            self.assertEqual(len(second_paths), 3)
+            self.assertEqual(len(first_paths | second_paths), 5)
+
     def test_contact_sheet_numbers_multiple_photo_sources(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -584,8 +585,11 @@ def run(config, root, font_path, now=None):
                 count = min(batch, remaining)
                 if remaining - count in (1, 2):
                     count = remaining if remaining <= 10 else count - (3 - (remaining - count))
-                image_paths = [str(images[(batch_index * batch + index) % len(images)].resolve())
-                               for index in range(min(count, len(images), 6))] if mode == "photo" else []
+                if mode == "photo":
+                    recent_use = Counter(Path(record.get("image_path", "")).name
+                                         for record in history if record.get("image_path"))
+                    images.sort(key=lambda path: (recent_use[path.name], path.name))
+                    image_paths = [str(path.resolve()) for path in images[:min(count, len(images), 6)]]
                 image_path = image_paths[0] if image_paths else str(images[batch_index % len(images)].resolve())
                 model = config["vision_model"]
                 for selected in image_paths or [image_path]:
