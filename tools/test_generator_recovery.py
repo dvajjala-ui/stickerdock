@@ -1,8 +1,10 @@
 import json
+import io
 import os
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 import daily_stickers as generator
@@ -42,6 +44,18 @@ class GeneratorRecoveryTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 generator.groq_ideas("test", "custom", 3, "reactions", [], [])
         self.assertEqual(generator.LAST_GROQ_METRICS["validation_error"], "duplicate_caption")
+
+    def test_provider_http_code_never_exposes_free_text(self):
+        body = json.dumps({"error": {"code": "json_validate_failed",
+                 "message": "private prompt and provider details"}}).encode()
+        error = urllib.error.HTTPError(generator.API_URL, 400, "bad", {}, io.BytesIO(body))
+        self.assertEqual(generator.safe_provider_code(error), "json_validate_failed")
+        error.close()
+        invalid = urllib.error.HTTPError(
+            generator.API_URL, 400, "bad", {}, io.BytesIO(
+                b'{"error":{"code":"private prompt token"}}'))
+        self.assertIsNone(generator.safe_provider_code(invalid))
+        invalid.close()
 
     def test_invalid_output_retries_after_fifteen_minutes_without_spending_during_wait(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_API_KEY": "test"}):

@@ -230,10 +230,10 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
                        "content or copied slogans. Non-explicit adult humor is allowed when "
                        "requested. Without a reference or image use everyday reactions." )},
                    {"role": "user", "content": user_content}]}
-    # JSON object mode guarantees syntax only. These configured models support
-    # strict schemas, including vision on Qwen 3.8. App-side checks below also
-    # enforce count, duplicates, caption bounds and reference indices.
-    if model in {"openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"}:
+    # Groq documents JSON Object Mode with Qwen vision inputs. The hosted
+    # contact-sheet request has returned HTTP 400 with a strict schema, so use
+    # that documented vision mode and keep all app-side validation below.
+    if not image_path and model in {"openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"}:
         payload["response_format"] = {"type": "json_schema", "json_schema": {
             "name": "sticker_batch", "strict": True, "schema": {
                 "type": "object", "additionalProperties": False, "required": ["stickers"],
@@ -245,6 +245,8 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
                         "color": {"type": "string", "enum": list(COLORS)},
                         "source": {"type": ["integer", "null"]}}}}}}}}
         payload["reasoning_effort"] = "none" if model == "qwen/qwen3.8-27b" else "low"
+    elif model == "qwen/qwen3.8-27b":
+        payload["reasoning_effort"] = "none"
     response = json.loads(fetch_bytes(API_URL, json.dumps(payload).encode(), {
         "Authorization": "Bearer " + key, "Content-Type": "application/json"}))
     if not isinstance(response, dict):
@@ -452,6 +454,17 @@ def retry_delay(headers, now):
             return 900
 
 
+def safe_provider_code(error):
+    """Keep a provider error identifier, never its free-text body or request."""
+    try:
+        payload = json.loads(error.read(8192))
+        detail = payload.get("error", {}) if isinstance(payload, dict) else {}
+        code = detail.get("code") if isinstance(detail, dict) else None
+        return code if isinstance(code, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,63}", code) else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def run(config, root, font_path, now=None):
     now = time.time() if now is None else now
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
@@ -567,6 +580,9 @@ def run(config, root, font_path, now=None):
                 state["next_request_at"] = now + delay
                 state["provider_error"] = {"http_status": error.code,
                                            "retry_at": state["next_request_at"]}
+                code = safe_provider_code(error)
+                if code:
+                    state["provider_error"]["code"] = code
                 atomic_json(state_path, state)
                 atomic_json(cooldown_path, {"next_request_at": state["next_request_at"],
                                             "provider_error": state["provider_error"]})
