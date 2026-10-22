@@ -134,7 +134,7 @@
       `<div class="section-head migration-head"><h2>Existing Factory output</h2><small>Migrate into editable drafts</small></div>`+
       (factory.length?`<div class="table-wrap"><table><thead><tr><th>Factory pack</th><th>Stickers</th><th>Status</th><th>Migration</th></tr></thead><tbody>${factory.map(p=>{const migrated=data.packs.find(a=>a.origin_id===p.id);return `<tr><td><strong>${esc(p.name)}</strong><small>${esc(p.day)}</small></td><td>${p.sticker_count}</td><td>${badge(p.status)}</td><td>${migrated?button("Open migrated pack","open-pack",migrated.id):button("Migrate to library ↗","migrate",p.id)}</td></tr>`;}).join("")}</tbody></table></div>`:empty("No complete Factory outputs","Finished daily archives will be available here. Migration preserves the original archive."));
   }
-  function mediaName(item,index) {const name=mediaDetails.get(item.path)?.name||item.name||"";return /^[0-9a-f]{40,64}\.(?:png|jpe?g|webp)$/i.test(name)?`Image ${index+1} · preview to identify`:name||`Image ${index+1}`;}
+  function mediaName(item,index) {const name=mediaDetails.get(item.path)?.name||item.name||"";if(/^[0-9a-f]{40,64}\.(?:png|jpe?g|webp)$/i.test(name))return `Image ${index+1} · preview to identify`;return name.replace(/^File:/i,"").replace(/\.(?:png|jpe?g|webp)$/i,"").trim()||`Image ${index+1}`;}
   function renderMedia() {
     return heading("Media library","Workspace sources, original memes and completed AI results.",button("Upload new meme","upload-source","","primary")+`<a class="secondary" href="/studio/index.html" target="_blank" rel="noopener">Open canvas editor ↗</a>`)+
       `<input id="source-upload" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="notice">Uploads are visible in this shared workspace. Choose how each image may be used; public packs still require separate review.</div><label>How may this image be used?<select id="source-rights"><option value="">Choose before uploading</option><option value="USER_OWNED">I own it or have permission to make and share stickers</option><option value="REFERENCE_ONLY">Reference only · do not publish as a sticker</option></select></label>`+
@@ -156,7 +156,7 @@
         if(!node.isConnected)return;
         const image=document.createElement("img");image.src=detail.preview;image.alt=detail.name;node.replaceWith(image);
         const card=image.closest(".media-card");
-        card.querySelector("[data-media-title]").textContent=detail.name.slice(0,40);
+        card.querySelector("[data-media-title]").textContent=mediaName(source||detail,Math.max(0,library.indexOf(source))).slice(0,40);
         card.querySelector("p").textContent=`${Math.ceil((source?.size||0)/1024)} KB · ${detail.purpose} · ${detail.license}`;
       } catch (_) {if(node.isConnected)node.textContent="Preview unavailable";}
     };

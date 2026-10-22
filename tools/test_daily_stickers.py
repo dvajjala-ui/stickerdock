@@ -232,6 +232,21 @@ class DailyStickersTest(unittest.TestCase):
             self.assertTrue(content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,"))
             self.assertEqual(len(result), 3)
 
+    def test_vision_image_numbers_do_not_become_news_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = []
+            for index in range(3):
+                path = Path(temporary) / f"{index}.png"
+                Image.new("RGB", (32, 32), "red").save(path)
+                paths.append(str(path))
+            visual = [{**idea, "source": index + 1} for index, idea in enumerate(ideas(3))]
+            reply = {"choices": [{"finish_reason": "stop", "message": {
+                "content": json.dumps({"stickers": visual})}}]}
+            with patch.object(generator, "fetch_bytes", return_value=json.dumps(reply).encode()) as fetch:
+                result = generator.groq_ideas("fixture", "test-vision", 3, "reactions", [], [], paths)
+            self.assertEqual([item["source"] for item in result], [None] * 3)
+            self.assertIn("never an IMAGE number", json.loads(fetch.call_args.args[1])["messages"][1]["content"][0]["text"])
+
     def test_portrait_photo_fills_reaction_area_without_changing_the_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             source=Path(temporary)/"portrait.png"

@@ -586,6 +586,14 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         generated = runtime / "generated-stickers"
         generated.mkdir(exist_ok=True)
         prune_old_days(generated, now)
+        # Close stale UTC rows even when today's provider call later fails or
+        # enters cooldown. This only changes reporting; saved media is retained.
+        closed_previous_days = []
+        try:
+            closed_previous_days = close_previous_runs(
+                client, datetime.fromtimestamp(now, timezone.utc).date().isoformat(), now)
+        except (SupabaseError, ValueError, TypeError):
+            deferred.append("Historical run status repair is pending")
         inbox_added = sync_inbox(client, runtime)
         configured = configure(config, runtime, now)
         if controls:
@@ -599,6 +607,7 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
                            default_font(), now)
         summary = persist_run(client, generated, configured, now, result)
         summary["inbox_added"] = inbox_added
+        summary["closed_previous_days"] = closed_previous_days
         if controls:
             summary["content_source"] = brief["source_mode"]
             summary["warnings"] = deferred
@@ -616,12 +625,9 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
                 "generated": summary["generated"], "attempts": int(state.get("requests", 0)),
                 "last_result": result[:500],
                 "groq_metrics": {**run_metrics(state), "postprocess_complete": True}}], "day")
-        try:
-            summary["closed_previous_days"] = close_previous_runs(client, summary["day"], now)
-        except (SupabaseError, ValueError, TypeError):
-            # A reporting repair must not turn a saved and drafted batch into
-            # an apparent generation failure. The next worker retries closure.
-            summary.setdefault("warnings", []).append("Historical run status repair is pending")
+        if deferred:
+            summary.setdefault("warnings", []).extend(
+                warning for warning in deferred if warning not in summary.get("warnings", []))
         return summary
     except Exception as error:
         recovery = None

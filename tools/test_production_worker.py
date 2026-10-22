@@ -110,6 +110,26 @@ class ProductionWorkerTest(unittest.TestCase):
         self.assertEqual(client.rows[("factory_runs", "2026-10-09")]["status"], "complete")
         self.assertEqual(worker.close_previous_runs(client, DAY, NOW), [])
 
+    def test_previous_utc_runs_close_even_when_today_waits_for_provider(self):
+        client = FakeSupabase()
+        client.rows[("factory_runs", "2026-10-11")] = {
+            "day": "2026-10-11", "status": "running", "generated": 5,
+            "target": 40, "groq_metrics": {}}
+        config = {"daily_target": 3, "batch_size": 3, "modes": ["illustration"]}
+        with tempfile.TemporaryDirectory() as temporary:
+            with patch.object(worker, "sync_inbox", return_value=0), \
+                 patch.object(worker, "configure", return_value=config), \
+                 patch.object(worker, "mirror_licensed_inputs"):
+                def unavailable(*_):
+                    raise worker.ProviderResponseError("invalid_response", NOW + 900)
+                result = worker.run_production(config, Path(temporary), client, NOW,
+                                               generator=unavailable)
+        self.assertEqual(result["status"], "waiting")
+        previous = client.rows[("factory_runs", "2026-10-11")]
+        self.assertEqual(previous["status"], "failed")
+        self.assertEqual(previous["generated"], 5)
+        self.assertEqual(previous["groq_metrics"]["terminal_outcome"], "partial")
+
     def test_provider_auth_failure_stays_failed_during_later_cooldown(self):
         client = FakeSupabase()
         config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60, "modes": ["illustration"]}

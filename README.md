@@ -21,6 +21,12 @@ public catalog currently has one four-sticker pack. The plan connects automatic 
 real/animated media, iPhone completion and coherent navigation. It is an audit,
 not a claim that those pending features are implemented.
 
+Pinterest app 1624615 now has a verified read-only OAuth connection: Admin can
+browse the connected account's public boards live. Pin images are never imported
+into distributable stickers. Admin Media shows source previews and offers a direct
+private pack draft from a selected image. See [connection limits](docs/PINTEREST_RECONNECTION.md)
+and [the execution tracker](docs/PRODUCT_EXECUTION_2026-10-22.md).
+
 These links stay current with successful releases. Android changes merged into
 `main` build and verify a signed APK/AAB, then run that exact APK on an Android 15
 emulator before advancing the download. Failed builds keep the previous release.

@@ -36,6 +36,13 @@ class GeneratorRecoveryTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     generator.groq_ideas("test", "custom", 3, "reactions", [], [])
 
+    def test_validation_failure_records_only_a_bounded_reason_code(self):
+        bad = {"stickers": [{**idea, "caption": "same"} for idea in ideas(3)]}
+        with patch.object(generator, "fetch_bytes", return_value=self.response(bad)):
+            with self.assertRaises(ValueError):
+                generator.groq_ideas("test", "custom", 3, "reactions", [], [])
+        self.assertEqual(generator.LAST_GROQ_METRICS["validation_error"], "duplicate_caption")
+
     def test_invalid_output_retries_after_fifteen_minutes_without_spending_during_wait(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_API_KEY": "test"}):
             root = Path(temporary)
