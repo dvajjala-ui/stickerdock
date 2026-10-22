@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from PIL import Image
+from PIL import Image, ImageCms, ImageOps
 
 PRIVATE_BUCKET = "sticker-factory-private"
 MAX_REQUEST = 4_300_000  # Keep JSON/base64 below the hosted function request bound.
@@ -140,6 +140,45 @@ def decode_image(data_url: str, max_bytes=3_000_000) -> tuple[bytes, str, str]:
     return data, mime, IMAGE_TYPES[mime]
 
 
+def normalize_upload_image(data: bytes) -> bytes:
+    """Store pixels only, applying orientation and removing location/EXIF text."""
+    try:
+        with Image.open(io.BytesIO(data)) as image:
+            image.load()
+            rotated = ImageOps.exif_transpose(image)
+            mode = "RGBA" if "A" in rotated.getbands() or "transparency" in rotated.info else "RGB"
+            pixels = rotated.convert(mode)
+            profile = rotated.info.get("icc_profile")
+            if profile:
+                try:
+                    srgb = ImageCms.createProfile("sRGB")
+                    original = ImageCms.ImageCmsProfile(io.BytesIO(profile))
+                    converted = ImageCms.profileToProfile(pixels.convert("RGB"), original, srgb, outputMode="RGB")
+                    if mode == "RGBA":
+                        converted.putalpha(pixels.getchannel("A"))
+                    pixels = converted
+                except (OSError, ValueError, ImageCms.PyCMSError):
+                    # An invalid optional profile must not make a valid source unusable.
+                    pass
+            clean = Image.new(mode, pixels.size)
+            clean.paste(pixels)
+            for quality in (90, 75, 60):
+                output = io.BytesIO()
+                clean.save(output, format="WEBP", quality=quality, method=4)
+                if len(output.getvalue()) <= 3_000_000:
+                    return output.getvalue()
+            while max(clean.size) > 512:
+                clean = ImageOps.contain(clean, (max(512, clean.width * 3 // 4),
+                                                 max(512, clean.height * 3 // 4)), Image.Resampling.LANCZOS)
+                output = io.BytesIO()
+                clean.save(output, format="WEBP", quality=75, method=4)
+                if len(output.getvalue()) <= 3_000_000:
+                    return output.getvalue()
+    except (OSError, ValueError, Image.DecompressionBombError) as error:
+        raise StudioError("The image could not be prepared for upload") from error
+    raise StudioError("The image is too detailed to store as a sticker source")
+
+
 def safe_text(value, name: str, maximum: int, required=False) -> str:
     text = " ".join(str(value or "").split())
     if (required and not text) or len(text) > maximum or any(ord(char) < 32 for char in text):
@@ -248,7 +287,9 @@ def creator_request_status(request_id) -> dict:
 
 
 def upload_user_image(data_url: str, title: str = "Creator Studio upload", source_path=None) -> dict:
-    data, mime, extension = decode_image(data_url)
+    original, _, _ = decode_image(data_url)
+    data = normalize_upload_image(original)
+    mime, extension = "image/webp", ".webp"
     digest = hashlib.sha256(data).hexdigest()
     object_path = "inbox/" + digest + extension
     metadata = {
@@ -269,8 +310,10 @@ def upload_user_image(data_url: str, title: str = "Creator Studio upload", sourc
     return {"path": object_path, "sha256": digest}
 
 
-def list_inbox() -> list[dict]:
-    payload = json.dumps({"prefix": "inbox", "limit": 100, "offset": 0,
+def list_inbox(offset=0, limit=100) -> dict:
+    if type(offset) is not int or type(limit) is not int or not 0 <= offset <= 10_000 or not 1 <= limit <= 100:
+        raise StudioError("Invalid media page")
+    payload = json.dumps({"prefix": "inbox", "limit": limit, "offset": offset,
                           "sortBy": {"column": "updated_at", "order": "desc"}}).encode()
     raw = supabase_request("/storage/v1/object/list/" + urllib.parse.quote(PRIVATE_BUCKET),
                            method="POST", data=payload, content_type="application/json",
@@ -285,7 +328,29 @@ def list_inbox() -> list[dict]:
         if CREATOR_SOURCE_RE.fullmatch(path):
             result.append({"path": path, "name": path.rsplit("/", 1)[-1],
                            "size": int((item.get("metadata") or {}).get("size") or 0)})
-    return result
+    return {"items": result, "next_offset": offset + len(parsed) if len(parsed) == limit else None}
+
+
+def preview_inbox(path: str) -> dict:
+    if not CREATOR_SOURCE_RE.fullmatch(str(path or "")):
+        raise StudioError("Invalid inbox image path")
+    metadata = source_metadata(path)
+    if str(metadata.get("source", "")).startswith("pinterest"):
+        raise StudioError("Pinterest references cannot be archived or converted. Upload an independent source image instead.")
+    data = supabase_request("/storage/v1/object/authenticated/" + storage_path(path), limit=3_000_000)
+    extension = path.rsplit(".", 1)[-1]
+    mime = "image/png" if extension == "png" else "image/webp" if extension == "webp" else "image/jpeg"
+    decode_image("data:" + mime + ";base64," + base64.b64encode(data).decode(), 3_000_000)
+    with Image.open(io.BytesIO(data)) as original:
+        image = ImageOps.exif_transpose(original)
+        image.thumbnail((220, 220), Image.Resampling.LANCZOS)
+        clean = Image.new("RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB", image.size)
+        clean.paste(image.convert(clean.mode))
+        output = io.BytesIO()
+        clean.save(output, "WEBP", quality=75, method=4)
+    return {"path": path, "name": str(metadata.get("title") or path.rsplit("/", 1)[-1])[:240],
+            "license": metadata.get("license", "REFERENCE_ONLY"),
+            "preview": "data:image/webp;base64," + base64.b64encode(output.getvalue()).decode()}
 
 
 def fetch_inbox(path: str) -> str:

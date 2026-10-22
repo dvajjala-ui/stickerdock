@@ -6,7 +6,7 @@ from unittest.mock import patch
 import unittest
 import uuid
 
-from PIL import Image
+from PIL import Image, PngImagePlugin
 from api import _shared as studio
 
 
@@ -109,6 +109,70 @@ class StudioApiTest(unittest.TestCase):
         metadata = json.loads(calls[0][1]["data"])
         self.assertEqual(metadata["license"], "USER_OWNED")
         self.assertEqual(len(result["sha256"]), 64)
+
+    def test_upload_applies_orientation_and_removes_embedded_metadata(self):
+        original = io.BytesIO()
+        exif = Image.Exif()
+        exif[274] = 6
+        exif[270] = "SENSITIVE_MARKER"
+        Image.new("RGB", (40, 20), "red").save(original, "JPEG", exif=exif)
+        data_url = "data:image/jpeg;base64," + base64.b64encode(original.getvalue()).decode()
+        calls = []
+        with patch.object(studio, "supabase_request", side_effect=lambda path, **kwargs:
+                calls.append((path, kwargs)) or b""):
+            result = studio.upload_user_image(data_url, "Oriented")
+        stored = calls[-1][1]["data"]
+        self.assertEqual(calls[-1][1]["content_type"], "image/webp")
+        self.assertEqual(result["sha256"], __import__("hashlib").sha256(stored).hexdigest())
+        self.assertNotIn(b"SENSITIVE_MARKER", stored)
+        with Image.open(io.BytesIO(stored)) as image:
+            self.assertEqual(image.size, (20, 40))
+            self.assertFalse(image.getexif())
+
+    def test_upload_keeps_alpha_and_drops_png_text(self):
+        original = io.BytesIO()
+        metadata = PngImagePlugin.PngInfo()
+        metadata.add_text("Comment", "SENSITIVE_MARKER")
+        Image.new("RGBA", (16, 16), (255, 0, 0, 0)).save(original, "PNG", pnginfo=metadata)
+        data_url = "data:image/png;base64," + base64.b64encode(original.getvalue()).decode()
+        calls = []
+        with patch.object(studio, "supabase_request", side_effect=lambda path, **kwargs:
+                calls.append((path, kwargs)) or b""):
+            studio.upload_user_image(data_url, "Transparent")
+        stored = calls[-1][1]["data"]
+        self.assertNotIn(b"SENSITIVE_MARKER", stored)
+        with Image.open(io.BytesIO(stored)) as image:
+            self.assertEqual(image.convert("RGBA").getpixel((0, 0))[3], 0)
+
+    def test_media_page_reaches_items_after_first_hundred(self):
+        requests = []
+        def listing(path, **kwargs):
+            payload = json.loads(kwargs["data"])
+            requests.append(payload)
+            names = [f"{payload['offset'] + index:064x}.png" for index in range(100)]
+            return json.dumps([{"name": name, "metadata": {"size": 128}} for name in names]).encode()
+        with patch.object(studio, "supabase_request", side_effect=listing):
+            first = studio.list_inbox(0, 100)
+            second = studio.list_inbox(first["next_offset"], 100)
+        self.assertEqual((len(first["items"]), second["next_offset"]), (100, 200))
+        self.assertNotEqual(first["items"][-1]["path"], second["items"][0]["path"])
+        self.assertEqual([call["offset"] for call in requests], [0, 100])
+        with self.assertRaises(studio.StudioError):
+            studio.list_inbox(-1)
+
+    def test_media_preview_is_small_and_uses_human_title(self):
+        source = "inbox/" + "a" * 64 + ".png"
+        picture = base64.b64decode(image_data_url().split(",", 1)[1])
+        def storage(path, **kwargs):
+            if "source-metadata" in path:
+                return json.dumps({"source": "creator-studio", "license": "USER_OWNED",
+                    "title": "My cat reaction"}).encode()
+            return picture
+        with patch.object(studio, "supabase_request", side_effect=storage):
+            result = studio.preview_inbox(source)
+        self.assertEqual((result["name"], result["license"]), ("My cat reaction", "USER_OWNED"))
+        self.assertTrue(result["preview"].startswith("data:image/webp;base64,"))
+        self.assertLess(len(result["preview"]), 100_000)
 
     def test_storage_paths_reject_traversal(self):
         with self.assertRaises(studio.StudioError):

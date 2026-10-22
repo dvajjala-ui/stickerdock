@@ -13,7 +13,10 @@ have accepted it.
 | F02: durable lifecycle | **Partial** | State, render and batch-draft replay now exist; a stage-specific outbox, previous-day recovery and explicit dead-letter/operator retry are still needed. |
 | B02: close old UTC runs | **Open** | Old partial rows still say running. Add terminal partial/failed states without discarding surviving media; do not fabricate packs for pruned days. |
 | B03 / F09: truthful delivery health | **Open** | Schema readiness is separate from recent generation, draft and catalog freshness. Add timestamps and alerts that expose missing stages. |
-| B05–B07: usable uploaded-media browsing | **Open** | Add bounded thumbnails, human titles, source type and pagination beyond 100. Keep originals private and fix B09/B10 metadata/rights before expanding the consumer upload flow. |
+| B05/B06: usable uploaded-media browsing | **Source implemented; hosted UI unverified** | Media cards now lazy-load bounded private thumbnails and existing human titles/rights from source metadata. The full image stays behind the explicit Preview action. Verify hosted grid, failure fallback, keyboard access and narrow layouts. Studio's source picker still needs the same human-title treatment. |
+| B07: media pagination | **Partial** | Admin can request and append pages beyond the first 100, with duplicate paths suppressed. Storage offset pagination can shift during concurrent uploads; implement a stable cursor/search contract and carry it through Studio before closing B07. |
+| B09: upload metadata privacy | **Source implemented; hosted acceptance open** | New uploads apply EXIF orientation, normalize into bounded WebP and strip EXIF/GPS/text payloads while retaining alpha. Synthetic orientation/transparency tests pass. Verify representative real photos, wide-gamut colors and production upload/readback before calling it fully accepted. Originals are not stored by this path. |
+| B10: upload rights purpose | **Open** | The current upload API still labels new sources `USER_OWNED` without an explicit rights/purpose choice. Add an explicit source/reference classification before consumerizing the flow. |
 | B08 / B11 / F03–F05: native personal AI | **Open** | Operator AI remains a shared web workspace. Create authenticated account-owned jobs and native Create/Your creations on Android and iPhone; verify two-account isolation and explicit Save. |
 | R16: Pinterest references | **Trial approved; connection unverified** | Developer dashboard showed app 1624615 Trial active. Live Admin status was `configured=false`, `oauth_ready=false`, `not_connected`. Save redirect, configure server-only app credentials, run read-only OAuth and verify a board response when browser access is restored. Do not archive Pins or feed them into distributable sticker output. |
 | F19–F26: real meme content and quality | **Open** | Existing licensed photos/clips and conversion tools are a base, but the live public catalog was one four-sticker pack at audit. Evaluate reaction quality, transparent cutout, captions and motion with rights-cleared media and actual user testing; publish only reviewed packs. |
@@ -24,8 +27,9 @@ have accepted it.
 1. Finish B01 recovery hardening, full Python verification and deployment review;
    inspect an actual newly delivered batch. Do not present a synthetic fixture as
    a user-ready meme pack.
-2. Make upload/source browsing coherent (B05–B10), including metadata stripping,
-   rights purpose, previews and pagination, then verify Upload → Create → Pack.
+2. Verify the new upload normalization, lazy previews and media-page loading on
+   the hosted site. Complete explicit rights purpose, stable search/pagination
+   and the Studio source picker, then verify Upload → Create → Pack.
 3. Add account-owned AI job APIs with strict ownership and provider reservation;
    connect both native creation flows without auto-saving generated results.
 4. Build a reviewed real-media starter catalog and measure draft-to-catalog

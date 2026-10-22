@@ -6,7 +6,9 @@
   const categories = ["GENERAL","REACTIONS","HINGLISH","MOVIES","NEWS","ANIMALS","LOVE","WORK","FESTIVALS","OTHER"];
   const contentCategories = ["TRENDING","POLITICS","CREATIVE","MOVIES","SERIES","INDIA","SPORTS","TECHNOLOGY","EVERYDAY","ADULT_HUMOR"];
   const titles = {overview:"Overview",packs:"Sticker packs",media:"Media library",generate:"AI workbench",content:"Content planner",factory:"Factory & queue",catalog:"Public catalog",activity:"Activity log",settings:"Settings",health:"Setup & health"};
-  let loaded = false, connectionError = "", page = "overview", data, library = [], detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
+  let loaded = false, connectionError = "", page = "overview", data, library = [], libraryNextOffset = null, detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
+  const mediaDetails = new Map();
+  let mediaObserver = null;
   let pendingStickerEdits = new Map(), pendingPackName = null, pendingCreator = null;
   let readiness = null, packBaseline = null, pendingCategory = "", appendPack = null;
   let backgroundRefreshing = false, interactionVersion = 0, lastRefreshAt = 0;
@@ -128,7 +130,37 @@
       `<div class="section-head migration-head"><h2>Existing Factory output</h2><small>Migrate into editable drafts</small></div>`+
       (factory.length?`<div class="table-wrap"><table><thead><tr><th>Factory pack</th><th>Stickers</th><th>Status</th><th>Migration</th></tr></thead><tbody>${factory.map(p=>{const migrated=data.packs.find(a=>a.origin_id===p.id);return `<tr><td><strong>${esc(p.name)}</strong><small>${esc(p.day)}</small></td><td>${p.sticker_count}</td><td>${badge(p.status)}</td><td>${migrated?button("Open migrated pack","open-pack",migrated.id):button("Migrate to library ↗","migrate",p.id)}</td></tr>`;}).join("")}</tbody></table></div>`:empty("No complete Factory outputs","Finished daily archives will be available here. Migration preserves the original archive."));
   }
-  function renderMedia() {return heading("Media library","Workspace sources, original memes and completed AI results.",button("Upload new meme","upload-source","","primary")+`<a class="secondary" href="/studio/index.html" target="_blank" rel="noopener">Open canvas editor ↗</a>`)+`<input id="source-upload" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="notice">Upload images you own or have permission to use. Sources are visible in this shared workspace; rights are checked before app publication.</div>`+(library.length?`<div class="media-grid">${library.map(i=>`<article class="media-card">${i.preview?`<img src="${esc(i.preview)}" alt="${esc(i.name)}">`:`<div class="media-placeholder">▨</div>`}<div><strong>${esc(i.name?.slice(0,30)||i.path.slice(-20))}</strong><p>${Math.ceil(i.size/1024)} KB · Workspace source</p>${button("Preview","preview-source",i.path)} ${button("Generate with AI","use-source",i.path,"text-button")}</div></article>`).join("")}</div>`:empty("Add your first source","Upload an original meme, then use it in a generation request or a new pack."));}
+  function renderMedia() {
+    return heading("Media library","Workspace sources, original memes and completed AI results.",button("Upload new meme","upload-source","","primary")+`<a class="secondary" href="/studio/index.html" target="_blank" rel="noopener">Open canvas editor ↗</a>`)+
+      `<input id="source-upload" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="notice">Upload images you own or have permission to use. Sources are visible in this shared workspace; rights are checked before app publication.</div>`+
+      (library.length?`<div class="media-grid">${library.map(i=>{
+        const detail=mediaDetails.get(i.path),name=detail?.name||i.name||i.path.slice(-20);
+        return `<article class="media-card">${detail?.preview?`<img src="${esc(detail.preview)}" alt="${esc(name)}">`:`<div class="media-placeholder" data-media-preview="${esc(i.path)}">▨</div>`}<div><strong data-media-title="${esc(i.path)}">${esc(name.slice(0,40))}</strong><p>${Math.ceil(i.size/1024)} KB · ${esc(detail?.license||"Workspace source")}</p>${button("Preview","preview-source",i.path)} ${button("Generate with AI","use-source",i.path,"text-button")}</div></article>`;
+      }).join("")}</div>${libraryNextOffset!==null?`<div class="toolbar">${button("Load more media","media-more")}</div>`:""}`:empty("Add your first source","Upload an original meme, then use it in a generation request or a new pack."));
+  }
+  function hydrateMedia() {
+    mediaObserver?.disconnect();
+    const nodes=document.querySelectorAll("[data-media-preview]");
+    const load=async node=>{
+      if(!node.isConnected||node.dataset.loading)return;
+      node.dataset.loading="true";
+      try {
+        const detail=await api("/api/library",{action:"preview",path:node.dataset.mediaPreview});
+        mediaDetails.set(detail.path,detail);
+        const source=library.find(item=>item.path===detail.path);if(source)source.name=detail.name;
+        if(!node.isConnected)return;
+        const image=document.createElement("img");image.src=detail.preview;image.alt=detail.name;node.replaceWith(image);
+        const card=image.closest(".media-card");
+        card.querySelector("[data-media-title]").textContent=detail.name.slice(0,40);
+        card.querySelector("p").textContent=`${Math.ceil((source?.size||0)/1024)} KB · ${detail.license}`;
+      } catch (_) {if(node.isConnected)node.textContent="Preview unavailable";}
+    };
+    if(!("IntersectionObserver" in window)){nodes.forEach(load);return;}
+    mediaObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{
+      if(entry.isIntersecting){mediaObserver.unobserve(entry.target);load(entry.target);}
+    }),{rootMargin:"250px"});
+    nodes.forEach(node=>mediaObserver.observe(node));
+  }
   function renderGenerate() {return heading("AI workbench","Give your meme an idea. Let the Factory create a fresh reaction.")+`<div class="content-grid"><section class="panel"><h2>Create a private AI sticker</h2><form id="generate-form"><label>Source image<select name="source_path" required><option value="">Choose an image from the library</option>${library.map(i=>`<option value="${esc(i.path)}">${esc(i.name||i.path.slice(-20))}</option>`).join("")}</select></label><label>Creative direction<textarea name="prompt" maxlength="500" required placeholder="Turn this into a funny Hinglish reaction about finishing work on Friday. Keep the caption short."></textarea></label><div class="toolbar"><button class="secondary" type="button" data-action="prompt-template" data-id="reaction">Everyday reaction</button><button class="secondary" type="button" data-action="prompt-template" data-id="work">Office meme</button><button class="secondary" type="button" data-action="prompt-template" data-id="chai">Chai mood</button></div><p class="hint">Requests enter the private queue. The existing worker checks every 10 minutes; results return to the media library.</p><button type="submit" class="primary">✦ Queue AI sticker</button></form></section><aside><section class="panel"><h3>Make a better sticker</h3><p>Use a clear source image. Ask for one emotion and one short caption. Say who the joke is for.</p><p>Review spelling and the final crop before placing the output in a pack. Try a few creative directions and keep your favorite.</p></section><section class="panel phone-flow"><h3>Your visual pipeline</h3><p>Groq writes captions and analyzes the source. The Factory renders them into stickers. Original image synthesis requires an additional image provider.</p>${button("View request queue →","navigate","factory","text-button")}</section></aside></div>`;}
   function renderContent() {const brief=(data.briefs||[])[0];return heading("Content planner","Daily researched ideas, custom topics, and category routing for the Factory.",button("Edit discovery settings","navigate","settings","primary"))+
     `<div class="notice">The worker creates one cited brief per UTC day. News and politics become original reaction concepts; factual headlines are not copied into stickers. Adult humor is private MATURE-only.</div>`+
@@ -147,8 +179,13 @@
     $("content").innerHTML=loaded?pages[page]():heading(connectionError?"Workspace unavailable":"Loading your workspace",connectionError||"Reading your existing packs, Factory activity and settings…",connectionError?button("Try again","workspace-retry","","primary"):"");
     $("breadcrumb").textContent=titles[page];
     document.querySelectorAll("nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));connectionUi();
+    if(loaded&&page==="media")hydrateMedia();else mediaObserver?.disconnect();
   }
-  async function loadLibrary() {library=(await api("/api/library",{action:"list"})).items;}
+  async function loadLibrary(offset=0) {
+    const result=await api("/api/library",{action:"list",offset,limit:100});
+    library=offset?library.concat(result.items.filter(item=>!library.some(existing=>existing.path===item.path))):result.items;
+    libraryNextOffset=result.next_offset;
+  }
   async function showCreatePack(selectedPath="") {
     const selected=library.find(s=>s.path===selectedPath);
     await loadLibrary();
@@ -230,12 +267,13 @@
       if(action==="migrate") {const result=await command("migrate_factory",{id});await refresh();toast("Factory output migrated. Original archive preserved.");return openPack(result.id);}
       if(action==="pack-next"||action==="pack-prev")return openPack(id,Math.max(0,detail.offset+(action==="pack-next"?5:-5)));
       if(action==="upload-source")return $("source-upload").click();
+      if(action==="media-more"){if(libraryNextOffset!==null){await loadLibrary(libraryNextOffset);render();}return;}
       if(action==="preview-source") {
         const image=(await api("/api/library",{action:"fetch",path:id})).image;
         let item=library.find(s=>s.path===id);if(!item){item={path:id,name:"Generated AI result",size:0};library.unshift(item);}item.preview=image;
         $("result-image").src=image;$("result-actions").innerHTML=button("Create a pack","result-pack",id,"primary")+button("Generate another version","result-generate",id);$("result-dialog").showModal();return;
       }
-      if(action==="use-source") {await navigate("generate");document.querySelector('#generate-form select').value=id;return;}
+      if(action==="use-source") {const selected=library.find(item=>item.path===id);await navigate("generate");if(selected&&!library.some(item=>item.path===id)){library.unshift(selected);render();}document.querySelector('#generate-form select').value=id;return;}
       if(action==="prompt-template") {document.querySelector('#generate-form textarea').value={reaction:"Create a short, funny Hinglish reaction to this image. Capture one clear emotion. Keep the caption under six words.",work:"Make this an office reaction meme about Monday meetings. Keep it friendly, original and readable on a phone.",chai:"Turn this into a playful Hinglish chai-time reaction. Use one short original caption and leave room around the subject."}[id];return;}
       if(action==="download-pack") {const result=await command("pack_download",{id});const a=document.createElement("a");a.href=result.url;a.rel="noopener";a.target="_blank";a.click();return;}
       if(action==="queue-cancel"||action==="queue-retry"){await command("queue_action",{id,operation:action==="queue-retry"?"retry":"cancel"});await refresh();toast("Queue updated.");return;}
@@ -259,7 +297,7 @@
     const id=appendPack.id;$("add-sources-dialog").close();$("pack-dialog").close();await refresh();await openPack(id);toast("Stickers added. Review the updated draft before publishing.");
   });});
   $("confirm-form").addEventListener("submit",e=>{e.preventDefault();const fn=confirmation;confirmation=null;$("confirm-dialog").close();if(fn)task(fn);});
-  document.addEventListener("change",e=>{if(e.target.id==="pack-filter"){filter=e.target.value;render();}if(e.target.id==="source-upload")task(async()=>{const file=e.target.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3_000_000)throw new Error("Choose a static PNG, JPEG or WebP under 3 MB.");const image=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error("Cannot read image"));r.readAsDataURL(file);});await command("source_upload",{image,title:file.name});await loadLibrary();render();toast("Image saved in the Factory inbox.");});});
+  document.addEventListener("change",e=>{if(e.target.id==="pack-filter"){filter=e.target.value;render();}if(e.target.id==="source-upload")task(async()=>{const file=e.target.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3_000_000)throw new Error("Choose a static PNG, JPEG or WebP under 3 MB.");const image=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error("Cannot read image"));r.readAsDataURL(file);});const saved=await command("source_upload",{image,title:file.name});mediaDetails.delete(saved.path);await loadLibrary();render();toast("Image saved in the Factory inbox.");});});
   document.addEventListener("input",e=>{if(e.target.id==="pack-search"){const pos=e.target.selectionStart;search=e.target.value;render();$("pack-search").focus();$("pack-search").setSelectionRange(pos,pos);}});
   $("refresh-button").addEventListener("click",()=>task(async()=>{if(["media","generate"].includes(page))await loadLibrary();await refresh();toast("Factory data refreshed.");}));
   $("menu-button").addEventListener("click",()=>$("sidebar").classList.toggle("open"));

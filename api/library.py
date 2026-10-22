@@ -1,6 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 
-from api._shared import StudioError, same_origin, fetch_inbox, list_inbox, options, read_json, send_json
+from api._shared import StudioError, same_origin, fetch_inbox, list_inbox, preview_inbox, options, read_json, send_json
 
 
 class handler(BaseHTTPRequestHandler):
@@ -14,9 +14,11 @@ class handler(BaseHTTPRequestHandler):
         try:
             request = read_json(self)
             if request.get("action") == "list":
-                send_json(self, 200, {"items": list_inbox()})
+                send_json(self, 200, list_inbox(request.get("offset", 0), request.get("limit", 100)))
             elif request.get("action") == "fetch":
                 send_json(self, 200, {"image": fetch_inbox(str(request.get("path", "")))})
+            elif request.get("action") == "preview":
+                send_json(self, 200, preview_inbox(str(request.get("path", ""))))
             else:
                 raise StudioError("Unknown library action")
         except StudioError as error:

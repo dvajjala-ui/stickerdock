@@ -918,6 +918,11 @@ been verified in the deployed Factory or on a phone. Pinterest app 1624615
 showed Trial access active, but the live Admin status was still not connected;
 see [current reconnection status](PINTEREST_RECONNECTION.md). Earlier pending
 Pinterest text in this handoff is historical and superseded by that record.
+New uploads now apply orientation and strip embedded EXIF/text metadata before
+storing a bounded WebP source. Admin Media lazy-loads bounded previews and
+source titles and can load additional 100-item pages. These local changes need
+hosted visual acceptance; they do not close explicit rights selection or stable
+cursor/search work.
 
 ## Remaining production gates
 
