@@ -224,11 +224,13 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
         assignment = ([i % len(image_paths) + 1 for i in range(count)]
                       if len(image_paths) > 1 else None)
         user_content = [{"type": "text", "text": user_content +
-                         "\nWrite varied, conversational English/Hinglish reaction captions fitting "
-                         "the visible expression/action and the requested topic. This may be a "
-                         "chronological video storyboard; captions describe its reaction, not frame "
-                         "numbers or a literal object list. Vary social intent (disbelief, awkwardness, "
-                         "playful sarcasm, surprise) rather than repeating one catchphrase. Do not "
+                         "\nWrite varied, conversational English/Hinglish captions a person would "
+                         "actually send in a chat as a reaction to someone else. Fit the visible "
+                         "expression/action and requested topic without narrating, naming, or listing "
+                         "objects in the image. Give each image a different social intent: disbelief, "
+                         "awkwardness, playful sarcasm, surprise, relief, or refusal. For a video "
+                         "storyboard, react to the action rather than frame numbers. Avoid generic "
+                         "compliments, cosmic descriptions, and repeated catchphrases. Do not "
                          "invent a visible event, identify real people or infer sensitive traits. "
                          "Use basic Latin letters and ASCII punctuation, with no emoji or Hindi script. "
                          "The source field must be null for image-based stickers. "
