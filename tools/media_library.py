@@ -84,8 +84,8 @@ def commons_candidates(query):
 def pinterest_candidates(config):
     """Official authorized board reader; no partner search or public-page scrape.
 
-    A board may contain other people's saved Pins. Only explicitly licensed pin
-    IDs become downloads; everything else remains a reference bookmark.
+    A board may contain other people's saved Pins. Pins are bookmarks only;
+    their hosted image URLs never become Factory download candidates.
     """
     board = str(config["pinterest_board_id"])
     if not board.isdigit():
@@ -95,8 +95,7 @@ def pinterest_candidates(config):
         raise ValueError("Pinterest board access requires an authorized access token")
     data = json.loads(fetch(f"https://api.pinterest.com/v5/boards/{board}/pins?page_size=25",
                             1_000_000, {"Authorization": "Bearer " + token}))
-    allowed = config.get("pinterest_pin_licenses", {})
-    candidates, bookmarks = [], []
+    bookmarks = []
     for pin in data.get("items", [])[:25]:
         pin_id = str(pin.get("id", ""))
         if not pin_id.isdigit():
@@ -104,17 +103,7 @@ def pinterest_candidates(config):
         source = f"https://www.pinterest.com/pin/{pin_id}/"
         title = str(pin.get("title") or pin.get("description") or "Pinterest reference")[:240]
         bookmarks.append({"title": title, "source_url": source})
-        license_id = allowed.get(pin_id)
-        if license_id not in LICENSES:
-            continue
-        images = pin.get("media", {}).get("images", {})
-        choices = [item for item in images.values() if isinstance(item, dict) and item.get("url")]
-        if not choices:
-            continue
-        selected = max(choices, key=lambda item: int(item.get("width") or 0))
-        candidates.append({"title": title, "source_url": source,
-                           "download_url": selected["url"], "license": license_id})
-    return candidates, bookmarks
+    return [], bookmarks
 
 
 def save_asset(item, root):

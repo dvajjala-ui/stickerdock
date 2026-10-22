@@ -74,7 +74,9 @@ cookie; token exchange happens server-side.
 Access/refresh credentials live in private Supabase storage, not browser storage.
 Revocation is available in Pinterest's own account settings. The daily job now
 checks connection health without saving Pins or downloading images. Legacy Pin
-downloads remain unmodified remotely but cannot enter new AI conversions.
+downloads already held remotely were not deleted. The old optional Factory
+`pinterest_pin_licenses` flag no longer creates download candidates; the board
+reader returns source-link bookmarks only, even if that flag is supplied.
 The shared Admin has no account gate by owner request: anyone with its URL can
 browse the connected account's **public** boards/Pins or disconnect Pinterest.
 This access model should be revisited before inviting external users.

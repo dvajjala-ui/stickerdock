@@ -106,7 +106,7 @@ class MediaLibraryTest(unittest.TestCase):
             library.atomic_json(root / "library.json", {"assets": [saved]})
             self.assertEqual(library.provenance(root / "test.png")["credit"], "Author")
 
-    def test_pinterest_downloads_require_per_pin_rights(self):
+    def test_pinterest_pins_stay_bookmarks_even_with_legacy_license_flags(self):
         pins = {"items": [{"id": str(i), "title": "Reference", "media": {"images": {
             "small": {"url": f"https://i.pinimg.com/{i}.jpg", "width": 400}}}} for i in (1, 2)]}
         with patch.dict("os.environ", {"PINTEREST_ACCESS_TOKEN": "test-only"}), patch.object(
@@ -114,8 +114,9 @@ class MediaLibraryTest(unittest.TestCase):
             candidates, bookmarks = library.pinterest_candidates({
                 "pinterest_board_id": "123", "pinterest_pin_licenses": {"1": "USER_OWNED"}})
         self.assertEqual(len(bookmarks), 2)
-        self.assertEqual(len(candidates), 1)
-        self.assertEqual(candidates[0]["download_url"], "https://i.pinimg.com/1.jpg")
+        self.assertEqual(candidates, [])
+        self.assertTrue(all(item["source_url"].startswith("https://www.pinterest.com/pin/")
+                            for item in bookmarks))
         self.assertIn("api.pinterest.com/v5/boards/123/pins", fetch.call_args.args[0])
 
 
