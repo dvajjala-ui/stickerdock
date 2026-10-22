@@ -1,7 +1,9 @@
-# Native AI integration: audited boundary and next implementation
+# Native AI integration: private caption slice and remaining gates
 
-This is remaining work under R26/R31/R37/R38, not an implemented mobile AI
-feature. The October 19 backup continuation reviewed these exact source paths:
+The first private caption slice is now in source. It is **not yet a live mobile AI
+feature**: the additive database migration and independent server/worker enable
+flags have not been applied, and a real account/device/provider run is pending.
+The October 19 backup continuation reviewed these exact source paths:
 
 - `api/captions.py` queues/status-checks operator Creator Studio jobs.
 - Following R40, workspace caption/upload/library routes have no account gate.
@@ -23,28 +25,51 @@ and is not evidence of working high-quality free generation.
 Do not put Groq keys or a Studio/owner token in an APK to connect these pieces.
 An existing operator caption queue does not establish native app AI support.
 
+## Implemented source slice (October 22)
+
+- `api/personal_ai.py` verifies the native account bearer, then
+  `api/_personal_ai.py` accepts one explicit, general-audience image-to-caption
+  request. The chosen image is bounded, oriented, pixel-normalized and stripped
+  of metadata. Client-supplied owner IDs and private storage paths are ignored.
+- `202610220001_personal_ai_captions.sql` reserves each user-owned request before
+  storage upload. A repeated UUID with the same source/prompt resumes one job;
+  a mismatched replay fails. Three jobs per rolling 24 hours, at most two pending
+  per account, and four personal-provider calls per UTC day are server-side caps.
+  Tables and RPCs have service-role-only grants and RLS. Cancellation is
+  owner-scoped; expired worker leases are terminal, so an ambiguous call cannot
+  silently run twice.
+- `tools/personal_ai_worker.py` validates the private WebP hash and path, then
+  asks Groq vision for one short caption. It returns text only; it does not
+  publish or import artwork. The dedicated scheduled workflow is disabled until
+  `PERSONAL_AI_ENABLED=true` is configured as a GitHub repository variable.
+- Android's Text tool has a consent dialog, a single-preview upload (without
+  caption text), persisted request identity, status recovery and an explicit
+  **Use as bottom caption** action. The suggestion joins Undo/Redo and the
+  existing local draft; Save remains a separate tap. The action is hidden until
+  the authenticated API reports `PERSONAL_AI_ENABLED=true` in Vercel. Mature
+  packs have no online action. Existing cloud sign-in supplies encrypted session
+  refresh; private sync can remain disabled.
+
+The four-call cap is for the personal lane only. Factory and shared Studio have
+their own current local limits; a single cross-lane provider reservation is
+still required before claiming a unified budget. iPhone does not yet have this
+new account-owned action. Original image synthesis is a separate unimplemented
+feature; Groq vision captioning does not create novel people or imagery.
+
 ## Next code slice
 
-1. Add an account-authenticated native job endpoint. Verify the existing bearer
-   with Supabase, scope every upload/job/status/result to that user, and keep
-   operator requests separate. Reuse authentication/session refresh through a
-   shared native transport without exposing tokens to UI state or logs.
-2. Add private job records with ownership/RLS, bounded input, request identity,
-   status, attempt reservation, retry time and result. Repeated submissions must
-   reuse a request identity. An ambiguous provider response must not silently
-   become another charged/request-budget-consuming submission.
-3. Apply one server-enforced provider budget shared with the Factory. Two Groq
+1. Apply the additive migration and enable both Vercel/GitHub flags only after
+   verifying the production table/RPC grants and worker secret configuration.
+   Test with two ordinary confirmed accounts, not an operator account.
+2. Apply one server-enforced provider budget shared with the Factory. Two Groq
    keys from one account do not imply independent quotas. Never trust client
    counters, hide errors as success or use unbounded automatic retries.
-4. Add an explicit Text-tool suggestion action. Explain that the chosen current
-   sticker is sent online, show a preview and require the user's action before
-   upload. Keep mature/offline-only packs offline. Send only the chosen bounded
-   rendered sticker, excluding backup originals, masks and other library media.
-5. Present queued/working/retry/result states, allow cancellation, and recover a
-   pending request after process death. Suggestions stay separate from the saved
-   project until the user chooses one; applying a caption joins Undo/Redo and
-   draft recovery. Saving/exporting remains explicit.
-6. Keep original image generation a separate opt-in operation with provider
+3. Connect iPhone Create to the same private account contract and explicit
+   preview/apply/save semantics. Add native end-to-end two-account tests.
+4. Retain personal source media only as long as needed for recovery and add an
+   owner-scoped deletion/retention job. Measure real provider quality, timeout,
+   429 behavior and recovery before expanding the daily cap.
+5. Keep original image generation a separate opt-in operation with provider
    setup, approved spending limits and a real quality trial. Groq captioning and
    image conversion are not original image synthesis. Do not publish generated
    packs or fill the user's library automatically.

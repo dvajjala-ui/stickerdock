@@ -34,6 +34,7 @@ class CloudLibrary(private val context: Context) {
         set(value) { prefs.edit().putBoolean("enabled", value).apply(); schedule(context, value) }
     val status: String get() = prefs.getString("status", "Not synced yet").orEmpty()
     private fun owner(): String = session().getJSONObject("user").getString("id")
+    val accountId: String? get() = if (signedIn) runCatching { owner() }.getOrNull() else null
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         return store.getKey("stickerdock-cloud", null) as? SecretKey ?: KeyGenerator.getInstance(
@@ -75,9 +76,10 @@ class CloudLibrary(private val context: Context) {
         }
         current.getString("access_token")
     }
-    internal fun request(payload: JSONObject, authenticated: Boolean = true): JSONObject {
+    internal fun request(payload: JSONObject, authenticated: Boolean = true, endpoint: String = "/api/cloud"): JSONObject {
+        require(endpoint == "/api/cloud" || endpoint == "/api/personal_ai")
         val bearer = if (authenticated) token() else null
-        val connection = URL("https://stickerdock.vercel.app/api/cloud").openConnection() as HttpURLConnection
+        val connection = URL("https://stickerdock.vercel.app$endpoint").openConnection() as HttpURLConnection
         connection.connectTimeout = 15_000; connection.readTimeout = 90_000
         connection.instanceFollowRedirects = false
         connection.requestMethod = "POST"; connection.doOutput = true
@@ -94,6 +96,15 @@ class CloudLibrary(private val context: Context) {
             check(code in 200..299) { result.optString("error", "Cloud unavailable; retry later") }
             return result
         } finally { connection.disconnect() }
+    }
+    fun personalAi(payload: JSONObject): JSONObject = request(payload, true, "/api/personal_ai")
+    fun pendingAi(stickerId: String): String? = accountId?.let { prefs.getString("$it:ai:$stickerId", null) }
+    fun savePendingAi(stickerId: String, requestId: String?) {
+        val account = accountId ?: error("Sign in first")
+        val editor = prefs.edit()
+        if (requestId == null) editor.remove("$account:ai:$stickerId")
+        else editor.putString("$account:ai:$stickerId", requestId)
+        check(editor.commit()) { "Could not save AI request recovery state" }
     }
     private fun action(name: String) = JSONObject().put("action", name)
     private fun mapping(owner: String, id: String) = "$owner:pack:$id"

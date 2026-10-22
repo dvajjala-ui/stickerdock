@@ -1,6 +1,7 @@
 package app.stickerdock.duo
 
 import android.view.WindowManager
+import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyRow
@@ -33,9 +34,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
+import java.util.UUID
 
 @Composable
-fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: suspend (ArtworkHistory) -> Unit, onDismiss: () -> Unit) {
+fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, cloud: CloudLibrary, allowOnlineAi: Boolean,
+                         onSave: suspend (ArtworkHistory) -> Unit, onDismiss: () -> Unit) {
     // Full-screen Dialog can receive consumed bar insets on Android 15. Keep the
     // owner's unconsumed values as a fallback, and union with the dialog's IME.
     val ownerInsets = WindowInsets.safeDrawing
@@ -57,6 +61,14 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
     var showRefinement by rememberSaveable { mutableStateOf(false) }
     var tool by rememberSaveable { mutableStateOf("Cutout") }
     var draftMessage by remember { mutableStateOf("Opening project…") }
+    val aiAccount = cloud.accountId
+    var aiRequestId by rememberSaveable(item.id, aiAccount) { mutableStateOf(cloud.pendingAi(item.id)) }
+    var aiAvailable by remember(aiAccount) { mutableStateOf(false) }
+    var aiJob by remember(item.id, aiAccount) { mutableStateOf<JSONObject?>(null) }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiPollVersion by remember { mutableIntStateOf(0) }
+    var aiError by remember { mutableStateOf<String?>(null) }
+    var showAiConsent by remember { mutableStateOf(false) }
     val hasChanges = session?.let { edit != it.savedHistory.edit } ?: false
     val dismiss = {
         automaticGeneration++; automaticJob?.cancel(); automaticBusy = false
@@ -78,6 +90,33 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
         }
     }
     val input = session?.original
+    LaunchedEffect(aiAccount, allowOnlineAi) {
+        aiAvailable = false
+        if (aiAccount != null && allowOnlineAi) {
+            aiAvailable = runCatching { withContext(Dispatchers.IO) {
+                cloud.personalAi(JSONObject().put("action", "availability")).optBoolean("available")
+            } }.getOrDefault(false)
+        }
+    }
+    LaunchedEffect(aiAccount, aiRequestId, aiPollVersion) {
+        val requestId = aiRequestId ?: return@LaunchedEffect
+        if (aiAccount == null) return@LaunchedEffect
+        while (true) {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    cloud.personalAi(JSONObject().put("action", "status").put("id", requestId))
+                }
+                aiJob = result.getJSONObject("job")
+                aiError = null
+                if (aiJob?.optString("status") !in listOf("uploading", "queued", "running")) break
+                delay(5000)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) {
+                aiError = e.message ?: "Could not check your AI request. Tap Refresh."
+                break
+            }
+        }
+    }
     LaunchedEffect(session, history) {
         if (session == null || !initialized) return@LaunchedEffect
         draftMessage = if (hasChanges) "Saving draft…" else "Saved version"
@@ -198,12 +237,86 @@ fun StickerArtworkEditor(item: StickerItem, projects: ArtworkProjects, onSave: s
                     if (tool == "Text") {
                     OutlinedTextField(edit.topText, { history = history.update(edit.copy(topText = it.take(100)), "top") }, enabled = !saving, label = { Text("Top caption") }, modifier = Modifier.fillMaxWidth().onFocusChanged { history = history.endGroup() })
                     OutlinedTextField(edit.bottomText, { history = history.update(edit.copy(bottomText = it.take(100)), "bottom") }, enabled = !saving, label = { Text("Bottom caption") }, modifier = Modifier.fillMaxWidth().onFocusChanged { history = history.endGroup() })
+                    if (!allowOnlineAi) Text("This private mature pack stays on your phone.", style = MaterialTheme.typography.bodySmall)
+                    else if (aiAccount == null) Text("Sign in under Private cloud to ask for an AI caption. Sync can stay off.", style = MaterialTheme.typography.bodySmall)
+                    else {
+                        if (aiAvailable && aiRequestId == null) {
+                            OutlinedButton(enabled = input != null && !aiBusy && !saving, onClick = { showAiConsent = true },
+                                modifier = Modifier.fillMaxWidth()) { Text("Suggest a reaction with AI") }
+                            Text("Only this preview is sent online. It won't enter a pack until you apply and save it.",
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        aiRequestId?.let { requestId ->
+                            val status = aiJob?.optString("status") ?: "checking"
+                            Text("AI suggestion: $status", style = MaterialTheme.typography.bodySmall)
+                            if (status == "complete") {
+                                val caption = aiJob?.optString("caption").orEmpty()
+                                if (caption.isNotBlank()) {
+                                    Text(caption, style = MaterialTheme.typography.titleMedium)
+                                    Button(enabled = !saving, onClick = {
+                                        history = history.update(history.edit.copy(bottomText = caption))
+                                        cloud.savePendingAi(item.id, null)
+                                        aiRequestId = null; aiJob = null
+                                    }) { Text("Use as bottom caption") }
+                                }
+                            } else if (status == "failed") {
+                                Text(if (aiJob?.optString("error_code") == "limit") "Today's AI limit was reached."
+                                    else "AI couldn't suggest a caption. Your sticker is unchanged.",
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            if ((status == "uploading" || aiError != null) && aiAvailable) {
+                                TextButton(enabled = !aiBusy, onClick = { showAiConsent = true }) { Text("Retry sending this preview") }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(enabled = !aiBusy, onClick = { aiPollVersion++ }) { Text("Refresh") }
+                                TextButton(enabled = !aiBusy, onClick = {
+                                    aiBusy = true
+                                    scope.launch {
+                                        try {
+                                            withContext(Dispatchers.IO) { cloud.personalAi(JSONObject().put("action", "cancel").put("id", requestId)) }
+                                            cloud.savePendingAi(item.id, null)
+                                            aiRequestId = null; aiJob = null
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                                        catch (e: Exception) { aiError = e.message ?: "Could not cancel AI request" }
+                                        finally { aiBusy = false }
+                                    }
+                                }) { Text(if (status == "complete" || status == "failed") "Clear" else "Cancel") }
+                            }
+                        }
+                        aiError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    }
                     }
                     Text("Your original stays intact. Save when you're happy with the result.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
     }
+    if (showAiConsent) AlertDialog(onDismissRequest = { showAiConsent = false },
+        title = { Text("Send this sticker preview to AI?") },
+        text = { Text("Only send a general-audience image you own or may use. Your selected preview, without its current captions, will go to StickerDock's private server and Groq for one suggested reaction. Your original photo, cutout mask and other stickers stay on this phone. Suggestions are never saved automatically.") },
+        confirmButton = { Button(onClick = {
+            showAiConsent = false
+            val original = input ?: return@Button
+            aiBusy = true; aiError = null
+            scope.launch {
+                val requestId = aiRequestId ?: cloud.pendingAi(item.id) ?: UUID.randomUUID().toString()
+                try {
+                    withContext(Dispatchers.IO) {
+                        cloud.savePendingAi(item.id, requestId)
+                        val mask = projects.mask(item, history.edit)
+                        val bitmap = StickerArtwork.render(original, history.edit.copy(topText = "", bottomText = ""), mask)
+                        val image = try { StickerArtwork.encode(bitmap) } finally { bitmap.recycle() }
+                        cloud.personalAi(JSONObject().put("action", "submit").put("request_id", requestId)
+                            .put("image", "data:image/webp;base64," + Base64.encodeToString(image, Base64.NO_WRAP))
+                            .put("audience", "GENERAL").put("rights", "OWNED_OR_LICENSED").put("consent", true))
+                    }
+                    aiRequestId = requestId
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (e: Exception) { aiRequestId = requestId; aiError = e.message ?: "AI request failed. Refresh or retry sending." }
+                finally { aiBusy = false }
+            }
+        }) { Text("Send preview") } },
+        dismissButton = { TextButton(onClick = { showAiConsent = false }) { Text("Keep offline") } })
     if (showCutout && input != null) StickerCutoutEditor(input, edit.cutout,
         onApply = { points ->
             // Quantize once so the preview and the persisted/reopened recipe are identical.

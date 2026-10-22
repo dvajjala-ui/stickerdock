@@ -1078,7 +1078,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
         }
 
         artworkSticker?.let { item ->
-            StickerArtworkEditor(item, artworkProjects,
+            StickerArtworkEditor(item, artworkProjects, cloud,
+                allowOnlineAi = store.getPack(item.packId)?.rating == PackRating.GENERAL,
                 onSave = { history ->
                     withContext(Dispatchers.IO) { artworkProjects.save(item, history) }
                     artworkSticker = null
