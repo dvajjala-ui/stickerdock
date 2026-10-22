@@ -62,7 +62,8 @@ def delivery_checks(client, published, now):
     except Exception:
         checks.append({"name": "Recent generation", "status": "blocked", "message": "Factory activity could not be read."})
     try:
-        draft = latest_row(client, "admin_packs", "id,created_at", "created_at.desc", "&status=eq.draft")
+        draft = latest_row(client, "admin_packs", "id,created_at", "created_at.desc",
+                           "&status=eq.draft&creator=eq.StickerDock%20AI%20Factory")
         age = age_days(draft.get("created_at"), now) if draft else None
         freshness["review_draft"] = age is not None and age <= 2
         checks.append({"name": "Review draft delivery",

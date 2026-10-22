@@ -61,7 +61,7 @@
   async function api(path, body) {
     const controller = new AbortController(), timeout = setTimeout(()=>controller.abort(),90000);
     try {
-      const response = await fetch(path,{method:"POST",credentials:"omit",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:controller.signal});
+      const response = await fetch(path,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:controller.signal});
       const result = await response.json().catch(()=>({}));
       if (!response.ok) throw new Error(result.error || `Request failed (${response.status})`);
       return result;
