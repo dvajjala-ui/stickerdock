@@ -248,21 +248,42 @@ def creator_outstanding_count() -> int:
     return len(rows)
 
 
-def queue_creator_request(prompt, source_path) -> dict:
+def queue_creator_request(prompt, source_path, request_id=None) -> dict:
     prompt_text = safe_text(prompt, "prompt", 500, required=True)
     if not isinstance(source_path, str) or not CREATOR_SOURCE_RE.fullmatch(source_path):
         raise StudioError("Invalid source image path")
+    supplied_id = request_id is not None
+    request_id = normalize_request_id(request_id) if supplied_id else str(uuid.uuid4())
+    if supplied_id:
+        try:
+            existing = creator_request_status(request_id)
+        except StudioError as error:
+            if str(error) != "Creator request was not found":
+                raise
+        else:
+            if existing["prompt"] != prompt_text or existing["source_path"] != source_path:
+                raise StudioError("Request id belongs to a different Creator job")
+            return {"id": request_id, "status": existing["status"]}
     if creator_outstanding_count() >= CREATOR_MAX_OUTSTANDING:
         raise StudioError("Creator queue is busy; try again after current requests finish")
-    request_id = str(uuid.uuid4())
     payload = json.dumps([{
         "id": request_id,
         "source_path": source_path,
         "prompt": prompt_text,
         "status": "queued",
     }], separators=(",", ":")).encode()
-    supabase_request("/rest/v1/creator_requests", method="POST", data=payload,
-                     content_type="application/json", limit=16_000)
+    try:
+        supabase_request("/rest/v1/creator_requests", method="POST", data=payload,
+                         content_type="application/json", limit=16_000)
+    except StudioError as error:
+        if not supplied_id or "HTTP 409" not in str(error):
+            raise
+        # Concurrent submission with the same request id: only one INSERT can
+        # win the primary-key race. Return that exact job if its inputs match.
+        existing = creator_request_status(request_id)
+        if existing["prompt"] != prompt_text or existing["source_path"] != source_path:
+            raise StudioError("Request id belongs to a different Creator job") from None
+        return {"id": request_id, "status": existing["status"]}
     return {"id": request_id, "status": "queued"}
 
 

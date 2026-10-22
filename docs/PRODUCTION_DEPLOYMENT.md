@@ -161,16 +161,18 @@ the public bucket empty. A second run with the real production configuration
 resumed that state on a fresh runner from 5 to **10/40** and synced two reference
 library assets.
 
-Scheduled private generation is now enabled on the normal three-hour cadence so
-the remaining full-day capacity gate can be measured honestly. Do **not** force
+Scheduled private generation is enabled by default. Actions checks every 15
+minutes; the saved three-hour interval, provider cooldowns and request budget
+determine when a batch actually runs. Observed dispatches can be less frequent
+than the cron expression, so do not promise an exact batch time. Do **not** force
 extra batches or bypass the cooldown. If an operational problem appears, set
 `STICKER_FACTORY_ENABLED=false` to pause schedules without changing code. The
 capacity gate stays open until a full UTC day reaches 40/40 and its Groq
 usage/rate-limit metrics plus private pack are reviewed.
 
-The scheduled cadence is 05:45, 08:45, 11:45, 14:45, 17:45, 20:45, 23:45 and
-02:45 India time. The production default is five stickers per run, 40 per UTC
-day. Provider cooldowns can lower the total. Increase targets only after recorded
+The production default is five stickers per successful batch, 40 per UTC day.
+Provider cooldowns and runner timing can lower the total. Completed batches
+can enter private Admin review without reaching 40/40. Increase targets only after recorded
 Groq headers demonstrate the selected account/model can sustain the needed call
 volume.
 

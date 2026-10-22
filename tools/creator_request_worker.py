@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Process one private Creator Studio AI request.
 
-This worker is intentionally manual-only until Supabase/Groq live smoke testing is
-complete. It never exposes Groq credentials to the browser and writes generated
-results only to the private factory inbox.
+GitHub Actions checks for queued or recoverable work every ten minutes and can
+also run manually. It never exposes Groq credentials to the browser and writes
+generated results only to the private factory inbox.
 """
 from __future__ import annotations
 

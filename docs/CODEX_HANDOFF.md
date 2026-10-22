@@ -925,6 +925,10 @@ an explicit reusable-source or reference-only choice; unspecified API uploads
 default to reference-only, and edited results inherit source rights. These
 local changes need hosted visual acceptance and do not close stable
 cursor/search work.
+Creator queue submissions now accept a client request UUID and return the same
+job for an exact retry; Admin and Studio retain it across a lost response or
+reload. Studio can reopen the source and resume polling. This needs hosted
+network-loss and worker acceptance; it does not provide account-owned native AI.
 
 ## Remaining production gates
 

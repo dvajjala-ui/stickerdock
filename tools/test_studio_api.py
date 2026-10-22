@@ -224,6 +224,44 @@ class StudioApiTest(unittest.TestCase):
         request.assert_called_once()
         self.assertIn("status=in.%28queued%2Crunning%29", request.call_args.args[0])
 
+    def test_creator_request_key_replay_reuses_one_job_and_rejects_other_input(self):
+        source = "inbox/" + "b" * 64 + ".webp"
+        request_id = str(uuid.uuid4())
+        stored = None
+        inserts = []
+        def database(path, **kwargs):
+            nonlocal stored
+            if "id=eq." in path:
+                return json.dumps([stored] if stored else []).encode()
+            if "status=in." in path:
+                return b"[]"
+            stored = json.loads(kwargs["data"])[0]
+            inserts.append(stored)
+            return b""
+        with patch.object(studio, "supabase_request", side_effect=database):
+            first = studio.queue_creator_request("Make a reaction", source, request_id)
+            second = studio.queue_creator_request("Make a reaction", source, request_id)
+            self.assertEqual(first, second)
+            self.assertEqual(len(inserts), 1)
+            with self.assertRaisesRegex(studio.StudioError, "different Creator job"):
+                studio.queue_creator_request("Different prompt", source, request_id)
+
+    def test_creator_request_key_recovers_primary_key_race(self):
+        source = "inbox/" + "b" * 64 + ".webp"
+        request_id = str(uuid.uuid4())
+        stored = None
+        def database(path, **kwargs):
+            nonlocal stored
+            if "id=eq." in path:
+                return json.dumps([stored] if stored else []).encode()
+            if "status=in." in path:
+                return b"[]"
+            stored = json.loads(kwargs["data"])[0]
+            raise studio.StudioError("Provider returned HTTP 409")
+        with patch.object(studio, "supabase_request", side_effect=database):
+            self.assertEqual(studio.queue_creator_request("Make a reaction", source, request_id),
+                             {"id": request_id, "status": "queued"})
+
     def test_creator_request_queue_rejects_invalid_backlog_response(self):
         source = "inbox/" + "b" * 64 + ".webp"
         with patch.object(studio, "supabase_request", return_value=b"{}"):

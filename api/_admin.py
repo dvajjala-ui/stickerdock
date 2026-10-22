@@ -467,7 +467,8 @@ def dispatch(payload, client=None):
         metadata = _shared.source_metadata(payload.get("source_path"))
         return {"metadata": metadata, "ai_allowed": not str(metadata.get("source", "")).startswith("pinterest")}
     if action == "queue_create":
-        result = _shared.queue_creator_request(payload.get("prompt"), payload.get("source_path"))
+        result = _shared.queue_creator_request(payload.get("prompt"), payload.get("source_path"),
+                                                payload.get("request_id"))
         audit(client, "request.queued", result["id"])
         return result
     operations = {"migrate_factory": migrate_factory, "pack_create": create_pack,

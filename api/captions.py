@@ -23,7 +23,8 @@ class handler(BaseHTTPRequestHandler):
             payload = read_json(self)
             action = str(payload.get("action", "queue"))
             if action == "queue":
-                result = queue_creator_request(payload.get("prompt"), payload.get("source_path"))
+                result = queue_creator_request(payload.get("prompt"), payload.get("source_path"),
+                                               payload.get("request_id"))
                 send_json(self, 202, result)
             elif action == "status":
                 send_json(self, 200, creator_request_status(payload.get("id")))

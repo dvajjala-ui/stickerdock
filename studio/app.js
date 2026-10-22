@@ -10,6 +10,11 @@
   let dragging = false;
   let sourcePath = null;
   let aiBusy = false;
+  const pendingAiKey = "stickerdock:pending-studio-ai";
+  let pendingAiMemory = null;
+  function readPendingAi() {try {return JSON.parse(sessionStorage.getItem(pendingAiKey));}catch (_) {return pendingAiMemory;}}
+  function savePendingAi(job) {pendingAiMemory=job;try {sessionStorage.setItem(pendingAiKey,JSON.stringify(job));}catch (_) {}}
+  function clearPendingAi() {pendingAiMemory=null;try {sessionStorage.removeItem(pendingAiKey);}catch (_) {}}
 
   const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -138,7 +143,9 @@
       const result = await api("/api/captions", {action: "status", id});
       if (result.status === "complete") return result;
       if (result.status === "failed" || result.status === "cancelled") {
-        throw new Error(result.error_message || `AI request ${result.status}.`);
+        const error = new Error(result.error_message || `AI request ${result.status}.`);
+        error.terminal = true;
+        throw error;
       }
       status(result.status === "running" ? "AI worker is creating your sticker…" : "AI request queued. The Factory worker checks every 10 minutes…");
       await sleep(5000);
@@ -155,12 +162,18 @@
     try {
       const path = await ensureAiSource();
       status("Queueing a Factory AI sticker request…");
-      const queued = await api("/api/captions", {action: "queue", prompt, source_path: path});
+      let pending = readPendingAi();
+      if (!pending || pending.path !== path || pending.prompt !== prompt)
+        pending = {id: crypto.randomUUID(), path, prompt};
+      savePendingAi(pending);
+      const queued = await api("/api/captions", {action: "queue", prompt, source_path: path,
+        request_id: pending.id});
       const completed = await waitForAiRequest(queued.id);
       const result = await api("/api/library", {action: "fetch", path: completed.result_path});
+      clearPendingAi();
       $("caption").value = "";
       loadDataUrl(result.image, completed.result_path, "AI sticker ready. Download it or continue editing.");
-    } catch (error) { status(error.message, true); }
+    } catch (error) { if (error.terminal) clearPendingAi(); status(error.message, true); }
     finally { aiBusy = false; updateAiButton(); }
   });
 
@@ -223,6 +236,16 @@
     try { loadDataUrl((await api("/api/library", {action: "fetch", path})).image, path); }
     catch (error) { status(error.message, true); }
   });
+  async function restorePendingAi() {
+    const pending = readPendingAi();
+    if (!pending?.path || !pending?.prompt) return;
+    $("prompt").value = pending.prompt;
+    try {
+      const result = await api("/api/library", {action: "fetch", path: pending.path});
+      loadDataUrl(result.image, pending.path, "Saved AI request found. Press Generate to resume its status.");
+    } catch (error) {status(`Saved AI request could not be reopened: ${error.message}`, true);}
+  }
   draw();
   updateAiButton();
+  refreshLibrary().then(restorePendingAi);
 })();

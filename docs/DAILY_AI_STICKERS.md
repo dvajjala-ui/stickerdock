@@ -132,9 +132,12 @@ that local scheduler helper.
 For the recommended production setup, use
 [`PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md). GitHub Actions restores
 persistent Factory state from Supabase on a fresh runner, executes only when due,
-and saves state again at the end of the run. Scheduled Factory execution is still
-gated by `STICKER_FACTORY_ENABLED`; keep that gate off until the reviewed full-day
-40/40 test is complete.
+and saves state again at the end of the run. Scheduled checks are on by default
+every 15 minutes. The saved three-hour interval, provider cooldown and daily
+request budget govern actual generation; dispatch timing is not a delivery
+guarantee. Set the GitHub variable `STICKER_FACTORY_ENABLED=false` to pause
+schedules explicitly. A normal 40/40 day and reviewed public delivery remain
+unverified; completed batches can enter private review below the daily target.
 
 State lives at `generated-stickers/YYYY-MM-DD/state.json` locally and inside the
 private runtime-state archive in the production Supabase flow. Use exactly one
