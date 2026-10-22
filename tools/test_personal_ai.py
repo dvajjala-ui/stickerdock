@@ -8,11 +8,14 @@ import unittest
 import uuid
 from pathlib import Path
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from PIL import Image
 
 from api import _personal_ai as api
+from api import personal_ai as route
 from api._shared import StudioError
+from tools.supabase_factory import SupabaseError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import personal_ai_worker as worker
@@ -29,8 +32,9 @@ def data_url():
 
 
 class ApiClient:
-    def __init__(self, admitted=True, reason="created", status="uploading"):
+    def __init__(self, admitted=True, reason="created", status="uploading", activation_status="queued"):
         self.admitted, self.reason, self.status = admitted, reason, status
+        self.activation_status = activation_status
         self.calls = []
 
     def rpc(self, name, payload):
@@ -38,13 +42,19 @@ class ApiClient:
         if name == "queue_personal_ai_caption":
             return [{"accepted": self.admitted, "reason": self.reason, "job_status": self.status}]
         if name == "activate_personal_ai_caption":
-            return [{"job_status": "queued"}]
+            return [{"job_status": self.activation_status}]
         if name == "cancel_personal_ai_caption":
             return [{"job_status": "cancelled"}]
         raise AssertionError(name)
 
     def upload(self, bucket, path, data, mime):
         self.calls.append(("upload", path, data, mime))
+
+    def remove(self, bucket, paths):
+        self.calls.append(("remove", paths))
+
+    def update(self, table, values, column, value):
+        self.calls.append(("update", table, values, column, value))
 
     def _request(self, method, path):
         self.calls.append((method, path))
@@ -73,7 +83,7 @@ class PersonalAiApiTest(unittest.TestCase):
         self.assertEqual([call[0] for call in client.calls],
                          ["queue_personal_ai_caption", "upload", "activate_personal_ai_caption"])
         self.assertEqual(client.calls[0][1]["p_owner"], OWNER)
-        self.assertTrue(client.calls[1][1].startswith("users/" + OWNER + "/ai/sources/"))
+        self.assertTrue(client.calls[1][1].startswith("users/" + OWNER + "/ai/sources/" + payload["request_id"] + "-"))
         self.assertNotIn(OTHER, client.calls[1][1])
         self.assertEqual(client.calls[1][3], "image/webp")
         self.assertNotIn(b"exif", client.calls[1][2].lower())
@@ -84,6 +94,23 @@ class PersonalAiApiTest(unittest.TestCase):
         self.assertEqual(result["status"], "complete")
         self.assertTrue(result["replayed"])
         self.assertEqual(len(client.calls), 1)
+
+    def test_cancellation_during_upload_purges_its_private_source(self):
+        client = ApiClient(activation_status="cancelled")
+        result = api.dispatch(self.payload(), OWNER, client)
+        self.assertEqual(result["status"], "cancelled")
+        self.assertEqual([call[0] for call in client.calls],
+                         ["queue_personal_ai_caption", "upload", "activate_personal_ai_caption", "remove", "update"])
+        self.assertEqual(client.calls[3][1], [client.calls[1][1]])
+
+    def test_failed_cancelled_upload_purge_is_left_for_retention_sweep(self):
+        client = ApiClient(activation_status="cancelled")
+        def failed_removal(bucket, paths):
+            raise SupabaseError("Transient storage failure")
+        client.remove = failed_removal
+        self.assertEqual(api.dispatch(self.payload(), OWNER, client)["status"], "cancelled")
+        self.assertEqual([call[0] for call in client.calls],
+                         ["queue_personal_ai_caption", "upload", "activate_personal_ai_caption"])
 
     def test_rejected_jobs_cannot_fill_storage(self):
         for reason, error in (("daily_limit", api.PersonalAiLimit),
@@ -119,6 +146,16 @@ class PersonalAiApiTest(unittest.TestCase):
         api.dispatch({"action": "cancel", "id": request_id, "owner": OTHER}, OWNER, client)
         self.assertEqual(client.calls[1][1]["p_owner"], OWNER)
 
+    def test_http_route_requires_verified_bearer_for_every_action(self):
+        target = SimpleNamespace(headers={})
+        with patch.object(route, "read_json", return_value={"action": "availability"}), \
+             patch.object(route, "authenticate", side_effect=PermissionError("Sign in")), \
+             patch.object(route, "dispatch") as dispatch, \
+             patch.object(route, "send_json") as send:
+            route.handler.do_POST(target)
+        dispatch.assert_not_called()
+        self.assertEqual(send.call_args.args[1], 401)
+
 
 class WorkerClient:
     def __init__(self, data, owner=OWNER):
@@ -127,7 +164,7 @@ class WorkerClient:
         self.request_id = str(uuid.uuid4())
         self.job = {"id": self.request_id, "owner_id": owner,
                     "source_sha": hashlib.sha256(data).hexdigest(),
-                    "source_path": api.source_path(owner, hashlib.sha256(data).hexdigest()),
+                    "source_path": api.source_path(owner, self.request_id, hashlib.sha256(data).hexdigest()),
                     "prompt": "A chat reply"}
         self.calls = []
 
@@ -142,6 +179,12 @@ class WorkerClient:
         self.calls.append(("download", path))
         return self.data
 
+    def remove(self, bucket, paths):
+        self.calls.append(("remove", paths))
+
+    def update(self, table, values, column, value):
+        self.calls.append(("update", table, values, column, value))
+
 
 class PersonalAiWorkerTest(unittest.TestCase):
     def image(self):
@@ -155,15 +198,16 @@ class PersonalAiWorkerTest(unittest.TestCase):
             seen.append((a, k)) or [{"caption": "Seriously?"}])
         self.assertEqual(result["status"], "complete")
         self.assertEqual(len(seen), 1)
-        self.assertEqual(client.calls[-1][1]["p_caption"], "Seriously?")
-        self.assertEqual(client.calls[-1][1]["p_worker_id"], "github-actions")
+        self.assertEqual(client.calls[-3][1]["p_caption"], "Seriously?")
+        self.assertEqual(client.calls[-3][1]["p_worker_id"], "github-actions")
+        self.assertEqual([call[0] for call in client.calls[-2:]], ["remove", "update"])
         self.assertTrue(any(name == "reserve_personal_ai_provider_call" for name, _ in client.calls))
 
     def test_foreign_source_and_tamper_fail_before_provider(self):
         for tamper in ("foreign", "hash"):
             client = WorkerClient(self.image())
             if tamper == "foreign":
-                client.job["source_path"] = api.source_path(OTHER, client.job["source_sha"])
+                client.job["source_path"] = api.source_path(OTHER, client.request_id, client.job["source_sha"])
             else:
                 client.data = b"different"
             used = []
@@ -171,7 +215,7 @@ class PersonalAiWorkerTest(unittest.TestCase):
                 worker.process_one(client, key="test", model="vision",
                                    idea_generator=lambda *a, **k: used.append(1))
             self.assertEqual(used, [])
-            self.assertEqual(client.calls[-1][1]["p_error_code"] if tamper == "hash" else
+            self.assertEqual(client.calls[-3][1]["p_error_code"] if tamper == "hash" else
                              client.calls[-1][0], "invalid_source" if tamper == "hash" else "claim_personal_ai_caption")
 
     def test_ambiguous_provider_failure_is_terminal(self):
@@ -179,7 +223,7 @@ class PersonalAiWorkerTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             worker.process_one(client, key="test", model="vision",
                                idea_generator=lambda *a, **k: (_ for _ in ()).throw(RuntimeError("provider timeout")))
-        self.assertEqual(client.calls[-1][1]["p_error_code"], "provider")
+        self.assertEqual(client.calls[-3][1]["p_error_code"], "provider")
 
     def test_global_budget_denial_skips_provider(self):
         client = WorkerClient(self.image())
@@ -193,7 +237,18 @@ class PersonalAiWorkerTest(unittest.TestCase):
             worker.process_one(client, key="test", model="vision",
                                idea_generator=lambda *a, **k: seen.append(1))
         self.assertEqual(seen, [])
-        self.assertEqual(client.calls[-1][1]["p_error_code"], "limit")
+        self.assertEqual(client.calls[-3][1]["p_error_code"], "limit")
+
+    def test_terminal_cleanup_is_bounded_and_path_checked(self):
+        client = WorkerClient(self.image())
+        client._request = lambda method, path: json.dumps([client.job]).encode()
+        self.assertEqual(worker.cleanup_terminal(client), 1)
+        self.assertEqual([call[0] for call in client.calls], ["remove", "update"])
+        client.calls.clear()
+        client.job["source_path"] = api.source_path(OTHER, client.request_id, client.job["source_sha"])
+        with self.assertRaises(ValueError):
+            worker.cleanup_terminal(client)
+        self.assertEqual(client.calls, [])
 
 
 if __name__ == "__main__":

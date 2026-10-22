@@ -15,8 +15,9 @@ create table if not exists public.personal_ai_jobs (
   created_at timestamptz not null default now(),
   started_at timestamptz,
   completed_at timestamptz,
+  source_purged_at timestamptz,
   updated_at timestamptz not null default now(),
-  check (source_path = 'users/' || owner_id::text || '/ai/sources/' || source_sha || '.webp'),
+  check (source_path = 'users/' || owner_id::text || '/ai/sources/' || id::text || '-' || source_sha || '.webp'),
   check ((status = 'complete') = (caption is not null))
 );
 create index if not exists personal_ai_owner_recent on public.personal_ai_jobs(owner_id, created_at desc);
@@ -65,7 +66,7 @@ begin
     return query select false, 'pending_limit'::text, null::text; return;
   end if;
   insert into public.personal_ai_jobs(id, owner_id, source_sha, source_path, prompt)
-  values(p_id, p_owner, p_sha, 'users/' || p_owner::text || '/ai/sources/' || p_sha || '.webp', p_prompt);
+  values(p_id, p_owner, p_sha, 'users/' || p_owner::text || '/ai/sources/' || p_id::text || '-' || p_sha || '.webp', p_prompt);
   return query select true, 'created'::text, 'uploading'::text;
 end $$;
 

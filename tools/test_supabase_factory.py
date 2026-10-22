@@ -36,6 +36,17 @@ class SupabaseFactoryCreatorQueueTest(unittest.TestCase):
         self.assertEqual(client.calls[0][3]["Cache-Control"],"max-age=0")
         self.assertEqual(client.calls[1][3]["Cache-Control"],"max-age=3600")
 
+    def test_storage_removal_uses_object_api_and_rejects_parent_paths(self):
+        client = FakeSupabase([b"[]"])
+        client.remove("sticker-factory-private", ["users/example/ai/sources/file.webp"])
+        method, path, data, headers, _ = client.calls[0]
+        self.assertEqual(method, "DELETE")
+        self.assertEqual(path, "/storage/v1/object/sticker-factory-private")
+        self.assertEqual(json.loads(data), {"prefixes": ["users/example/ai/sources/file.webp"]})
+        self.assertEqual(headers["Content-Type"], "application/json")
+        with self.assertRaises(ValueError):
+            client.remove("sticker-factory-private", ["../other"])
+
     def test_authenticated_mutable_reads_use_distinct_urls_and_no_cache(self):
         client=FakeSupabase([b"old",b"new"])
         self.assertEqual(client.download("sticker-factory-public","catalog/packs.json"),b"old")

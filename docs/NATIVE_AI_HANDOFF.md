@@ -40,7 +40,9 @@ An existing operator caption queue does not establish native app AI support.
   silently run twice.
 - `tools/personal_ai_worker.py` validates the private WebP hash and path, then
   asks Groq vision for one short caption. It returns text only; it does not
-  publish or import artwork. The dedicated scheduled workflow is disabled until
+  publish or import artwork. The per-job server preview is removed through the
+  Storage API after processing; a terminal-job sweep retries failed/cancelled
+  cleanup. The dedicated scheduled workflow is disabled until
   `PERSONAL_AI_ENABLED=true` is configured as a GitHub repository variable.
 - Android's Text tool has a consent dialog, a single-preview upload (without
   caption text), persisted request identity, status recovery and an explicit
@@ -66,8 +68,9 @@ feature; Groq vision captioning does not create novel people or imagery.
    counters, hide errors as success or use unbounded automatic retries.
 3. Connect iPhone Create to the same private account contract and explicit
    preview/apply/save semantics. Add native end-to-end two-account tests.
-4. Retain personal source media only as long as needed for recovery and add an
-   owner-scoped deletion/retention job. Measure real provider quality, timeout,
+4. Verify private-source cleanup against live Storage, including cancelled
+   uploads, and consider a retention limit for the caption/job history itself.
+   Measure real provider quality, timeout,
    429 behavior and recovery before expanding the daily cap.
 5. Keep original image generation a separate opt-in operation with provider
    setup, approved spending limits and a real quality trial. Groq captioning and

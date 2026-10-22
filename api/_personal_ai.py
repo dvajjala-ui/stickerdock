@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 
 from api._shared import StudioError, decode_image, normalize_upload_image, safe_text
 from tools.supabase_factory import PRIVATE_BUCKET, SupabaseError, SupabaseFactory
@@ -28,8 +29,8 @@ def job_id(value):
         raise StudioError("Invalid AI request identity") from None
 
 
-def source_path(owner, digest):
-    return f"users/{owner}/ai/sources/{digest}.webp"
+def source_path(owner, request_id, digest):
+    return f"users/{owner}/ai/sources/{request_id}-{digest}.webp"
 
 
 def read_rows(client, owner, query):
@@ -79,11 +80,21 @@ def dispatch(payload, owner, client=None):
             raise SupabaseError("Unknown private AI admission response")
         status = result["job_status"]
         if status == "uploading":
-            client.upload(PRIVATE_BUCKET, source_path(owner, digest), image, "image/webp")
+            path = source_path(owner, request_id, digest)
+            client.upload(PRIVATE_BUCKET, path, image, "image/webp")
             activated = client.rpc("activate_personal_ai_caption", {"p_owner": owner, "p_id": request_id})
-            if len(activated) != 1 or activated[0].get("job_status") != "queued":
+            if len(activated) != 1 or activated[0].get("job_status") not in {"queued", "cancelled"}:
                 raise SupabaseError("Private AI activation failed")
-            status = "queued"
+            status = activated[0]["job_status"]
+            if status == "cancelled":
+                # Cancellation may win while the bounded upload is in flight.
+                # A failed removal is retried by the terminal-job sweep.
+                try:
+                    client.remove(PRIVATE_BUCKET, [path])
+                    client.update("personal_ai_jobs", {"source_purged_at": datetime.now(timezone.utc).isoformat()},
+                                  "id", request_id)
+                except SupabaseError:
+                    pass
         return {"id": request_id, "status": status, "replayed": result.get("reason") == "replay"}
     if action == "status":
         request_id = job_id(payload.get("id"))

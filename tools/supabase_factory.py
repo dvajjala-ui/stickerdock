@@ -90,6 +90,15 @@ class SupabaseFactory:
             "Content-Type": content_type, "x-upsert": "true",
             "Cache-Control": "max-age=0" if path == "catalog/packs.json" else "max-age=3600"})
 
+    def remove(self, bucket, paths):
+        if not isinstance(paths, list) or not 1 <= len(paths) <= 1000:
+            raise ValueError("Invalid storage removal batch")
+        for path in paths:
+            self._object_path(bucket, path)
+        payload = json.dumps({"prefixes": paths}, separators=(",", ":")).encode()
+        self._request("DELETE", "/storage/v1/object/" + urllib.parse.quote(bucket, safe=""),
+                      data=payload, headers={"Content-Type": "application/json"})
+
     def list_objects(self, bucket, prefix, limit=100, offset=0):
         payload = json.dumps({"prefix": prefix, "limit": min(limit, 100),
                               "offset": offset, "sortBy": {"column": "name", "order": "asc"}}).encode()
