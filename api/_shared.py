@@ -225,7 +225,7 @@ def source_metadata(source_path):
     if not isinstance(metadata, dict) or metadata.get("license") not in (
             "CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"):
         raise StudioError("Invalid source rights metadata")
-    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title")
+    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title", "purpose")
             if key in metadata}
 
 
@@ -286,7 +286,10 @@ def creator_request_status(request_id) -> dict:
         "attempts", "created_at", "updated_at")}
 
 
-def upload_user_image(data_url: str, title: str = "Creator Studio upload", source_path=None) -> dict:
+def upload_user_image(data_url: str, title: str = "Creator Studio upload", source_path=None,
+                      rights="REFERENCE_ONLY") -> dict:
+    if rights not in ("USER_OWNED", "REFERENCE_ONLY"):
+        raise StudioError("Choose whether this image can be reused or is reference-only")
     original, _, _ = decode_image(data_url)
     data = normalize_upload_image(original)
     mime, extension = "image/webp", ".webp"
@@ -294,13 +297,15 @@ def upload_user_image(data_url: str, title: str = "Creator Studio upload", sourc
     object_path = "inbox/" + digest + extension
     metadata = {
         "source": "creator-studio", "source_url": "creator-studio://manual",
-        "download_url": "creator-studio://manual", "license": "USER_OWNED",
+        "download_url": "creator-studio://manual", "license": rights,
+        "purpose": "SOURCE" if rights == "USER_OWNED" else "REFERENCE",
         "title": safe_text(title, "title", 240) or "Creator Studio upload",
         "credit": "Factory owner upload",
     }
     if source_path is not None:
         metadata.update(source_metadata(source_path))
         metadata["derived_from"] = source_path
+        metadata["purpose"] = "RESULT"
     metadata = json.dumps(metadata, separators=(",", ":")).encode()
     supabase_request("/storage/v1/object/" + storage_path(
         "source-metadata/" + digest + ".json"), method="POST", data=metadata,
@@ -350,6 +355,7 @@ def preview_inbox(path: str) -> dict:
         clean.save(output, "WEBP", quality=75, method=4)
     return {"path": path, "name": str(metadata.get("title") or path.rsplit("/", 1)[-1])[:240],
             "license": metadata.get("license", "REFERENCE_ONLY"),
+            "purpose": metadata.get("purpose", "REFERENCE" if metadata.get("license") == "REFERENCE_ONLY" else "SOURCE"),
             "preview": "data:image/webp;base64," + base64.b64encode(output.getvalue()).decode()}
 
 

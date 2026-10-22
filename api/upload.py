@@ -14,7 +14,7 @@ class handler(BaseHTTPRequestHandler):
         try:
             request = read_json(self)
             result = upload_user_image(request.get("image", ""), request.get("title", ""),
-                                       request.get("source_path"))
+                                       request.get("source_path"), request.get("rights", "REFERENCE_ONLY"))
             send_json(self, 200, result)
         except StudioError as error:
             send_json(self, 400, {"error": str(error)})

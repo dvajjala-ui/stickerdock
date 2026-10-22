@@ -920,8 +920,10 @@ see [current reconnection status](PINTEREST_RECONNECTION.md). Earlier pending
 Pinterest text in this handoff is historical and superseded by that record.
 New uploads now apply orientation and strip embedded EXIF/text metadata before
 storing a bounded WebP source. Admin Media lazy-loads bounded previews and
-source titles and can load additional 100-item pages. These local changes need
-hosted visual acceptance; they do not close explicit rights selection or stable
+source titles and can load additional 100-item pages. Admin and Studio require
+an explicit reusable-source or reference-only choice; unspecified API uploads
+default to reference-only, and edited results inherit source rights. These
+local changes need hosted visual acceptance and do not close stable
 cursor/search work.
 
 ## Remaining production gates

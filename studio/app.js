@@ -111,6 +111,8 @@
   async function ensureAiSource() {
     if (sourcePath) return sourcePath;
     if (!ready || !image.src.startsWith("data:image/")) throw new Error("Choose an image first.");
+    const rights = $("source-rights").value;
+    if (!rights) throw new Error("Choose reuse rights before sending a local image online.");
     status("Saving the source to the Factory inbox…");
     const upload = document.createElement("canvas");
     const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
@@ -126,7 +128,7 @@
       smaller.getContext("2d").drawImage(upload, 0, 0, smaller.width, smaller.height);
       prepared = smaller.toDataURL("image/png");
     }
-    const result = await api("/api/upload", {image: prepared, title: "Creator AI source"});
+    const result = await api("/api/upload", {image: prepared, title: "Creator AI source", rights});
     sourcePath = result.path;
     return sourcePath;
   }
@@ -194,8 +196,10 @@
     const button = $("upload");
     button.disabled = true; status("Uploading edited sticker to the private inbox…");
     try {
+      const rights = sourcePath ? "REFERENCE_ONLY" : $("source-rights").value;
+      if (!rights) throw new Error("Choose reuse rights before uploading a local image.");
       const result = await api("/api/upload", {image: canvas.toDataURL("image/png"),
-        title: $("caption").value || "Creator Studio sticker", source_path: sourcePath});
+        title: $("caption").value || "Creator Studio sticker", source_path: sourcePath, rights});
       status(`Queued for the factory: ${result.sha256.slice(0, 10)}…`);
       await refreshLibrary();
     } catch (error) { status(error.message, true); }

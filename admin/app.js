@@ -132,10 +132,10 @@
   }
   function renderMedia() {
     return heading("Media library","Workspace sources, original memes and completed AI results.",button("Upload new meme","upload-source","","primary")+`<a class="secondary" href="/studio/index.html" target="_blank" rel="noopener">Open canvas editor ↗</a>`)+
-      `<input id="source-upload" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="notice">Upload images you own or have permission to use. Sources are visible in this shared workspace; rights are checked before app publication.</div>`+
+      `<input id="source-upload" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="notice">Uploads are visible in this shared workspace. Choose how each image may be used; public packs still require separate review.</div><label>How may this image be used?<select id="source-rights"><option value="">Choose before uploading</option><option value="USER_OWNED">I own it or have permission to make and share stickers</option><option value="REFERENCE_ONLY">Reference only · do not publish as a sticker</option></select></label>`+
       (library.length?`<div class="media-grid">${library.map(i=>{
         const detail=mediaDetails.get(i.path),name=detail?.name||i.name||i.path.slice(-20);
-        return `<article class="media-card">${detail?.preview?`<img src="${esc(detail.preview)}" alt="${esc(name)}">`:`<div class="media-placeholder" data-media-preview="${esc(i.path)}">▨</div>`}<div><strong data-media-title="${esc(i.path)}">${esc(name.slice(0,40))}</strong><p>${Math.ceil(i.size/1024)} KB · ${esc(detail?.license||"Workspace source")}</p>${button("Preview","preview-source",i.path)} ${button("Generate with AI","use-source",i.path,"text-button")}</div></article>`;
+        return `<article class="media-card">${detail?.preview?`<img src="${esc(detail.preview)}" alt="${esc(name)}">`:`<div class="media-placeholder" data-media-preview="${esc(i.path)}">▨</div>`}<div><strong data-media-title="${esc(i.path)}">${esc(name.slice(0,40))}</strong><p>${Math.ceil(i.size/1024)} KB · ${esc(detail?`${detail.purpose} · ${detail.license}`:"Workspace source")}</p>${button("Preview","preview-source",i.path)} ${button("Generate with AI","use-source",i.path,"text-button")}</div></article>`;
       }).join("")}</div>${libraryNextOffset!==null?`<div class="toolbar">${button("Load more media","media-more")}</div>`:""}`:empty("Add your first source","Upload an original meme, then use it in a generation request or a new pack."));
   }
   function hydrateMedia() {
@@ -152,7 +152,7 @@
         const image=document.createElement("img");image.src=detail.preview;image.alt=detail.name;node.replaceWith(image);
         const card=image.closest(".media-card");
         card.querySelector("[data-media-title]").textContent=detail.name.slice(0,40);
-        card.querySelector("p").textContent=`${Math.ceil((source?.size||0)/1024)} KB · ${detail.license}`;
+        card.querySelector("p").textContent=`${Math.ceil((source?.size||0)/1024)} KB · ${detail.purpose} · ${detail.license}`;
       } catch (_) {if(node.isConnected)node.textContent="Preview unavailable";}
     };
     if(!("IntersectionObserver" in window)){nodes.forEach(load);return;}
@@ -266,7 +266,7 @@
       if(action==="open-pack")return openPack(id);
       if(action==="migrate") {const result=await command("migrate_factory",{id});await refresh();toast("Factory output migrated. Original archive preserved.");return openPack(result.id);}
       if(action==="pack-next"||action==="pack-prev")return openPack(id,Math.max(0,detail.offset+(action==="pack-next"?5:-5)));
-      if(action==="upload-source")return $("source-upload").click();
+      if(action==="upload-source"){if(!$("source-rights").value)throw new Error("Choose reuse rights before uploading.");return $("source-upload").click();}
       if(action==="media-more"){if(libraryNextOffset!==null){await loadLibrary(libraryNextOffset);render();}return;}
       if(action==="preview-source") {
         const image=(await api("/api/library",{action:"fetch",path:id})).image;
@@ -297,7 +297,7 @@
     const id=appendPack.id;$("add-sources-dialog").close();$("pack-dialog").close();await refresh();await openPack(id);toast("Stickers added. Review the updated draft before publishing.");
   });});
   $("confirm-form").addEventListener("submit",e=>{e.preventDefault();const fn=confirmation;confirmation=null;$("confirm-dialog").close();if(fn)task(fn);});
-  document.addEventListener("change",e=>{if(e.target.id==="pack-filter"){filter=e.target.value;render();}if(e.target.id==="source-upload")task(async()=>{const file=e.target.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3_000_000)throw new Error("Choose a static PNG, JPEG or WebP under 3 MB.");const image=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error("Cannot read image"));r.readAsDataURL(file);});const saved=await command("source_upload",{image,title:file.name});mediaDetails.delete(saved.path);await loadLibrary();render();toast("Image saved in the Factory inbox.");});});
+  document.addEventListener("change",e=>{if(e.target.id==="pack-filter"){filter=e.target.value;render();}if(e.target.id==="source-upload")task(async()=>{const file=e.target.files[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>3_000_000)throw new Error("Choose a static PNG, JPEG or WebP under 3 MB.");const rights=$("source-rights").value;if(!rights)throw new Error("Choose reuse rights before uploading.");const image=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error("Cannot read image"));r.readAsDataURL(file);});const saved=await command("source_upload",{image,title:file.name,rights});mediaDetails.delete(saved.path);await loadLibrary();render();toast("Image saved in the Factory inbox.");});});
   document.addEventListener("input",e=>{if(e.target.id==="pack-search"){const pos=e.target.selectionStart;search=e.target.value;render();$("pack-search").focus();$("pack-search").setSelectionRange(pos,pos);}});
   $("refresh-button").addEventListener("click",()=>task(async()=>{if(["media","generate"].includes(page))await loadLibrary();await refresh();toast("Factory data refreshed.");}));
   $("menu-button").addEventListener("click",()=>$("sidebar").classList.toggle("open"));

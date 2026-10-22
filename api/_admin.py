@@ -459,7 +459,8 @@ def dispatch(payload, client=None):
     if action == "settings_save":
         return save_settings(client, payload)
     if action == "source_upload":
-        result = _shared.upload_user_image(payload.get("image"), payload.get("title", "Admin upload"))
+        result = _shared.upload_user_image(payload.get("image"), payload.get("title", "Admin upload"),
+                                           rights=payload.get("rights", "REFERENCE_ONLY"))
         audit(client, "source.uploaded", result["path"])
         return result
     if action == "source_info":

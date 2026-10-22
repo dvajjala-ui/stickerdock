@@ -33,9 +33,16 @@
           <b>Upload an image</b>
           <small>PNG, JPEG or WebP</small>
         </label>
+        <label for="source-rights">Reuse rights for a new upload
+          <select id="source-rights">
+            <option value="">Choose before sending a local image online</option>
+            <option value="USER_OWNED">I own it or may make and share stickers</option>
+            <option value="REFERENCE_ONLY">Reference only · keep out of public packs</option>
+          </select>
+        </label>
         <div class="source-label"><span>Factory inbox</span><button id="refresh" class="text-button">Refresh</button></div>
         <select id="library" aria-label="Factory inbox image">
-          <option value="">Pinterest, Commons and uploads appear here</option>
+          <option value="">Choose an existing inbox image</option>
         </select>
         <button id="load-library" class="secondary">Load selected image</button>
         <div class="source-flow">

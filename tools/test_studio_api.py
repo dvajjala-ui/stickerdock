@@ -103,12 +103,26 @@ class StudioApiTest(unittest.TestCase):
             return b""
 
         with patch.object(studio, "supabase_request", side_effect=capture):
-            result = studio.upload_user_image(image_data_url(), "My original")
+            result = studio.upload_user_image(image_data_url(), "My original", rights="USER_OWNED")
         self.assertEqual(len(calls), 2)
         self.assertIn("/inbox/", calls[1][0])
         metadata = json.loads(calls[0][1]["data"])
         self.assertEqual(metadata["license"], "USER_OWNED")
+        self.assertEqual(metadata["purpose"], "SOURCE")
         self.assertEqual(len(result["sha256"]), 64)
+
+    def test_unspecified_rights_stay_reference_only(self):
+        calls = []
+        with patch.object(studio, "supabase_request", side_effect=lambda path, **kwargs:
+                calls.append((path, kwargs)) or b""):
+            studio.upload_user_image(image_data_url(), "Inspiration")
+        metadata = json.loads(calls[0][1]["data"])
+        self.assertEqual((metadata["license"], metadata["purpose"]),
+                         ("REFERENCE_ONLY", "REFERENCE"))
+        with patch.object(studio, "supabase_request") as storage:
+            with self.assertRaises(studio.StudioError):
+                studio.upload_user_image(image_data_url(), rights="CC0")
+            storage.assert_not_called()
 
     def test_upload_applies_orientation_and_removes_embedded_metadata(self):
         original = io.BytesIO()
@@ -171,6 +185,7 @@ class StudioApiTest(unittest.TestCase):
         with patch.object(studio, "supabase_request", side_effect=storage):
             result = studio.preview_inbox(source)
         self.assertEqual((result["name"], result["license"]), ("My cat reaction", "USER_OWNED"))
+        self.assertEqual(result["purpose"], "SOURCE")
         self.assertTrue(result["preview"].startswith("data:image/webp;base64,"))
         self.assertLess(len(result["preview"]), 100_000)
 
