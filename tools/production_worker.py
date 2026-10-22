@@ -515,7 +515,10 @@ def persist_failure(client, config, now, error, generated=None):
             state = json.loads(state_path.read_text())
     waiting = isinstance(error, ProviderResponseError) or isinstance(error, ProviderError) and (error.status == 429 or error.status >= 500)
     if isinstance(error, ProviderError):
-        state["provider_error"] = {"http_status": error.status, "retry_at": error.retry_at}
+        # The generator already persisted a sanitized provider code, if one
+        # was supplied. Preserve it while refreshing the structured status.
+        state["provider_error"] = {**state.get("provider_error", {}),
+                                   "http_status": error.status, "retry_at": error.retry_at}
     exhausted = (int(state.get("requests", 0)) >= int(config.get("max_requests_per_day", 16))
                  and len(state.get("records", [])) < target and not state.get("pending"))
     waiting = waiting and not exhausted
@@ -527,6 +530,8 @@ def persist_failure(client, config, now, error, generated=None):
               else "Provider rate limit reached. Progress saved; the next scheduled worker retries after cooldown."
               if waiting else "Provider authentication rejected. Check worker credentials before retrying."
               if isinstance(error, ProviderError) and error.status in (401, 403)
+              else "Provider rejected the generation request (HTTP 400). Saved stickers remain private; check the configured vision format."
+              if isinstance(error, ProviderError) and error.status == 400
               else type(error).__name__ + ": worker failed; inspect Actions logs")
     metrics = run_metrics(state)
     if state.get("records") and not isinstance(error, (ProviderError, ProviderResponseError)):

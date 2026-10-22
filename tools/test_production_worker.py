@@ -145,6 +145,22 @@ class ProductionWorkerTest(unittest.TestCase):
             self.assertIn("credentials", summary["result"])
             self.assertEqual(request.call_count, 1)
 
+    def test_http_400_keeps_only_safe_provider_code_and_actionable_status(self):
+        client = FakeSupabase()
+        with tempfile.TemporaryDirectory() as temporary:
+            day = Path(temporary) / DAY
+            day.mkdir()
+            (day / "state.json").write_text(json.dumps({
+                "records": [], "requests": 2, "next_request_at": NOW + 900,
+                "provider_error": {"http_status": 400, "retry_at": NOW + 900,
+                                   "code": "json_validate_failed"}}))
+            summary = worker.persist_failure(client, {"daily_target": 40}, NOW,
+                                             worker.ProviderError(400, NOW + 900),
+                                             Path(temporary))
+        row = client.rows[("factory_runs", DAY)]
+        self.assertEqual(row["groq_metrics"]["recovery"]["code"], "json_validate_failed")
+        self.assertIn("HTTP 400", summary["result"])
+
     def test_rate_limit_survives_new_runner_then_completes_after_cooldown(self):
         config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60,
                   "modes": ["illustration"]}
