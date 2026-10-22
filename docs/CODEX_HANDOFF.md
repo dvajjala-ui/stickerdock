@@ -898,11 +898,13 @@ Pinterest boards with rolling budgets, retry/dedup and private provenance.
 Pinterest defaults to `REFERENCE_ONLY`; public publishing refuses those derived
 pixels unless explicit compatible rights metadata exists.
 
-Pinterest's developer dashboard currently shows Trial access pending for
-`apphidwarkesh`, and the supplied token was rejected by API v5. The public-topic
-adapter is configured as a private `REFERENCE_ONLY` fallback while the official
-connector is paused. Official board sync still requires Pinterest approval and a
-fresh OAuth token; board IDs can then be discovered automatically.
+The older `apphidwarkesh` application was denied, and its supplied token was
+rejected by API v5. Replacement app 1624615 now has Trial access and an approved
+read-only OAuth connection. On October 22 the live Admin check reached the
+official boards API and returned `connected`; browsing returned the public
+`Quick Saves` board. No Pins were in that board, so Pin-link behavior has not
+been accepted against a nonempty board. Pin/Board API data remains live
+`REFERENCE_ONLY` material and must not be copied into sticker output.
 
 `tools/video_stickers.py` converts authorized GIF/MP4/WebM/MOV inputs to bounded
 captioned animated WebP using FFmpeg. This does not imply device-side animated
@@ -916,8 +918,8 @@ records exact Factory batch boundaries and prepares a private, idempotent review
 draft for each completed batch even below the daily target. Focused Python tests
 cover a 5/40 batch and replay without overwriting owner edits. This has not yet
 been verified in the deployed Factory or on a phone. Pinterest app 1624615
-showed Trial access active, but the live Admin status was still not connected;
-see [current reconnection status](PINTEREST_RECONNECTION.md). Earlier pending
+showed Trial access active, and a later approved OAuth attempt established the
+read-only production connection; see [current reconnection status](PINTEREST_RECONNECTION.md). Earlier pending
 Pinterest text in this handoff is historical and superseded by that record.
 New uploads now apply orientation and strip embedded EXIF/text metadata before
 storing a bounded WebP source. Admin Media lazy-loads bounded previews and

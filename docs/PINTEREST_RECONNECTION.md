@@ -5,15 +5,14 @@ in older Factory/Pinterest documents; it does not remove the user's requirements
 
 ## Current connection status
 
-The Pinterest developer dashboard showed **Trial access active** for StickerDock
-app **1624615** on October 22. A same-day live Admin `pinterest_status` read
-reported `configured=false`, `oauth_ready=false`, `not_connected`: approval has
-not yet produced a working OAuth connection. The redirect URI must be saved in
-the app dashboard and `PINTEREST_APP_ID` / `PINTEREST_APP_SECRET` configured as
-server-only Production values before the owner connects from Admin. Browser
-control became unavailable before these steps could be completed. No Pin/Board
-response has been fetched by the new connection. No request for broader write
-or advertising access has been made.
+The Pinterest developer dashboard shows **Trial access active** for StickerDock
+app **1624615**. On October 22, the exact redirect URI was saved, the existing
+app secret was configured as a server-only Vercel Production secret and the
+read-only OAuth consent completed. The live Admin **Check connection** returned
+`connected` after the server called the official boards API. **Browse my boards**
+returned the `Quick Saves` board; that board currently returned no Pins. This
+verifies connection and board access, not that any reference media is available
+for sticker creation. No write or advertising scope was requested.
 
 Before Trial approval, a user-generated 24-hour limited token was tested once
 against `/v5/boards?page_size=1`: HTTP 401, code 3, consumer type not supported.
@@ -58,11 +57,13 @@ uploaded or licensed source media. The previous app ID 1624134 was denied and
 contained placeholder links; this request supplies the real product pages and
 replaces the earlier download/archive use case with this read-only integration.
 
-The app is approved for Trial access, but local tests cannot verify the OAuth
-redirect, production credentials or live board response. Set
-`PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` as protected Vercel Production
-values; mirror app ID as a GitHub variable and the secret as a GitHub secret if
-daily OAuth refresh is required. Never commit credentials.
+The app ID defaults to 1624615 in source. `PINTEREST_APP_SECRET` exists only as
+a protected Vercel Production value; the OAuth access and refresh credentials
+are stored in private Supabase storage. The approved scopes are
+`boards:read,pins:read`. Never commit credentials. The first OAuth attempt
+failed because Admin requests had `credentials: "omit"`, which discarded the
+short-lived state cookie. Commit `2ab52c7` changed requests to same-origin
+credentials; the subsequent live attempt succeeded.
 
 ## Implemented connection
 
@@ -74,6 +75,9 @@ Access/refresh credentials live in private Supabase storage, not browser storage
 Revocation is available in Pinterest's own account settings. The daily job now
 checks connection health without saving Pins or downloading images. Legacy Pin
 downloads remain unmodified remotely but cannot enter new AI conversions.
+The shared Admin has no account gate by owner request: anyone with its URL can
+browse the connected account's **public** boards/Pins or disconnect Pinterest.
+This access model should be revisited before inviting external users.
 
 ## Desired visual style and personal data
 

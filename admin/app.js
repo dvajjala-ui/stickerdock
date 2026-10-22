@@ -6,7 +6,9 @@
   const categories = ["GENERAL","REACTIONS","HINGLISH","MOVIES","NEWS","ANIMALS","LOVE","WORK","FESTIVALS","OTHER"];
   const contentCategories = ["TRENDING","POLITICS","CREATIVE","MOVIES","SERIES","INDIA","SPORTS","TECHNOLOGY","EVERYDAY","ADULT_HUMOR"];
   const titles = {overview:"Overview",packs:"Sticker packs",media:"Media library",generate:"AI workbench",content:"Content planner",factory:"Factory & queue",catalog:"Public catalog",activity:"Activity log",settings:"Settings",health:"Setup & health"};
-  let loaded = false, connectionError = "", page = "overview", data, library = [], libraryNextOffset = null, detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
+  const pinterestReturn = new URLSearchParams(location.search).get("pinterest");
+  let loaded = false, connectionError = "", page = ["connected","failed"].includes(pinterestReturn)?"pinterest":"overview", data, library = [], libraryNextOffset = null, detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
+  if(["connected","failed"].includes(pinterestReturn))history.replaceState(null,"",location.pathname);
   const mediaDetails = new Map();
   let mediaObserver = null;
   let pendingCreatorJob = null;
@@ -30,8 +32,9 @@
   function renderPinterest() {
     const status=pinterest||{status:"not_connected",message:"Connect an approved app to browse your own boards live.",oauth_ready:false};
     return heading("Pinterest connection","Live references from your own authorized account. Your meme sources stay separate.",button("Check connection","pinterest-check","","primary"))+
+      (pinterestReturn==="failed"?'<div class="notice">Pinterest did not connect. Try Connect with Pinterest again, then use Check connection to verify access.</div>':"")+
       `<section class="panel"><h2>${esc(status.status.replaceAll("_"," "))}</h2><p>${esc(status.message)}</p>${status.app_id?`<p>Application ID: ${esc(status.app_id)}. Check the developer dashboard for review status.</p>`:""}<p>Required scopes: boards:read, pins:read. No advertising or write access is requested.</p><div class="toolbar">${button("Connect with Pinterest","pinterest-connect","","primary")}${button("Browse my boards","pinterest-boards")}${button("Disconnect","pinterest-disconnect")}<a class="secondary" href="https://developers.pinterest.com/apps/" target="_blank" rel="noopener">Developer dashboard ↗</a></div></section>`+
-      `<section class="panel"><h3>Real application links</h3><p><a href="/about" target="_blank" rel="noopener">StickerDock website ↗</a> · <a href="/privacy" target="_blank" rel="noopener">Privacy policy ↗</a> · <a href="/support" target="_blank" rel="noopener">Support ↗</a></p><p class="hint">OAuth callback: https://stickerdock.vercel.app/api/pinterest_callback. Application approval and server app credentials are required before OAuth works.</p></section><div class="notice">Pinterest responses are fetched live and never archived or converted into sticker packs. For real-image memes, upload your own image in Media library or use independently licensed Factory media. Phone imports stay local; signed-in users can enable private cloud backup separately.</div>`+
+      `<section class="panel"><h3>Real application links</h3><p><a href="/about" target="_blank" rel="noopener">StickerDock website ↗</a> · <a href="/privacy" target="_blank" rel="noopener">Privacy policy ↗</a> · <a href="/support" target="_blank" rel="noopener">Support ↗</a></p><p class="hint">OAuth callback: https://stickerdock.vercel.app/api/pinterest_callback. Application approval and server app credentials are required before OAuth works.</p></section><div class="notice">This Admin has no account gate. Anyone with its URL can browse the connected account’s public boards and Pins or disconnect Pinterest. Pinterest responses are fetched live and never archived or converted into sticker packs. For real-image memes, upload your own image in Media library or use independently licensed Factory media. Phone imports stay local; signed-in users can enable private cloud backup separately.</div>`+
       `<section class="panel"><h3>${pinterestBoard?"Pins on this board":"Your boards"}</h3>${pinterestBoard?button("← Back to boards","pinterest-boards"):""}${pinterestItems.length?`<ul>${pinterestItems.map(i=>`<li>${pinterestBoard?`<a href="${esc(i.url)}" target="_blank" rel="noopener noreferrer">${esc(i.name||"Open Pin")} ↗</a>`:button(esc(i.name||"Untitled board"),"pinterest-board",i.id,"text-button")}</li>`).join("")}</ul>`:"<p>No live results loaded. Use Browse my boards after connection.</p>"}${pinterestBookmark?button("Load next page","pinterest-next"):""}</section>`;
   }
   function emptyLiveData() {return {packs:[],factory_packs:[],runs:[],requests:[],events:[],briefs:[],settings:null,catalog:{version:1,packs:[]},catalog_base:readiness?.catalog_base||"Server configuration required"};}
@@ -86,6 +89,7 @@
     let nextReadiness=readiness;
     if(!nextReadiness||page==="health"||nextReadiness.admin_ready===false)nextReadiness=await api("/api/admin",{action:"health"});
     const nextData=nextReadiness.admin_ready===false?emptyLiveData():await api("/api/admin",{action:"overview"});
+    if(page==="pinterest")pinterest=await command("pinterest_status");
     if(background&&(version!==interactionVersion||!canBackgroundRefresh()))return;
     data=nextData;readiness=nextReadiness;loaded=true;connectionError="";lastRefreshAt=Date.now();
     if(readiness.admin_ready===false)page="health";
@@ -203,7 +207,7 @@
     $("create-sources").innerHTML=library.map(s=>`<label class="source-choice"><input type="checkbox" name="sources" value="${esc(s.path)}" ${s.path===selectedPath?"checked":""}>${s.preview?`<img src="${esc(s.preview)}" alt="">`:""}<span>${esc(s.name||s.path.slice(-20))}</span></label>`).join("")||'<p class="hint">Upload an image in Media library first.</p>';
     $("create-dialog").showModal();
   }
-  async function navigate(next) {if(!pages[next])return;if(readiness?.admin_ready===false)next="health";page=next;$("sidebar").classList.remove("open");if(["media","generate"].includes(next))await loadLibrary();if(next==="community")community=await command("community_list");render();}
+  async function navigate(next) {if(!pages[next])return;if(readiness?.admin_ready===false)next="health";page=next;$("sidebar").classList.remove("open");if(["media","generate"].includes(next))await loadLibrary();if(next==="community")community=await command("community_list");if(next==="pinterest")pinterest=await command("pinterest_status");render();}
   function stickerSource(reference) {
     const media=reference?.media_credit||{};
     const title=media.title||media.file||reference?.source_path||"Source not recorded";
