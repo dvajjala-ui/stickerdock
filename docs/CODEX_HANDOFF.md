@@ -893,10 +893,10 @@ to set `STORAGE_MONITOR_ENABLED=true`.
 ### Pinterest / media sources
 
 `tools/media_library.py` supports bounded CC0/public-domain Wikimedia discovery.
-`tools/pinterest_autosync` / `tools/pinterest_worker.py` support official authorized
-Pinterest boards with rolling budgets, retry/dedup and private provenance.
-Pinterest defaults to `REFERENCE_ONLY`; public publishing refuses those derived
-pixels unless explicit compatible rights metadata exists.
+Historical note: `tools/pinterest_autosync` implemented Pin downloading with
+rolling budgets and private provenance. Its worker entry point is now retired;
+the scheduled job checks only official connection health. Pinterest responses
+remain live references and never enter sticker output.
 
 The older `apphidwarkesh` application was denied, and its supplied token was
 rejected by API v5. Replacement app 1624615 now has Trial access and an approved

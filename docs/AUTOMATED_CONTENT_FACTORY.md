@@ -23,20 +23,12 @@ Use the exact secret name `GROQ_TRENDS_API_KEY` for the new higher-limit key.
 The current Groq browser-search implementation uses `openai/gpt-oss-20b`.
 Do not use the retired `groq/compound` or `groq/compound-mini` model IDs.
 
-Pinterest remains a separate optional source integration:
-
-| Type | Exact name | Purpose |
-| --- | --- | --- |
-| Secret | `PINTEREST_ACCESS_TOKEN` | OAuth access token from an approved Pinterest developer app |
-| Variable | `PINTEREST_OFFICIAL_ENABLED` | Optional official-connector switch; set `false` while Pinterest app access is pending |
-| Variable | `PINTEREST_BOARD_IDS` | Optional comma-separated board IDs; when omitted, the worker discovers boards authorized for the account |
-| Secret | `PINTEREST_PIN_RIGHTS_JSON` | Per-Pin reuse rights for Pins you own or may legally reuse |
-| Variable | `PINTEREST_SYNC_ENABLED` | Set to `true` only after a successful manual workflow smoke |
-
-A normal Pinterest website login or browser cookie is not used by the worker.
-Official OAuth is required for unattended access. Pinterest media remains
-`REFERENCE_ONLY` unless a specific Pin has an explicit supported rights entry;
-reference-only pixels cannot pass public publication review.
+Pinterest is a separate read-only reference connection. Its app secret is a
+Vercel Production variable, and OAuth credentials are stored in private
+Supabase storage. The Pinterest Actions job checks connection health only; it
+does not download, archive, or pass Pin media to the Factory. See
+[PINTEREST_RECONNECTION.md](PINTEREST_RECONNECTION.md). The old
+`PINTEREST_PIN_RIGHTS_JSON` and downloader settings are retired.
 
 ## Daily flow
 
@@ -92,7 +84,8 @@ original illustrated and animated reactions locally. It also consumes:
 
 - owner uploads from Admin or Creator Studio;
 - CC0/public-domain images discovered through Wikimedia Commons;
-- authorized Pinterest board items as private references;
+- live Pinterest board source links for inspiration only, with no Pin bytes in
+  the media queue;
 - licensed short clips supported by the existing FFmpeg path.
 
 Groq provides research, caption writing and source-image analysis here; it is

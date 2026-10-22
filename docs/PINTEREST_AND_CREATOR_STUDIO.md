@@ -1,5 +1,11 @@
 # Pinterest sources and Creator Studio
 
+**Historical design record.** Pinterest downloading, private Pin media staging,
+unofficial topic discovery, and per-Pin rights secrets described below are
+retired. Current behavior is official read-only OAuth with live board/Pin links
+only; no Pin image enters the media inbox or Factory. Follow
+[PINTEREST_RECONNECTION.md](PINTEREST_RECONNECTION.md) for current setup.
+
 Current access model: October 19 R40 removed Admin/Studio login and token gates.
 The deployed shared workspace opens directly to anyone with the URL; phone cloud
 remains authenticated. See [OPEN_ADMIN.md](OPEN_ADMIN.md). The older setup and
