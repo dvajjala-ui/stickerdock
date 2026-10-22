@@ -51,11 +51,17 @@ An existing operator caption queue does not establish native app AI support.
   the authenticated API reports `PERSONAL_AI_ENABLED=true` in Vercel. Mature
   packs have no online action. Existing cloud sign-in supplies encrypted session
   refresh; private sync can remain disabled.
+- iPhone Create now has its own optional account sign-in, private caption-free
+  static preview request, status refresh and explicit **Use as caption** action.
+  Its session is stored in the device-only Keychain; the request ID is keyed to
+  the selected preview and prompt for retry after reselecting that media. No
+  clip or mature-pack preview is sent. Apple CI is configured to compile and
+  exercise the iPhone source on pushes that change it, but physical-device and
+  WhatsApp acceptance remain open.
 
 The four-call cap is for the personal lane only. Factory and shared Studio have
 their own current local limits; a single cross-lane provider reservation is
-still required before claiming a unified budget. iPhone does not yet have this
-new account-owned action. Original image synthesis is a separate unimplemented
+still required before claiming a unified budget. Original image synthesis is a separate unimplemented
 feature; Groq vision captioning does not create novel people or imagery.
 
 ## Next code slice
@@ -66,8 +72,9 @@ feature; Groq vision captioning does not create novel people or imagery.
 2. Apply one server-enforced provider budget shared with the Factory. Two Groq
    keys from one account do not imply independent quotas. Never trust client
    counters, hide errors as success or use unbounded automatic retries.
-3. Connect iPhone Create to the same private account contract and explicit
-   preview/apply/save semantics. Add native end-to-end two-account tests.
+3. Verify the iPhone Create account/preview/apply flow in Apple CI and on a
+   signed physical device. Add native end-to-end two-account tests and automatic
+   result notification; current status refresh is user-initiated.
 4. Verify private-source cleanup against live Storage, including cancelled
    uploads, and consider a retention limit for the caption/job history itself.
    Measure real provider quality, timeout,

@@ -1,6 +1,15 @@
 name: Apple app and shared-core verification
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - 'sticker-core/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'tools/apple_simulator_destination.py'
+      - '.github/workflows/apple-core.yml'
   pull_request:
     branches: [main]
     paths:
