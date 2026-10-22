@@ -253,6 +253,18 @@ class DailyStickersTest(unittest.TestCase):
             self.assertEqual([item["source"] for item in result], [None] * 3)
             self.assertIn("never an IMAGE number", json.loads(fetch.call_args.args[1])["messages"][1]["content"][0]["text"])
 
+    def test_vision_article_is_topic_inspiration_not_visual_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "sample.png"
+            Image.new("RGB", (64, 64), "blue").save(path)
+            reply = {"choices": [{"finish_reason": "stop", "message": {
+                "content": json.dumps({"stickers": [{**idea, "source": 0} for idea in ideas(3)]})}}]}
+            with patch.object(generator, "fetch_bytes", return_value=json.dumps(reply).encode()):
+                result = generator.groq_ideas("fixture", "test-vision", 3, "daily reactions",
+                                              [{"title": "Topic", "url": "https://example.org/story"}],
+                                              [], str(path))
+            self.assertEqual([item["source"] for item in result], [None] * 3)
+
     def test_vision_caption_normalizes_typography_but_keeps_latin_script(self):
         self.assertEqual(generator.normalize_vision_caption("  That’s wild 😹 — wait…  "),
                          "That's wild - wait...")

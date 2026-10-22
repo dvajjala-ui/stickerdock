@@ -231,8 +231,8 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
                          "playful sarcasm, surprise) rather than repeating one catchphrase. Do not "
                          "invent a visible event, identify real people or infer sensitive traits. "
                          "Use basic Latin letters and ASCII punctuation, with no emoji or Hindi script. "
-                         "The source field is only a zero-based index into the references array, "
-                         "never an IMAGE number; use null when the references array is empty." +
+                         "The source field must be null for image-based stickers. "
+                         "It is never an IMAGE number; image provenance is attached separately." +
                          (" The sheet contains numbered images. In order, write each sticker caption "
                           "for its assigned image number: " + json.dumps(assignment) +
                           ". Each caption must fit that particular image, not a neighboring image."
@@ -296,10 +296,10 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
     except (KeyError, IndexError, TypeError, json.JSONDecodeError):
         LAST_GROQ_METRICS["validation_error"] = "invalid_json_or_envelope"
         raise ValueError("Invalid Groq JSON response") from None
-    # The artwork uses the contact-sheet assignment by output position. When
-    # there are no news references, an IMAGE number in `source` cannot denote
-    # provenance, so clear it instead of rejecting an otherwise valid batch.
-    if image_path and not sources and isinstance(content, dict) and isinstance(content.get("stickers"), list):
+    # The artwork uses contact-sheet assignment by output position. A visual
+    # reaction's provenance is its licensed image credit, not a news article
+    # that merely inspired the topic. Never treat an IMAGE number as a source.
+    if image_path and isinstance(content, dict) and isinstance(content.get("stickers"), list):
         for item in content["stickers"]:
             if isinstance(item, dict):
                 item["source"] = None
