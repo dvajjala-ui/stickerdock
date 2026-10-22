@@ -52,8 +52,31 @@ try {
   assert.equal((await db.query('select * from public.activate_personal_ai_caption($1::uuid,$2::uuid)',
     [owner, ids[1]])).rows[0].job_status, 'cancelled');
 
+  // The provider cap applies across accounts and stays spent after completion.
+  // A worker must not make a fifth call just because earlier jobs finished.
+  for (let n = 0; n < 4; n++) {
+    const anotherOwner = `e86450f8-bd03-4b6a-ac98-65def9f26f${(40 + n).toString(16)}`;
+    const anotherID = `1d2dcb41-2a23-4db8-810c-b42104050e${(40 + n).toString(16)}`;
+    await db.query('insert into auth.users(id) values($1)', [anotherOwner]);
+    assert.equal((await queue(anotherID, anotherOwner)).rows[0].accepted, true);
+    assert.equal((await db.query('select * from public.activate_personal_ai_caption($1::uuid,$2::uuid)',
+      [anotherOwner, anotherID])).rows[0].job_status, 'queued');
+    assert.equal((await db.query("select * from public.claim_personal_ai_caption('worker')")).rows[0].id, anotherID);
+    assert.equal((await db.query("select * from public.reserve_personal_ai_provider_call($1::uuid,'worker')",
+      [anotherID])).rows[0].allowed, n < 3);
+    assert.equal((await db.query("select * from public.finish_personal_ai_caption($1::uuid,'worker',null,'limit')",
+      [anotherID])).rows[0].updated, true);
+  }
+  assert.equal((await db.query('select count(*)::int as count from public.personal_ai_provider_reservations')).rows[0].count, 4);
+
+  // Abandoned uploads close as failures, then become eligible for source cleanup.
+  await db.query("update public.personal_ai_jobs set created_at = now() - interval '21 minutes' where id=$1", [ids[2]]);
+  assert.equal((await db.query("select * from public.claim_personal_ai_caption('worker')")).rows.length, 0);
+  const expired = (await db.query('select status,error_code from public.personal_ai_jobs where id=$1', [ids[2]])).rows[0];
+  assert.deepEqual(expired, { status: 'failed', error_code: 'invalid_source' });
+
   await db.exec('set role service_role');
-  assert.equal((await db.query('select count(*)::int as count from public.personal_ai_jobs')).rows[0].count, 3);
+  assert.equal((await db.query('select count(*)::int as count from public.personal_ai_jobs')).rows[0].count, 7);
   await db.exec('reset role');
   for (const role of ['anon', 'authenticated']) {
     await db.exec(`set role ${role}`);
