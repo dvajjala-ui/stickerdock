@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -114,7 +115,21 @@ def references(feeds, supplied, now):
     return items[:30], warnings
 
 
-def validate_ideas(raw, count, excluded, source_count):
+def normalize_vision_caption(value):
+    """Repair harmless model typography without inventing or translating text."""
+    if not isinstance(value, str):
+        return value
+    punctuation = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"',
+                                  "–": "-", "—": "-", "…": "...", "\u00a0": " "})
+    value = value.translate(punctuation)
+    value = "".join(character for character in value
+                    if not (ord(character) > 127 and (
+                        unicodedata.category(character) in {"So", "Sk", "Cf"}
+                        or character in {"\ufe0e", "\ufe0f", "\u20e3"})))
+    return " ".join(value.split())
+
+
+def validate_ideas(raw, count, excluded, source_count, caption_limit=48):
     if not isinstance(raw, dict) or not isinstance(raw.get("stickers"), list):
         raise ValueError("Groq response must contain a stickers array")
     if len(raw["stickers"]) != count:
@@ -124,10 +139,13 @@ def validate_ideas(raw, count, excluded, source_count):
         if not isinstance(item, dict):
             raise ValueError("Invalid sticker object")
         caption = item.get("caption")
-        if (not isinstance(caption, str) or not 1 <= len(caption.strip()) <= 48
-                or not re.fullmatch(r"[\x20-\x7e]+", caption)):
-            raise ValueError("Use 1–48 printable ASCII characters per caption")
+        if not isinstance(caption, str) or not caption.strip():
+            raise ValueError("Caption is empty or not text")
         caption = " ".join(caption.split())
+        if len(caption) > caption_limit:
+            raise ValueError("Caption exceeds length limit")
+        if not re.fullmatch(r"[\x20-\x7e]+", caption):
+            raise ValueError("Caption contains unsupported characters")
         if caption.casefold() in seen:
             raise ValueError("Duplicate caption in generation history")
         seen.add(caption.casefold())
@@ -285,14 +303,21 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
         for item in content["stickers"]:
             if isinstance(item, dict):
                 item["source"] = None
+    if image_path and isinstance(content, dict) and isinstance(content.get("stickers"), list):
+        for item in content["stickers"]:
+            if isinstance(item, dict):
+                item["caption"] = normalize_vision_caption(item.get("caption"))
     try:
-        return validate_ideas(content, count, excluded, len(sources))
+        return validate_ideas(content, count, excluded, len(sources),
+                              caption_limit=64 if image_path else 48)
     except ValueError as error:
         reasons = {
             "Groq response must contain a stickers array": "missing_batch",
             "Groq returned the wrong batch size": "wrong_batch_size",
             "Invalid sticker object": "invalid_sticker",
-            "Use 1–48 printable ASCII characters per caption": "invalid_caption",
+            "Caption is empty or not text": "empty_caption",
+            "Caption exceeds length limit": "caption_too_long",
+            "Caption contains unsupported characters": "caption_unsupported_characters",
             "Duplicate caption in generation history": "duplicate_caption",
             "Unsupported mood or palette": "invalid_mood_or_color",
             "Invalid reference index": "invalid_reference_index",

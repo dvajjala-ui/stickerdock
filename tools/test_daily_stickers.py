@@ -222,8 +222,10 @@ class DailyStickersTest(unittest.TestCase):
                 path = Path(temporary) / f"{index}.png"
                 Image.new("RGB", (500, 500), color).save(path)
                 paths.append(str(path))
+            generated = ideas(3)
+            generated[0]["caption"] = "That's wild 😹 — wait…"
             reply = {"choices": [{"finish_reason": "stop", "message": {
-                "content": json.dumps({"stickers": ideas(3)})}}]}
+                "content": json.dumps({"stickers": generated})}}]}
             with patch.object(generator, "fetch_bytes", return_value=json.dumps(reply).encode()) as fetch:
                 result = generator.groq_ideas("fixture", "test-vision", 3, "daily reactions", [], [], paths)
             payload = json.loads(fetch.call_args.args[1])
@@ -234,6 +236,7 @@ class DailyStickersTest(unittest.TestCase):
             self.assertEqual(generator.LAST_GROQ_METRICS["request_shape"]["source_images"], 3)
             self.assertGreater(generator.LAST_GROQ_METRICS["request_shape"]["encoded_image_bytes"], 0)
             self.assertEqual(len(result), 3)
+            self.assertEqual(result[0]["caption"], "That's wild - wait...")
 
     def test_vision_image_numbers_do_not_become_news_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -249,6 +252,14 @@ class DailyStickersTest(unittest.TestCase):
                 result = generator.groq_ideas("fixture", "test-vision", 3, "reactions", [], [], paths)
             self.assertEqual([item["source"] for item in result], [None] * 3)
             self.assertIn("never an IMAGE number", json.loads(fetch.call_args.args[1])["messages"][1]["content"][0]["text"])
+
+    def test_vision_caption_normalizes_typography_but_keeps_latin_script(self):
+        self.assertEqual(generator.normalize_vision_caption("  That’s wild 😹 — wait…  "),
+                         "That's wild - wait...")
+        self.assertEqual(generator.normalize_vision_caption("क्या scene hai"), "क्या scene hai")
+        with self.assertRaisesRegex(ValueError, "unsupported characters"):
+            generator.validate_ideas({"stickers": [{**ideas(1)[0], "caption": "क्या scene hai"}]},
+                                     1, [], 0, caption_limit=64)
 
     def test_portrait_photo_fills_reaction_area_without_changing_the_source(self):
         with tempfile.TemporaryDirectory() as temporary:
