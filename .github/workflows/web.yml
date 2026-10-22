@@ -7,6 +7,7 @@ on:
       - 'studio/**'
       - 'api/**'
       - 'tools/**'
+      - 'supabase/migrations/**'
       - '.github/workflows/web.yml'
   pull_request:
     branches: [main]
@@ -15,6 +16,7 @@ on:
       - 'studio/**'
       - 'api/**'
       - 'tools/**'
+      - 'supabase/migrations/**'
       - '.github/workflows/web.yml'
 concurrency:
   group: web-${{ github.ref }}
@@ -42,3 +44,8 @@ jobs:
           node --check studio/app.js
           python -m ruff check api tools --select F821,F822,F823
           python -m unittest discover -s tools -p 'test_*.py' -q
+      - name: Validate private AI migration and grants locally
+        run: |
+          cd tools/sqlcheck
+          npm ci --ignore-scripts
+          npm test
