@@ -38,7 +38,12 @@
     "queue": [
       {"title":"Yawning cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Yawning_cat.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/a/a8/Yawning_cat.jpg", "license":"PUBLIC_DOMAIN", "credit":"Scobull, public domain"},
       {"title":"Yawning cat by David Montolio", "source_url":"https://commons.wikimedia.org/wiki/File:Yawning_cat_by_David_Montolio.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/8/88/Yawning_cat_by_David_Montolio.jpg", "license":"CC0", "credit":"David Montolio, CC0 1.0"},
-      {"title":"Standing cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Cat_is_standing.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/9/93/Cat_is_standing.jpg", "license":"CC0", "credit":"Zhmila, CC0 1.0"}
+      {"title":"Standing cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Cat_is_standing.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/9/93/Cat_is_standing.jpg", "license":"CC0", "credit":"Zhmila, CC0 1.0"},
+      {"title":"Yawning dog reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Yawning_Dog.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/b/b8/Yawning_Dog.jpg", "license":"CC0", "credit":"Teneab, CC0 1.0"},
+      {"title":"Angry cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Angry_cat_by_Juliet_van_Ree.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/3/3b/Angry_cat_by_Juliet_van_Ree.jpg", "license":"CC0", "credit":"Jvanree, CC0 1.0"},
+      {"title":"Funny white cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:My_cat_is_white.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/c/c7/My_cat_is_white.jpg", "license":"CC0", "credit":"Dewi Rahmawaati, CC0 1.0"},
+      {"title":"Smiling dog reaction", "source_url":"https://commons.wikimedia.org/wiki/File:Smiling_dog_at_Pype_Hayes_park.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/7/7f/Smiling_dog_at_Pype_Hayes_park.jpg", "license":"CC0", "credit":"Benocalla2, CC0 1.0"},
+      {"title":"Sleepy cat reaction", "source_url":"https://commons.wikimedia.org/wiki/File:DomesticCatLyingOnBack.jpg", "download_url":"https://upload.wikimedia.org/wikipedia/commons/6/6b/DomesticCatLyingOnBack.jpg", "license":"CC0", "credit":"Patheticandugly, CC0 1.0"}
     ]
   }
 }
