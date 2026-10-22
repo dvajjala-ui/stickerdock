@@ -511,6 +511,7 @@ def run(config, root, font_path, now=None):
     target, batch = config.get("daily_target", 40), config.get("batch_size", 5)
     interval = config.get("interval_seconds", 10800)
     max_attempts = config.get("max_requests_per_day", 16)
+    min_photo_sources = config.get("min_distinct_source_images", 0)
     modes = config.get("modes", ["illustration"])
     topics = config.get("topics", [config.get("topic", "technology, light news, everyday reactions")])
     topic_plans = config.get("topic_plans")
@@ -529,7 +530,8 @@ def run(config, root, font_path, now=None):
     if (type(target) is not int or not 3 <= target <= 100
             or type(batch) is not int or not 3 <= batch <= 10
             or not isinstance(interval, (int, float)) or interval < 60
-            or type(max_attempts) is not int or not 1 <= max_attempts <= 100):
+            or type(max_attempts) is not int or not 1 <= max_attempts <= 100
+            or type(min_photo_sources) is not int or not 0 <= min_photo_sources <= 10):
         raise ValueError("Invalid daily target, batch size, interval or request budget")
     root = root.resolve()
     if config.get("media_library", {}).get("enabled"):
@@ -581,6 +583,8 @@ def run(config, root, font_path, now=None):
                     images = [p for p in images if p.name in config.get("allowed_media_files", [])]
                 if not images or not config.get("vision_model"):
                     raise ValueError("Photo mode requires supplied images and a configured Groq vision model")
+                if mode == "photo" and len(images) < min_photo_sources:
+                    return f"Waiting for {min_photo_sources} distinct licensed reaction photos"
                 remaining = target - len(state["records"])
                 count = min(batch, remaining)
                 if remaining - count in (1, 2):

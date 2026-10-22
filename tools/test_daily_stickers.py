@@ -203,6 +203,21 @@ class DailyStickersTest(unittest.TestCase):
                     samples.append(sticker.convert("RGBA").getpixel((256, 150))[:3])
             self.assertEqual(len(set(samples)), 5)
 
+    def test_photo_batch_waits_for_three_distinct_sources_without_spending_provider_call(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            for index in range(2):
+                Image.new("RGB", (500, 500), "red").save(inputs / f"photo-{index}.png")
+            config = {"modes": ["photo"], "image_directory": str(inputs),
+                      "vision_model": "test-vision", "min_distinct_source_images": 3}
+            with patch.object(generator, "groq_ideas") as call:
+                result = generator.run(config, root / "outputs", FONT, NOW)
+            self.assertIn("Waiting for 3", result)
+            call.assert_not_called()
+            self.assertFalse((root / "outputs/2026-10-12/state.json").exists())
+
     def test_photo_batches_prefer_recently_unused_sources(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
             root = Path(temporary)

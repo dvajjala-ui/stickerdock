@@ -38,6 +38,25 @@ jobs:
       CATALOG_BASE_URL: ${{ vars.CATALOG_BASE_URL || 'https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/' }}
     steps:
       - uses: actions/checkout@v7
+      - name: Require a fresh version for changed source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(python - <<'PY'
+          import pathlib, re
+          text = pathlib.Path('app/build.gradle.kts').read_text()
+          print(re.search(r'versionName\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"', text).group(1))
+          PY
+          )
+          TAG="android-v$VERSION"
+          if gh release view "$TAG" --json targetCommitish > /tmp/existing-release.json 2>/dev/null; then
+            TARGET=$(python -c 'import json; print(json.load(open("/tmp/existing-release.json"))["targetCommitish"])')
+            if [[ "$TARGET" != "$GITHUB_SHA" ]]; then
+              echo "::error::Android $VERSION is already published from $TARGET. Bump versionName/versionCode before building changed source."
+              exit 1
+            fi
+          fi
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

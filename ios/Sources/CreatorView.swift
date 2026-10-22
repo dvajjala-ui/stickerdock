@@ -63,6 +63,8 @@ struct CreatorView: View {
     @StateObject private var ai = PersonalCaptionClient()
     @State private var aiAccountPresented = false
     @State private var aiConsentPresented = false
+    @State private var aiRightsConfirmed = false
+    @State private var aiOnlineConfirmed = false
     @State private var aiPrompt = "Make one short, funny reaction caption for this image"
     @State private var aiJob: PersonalCaptionJob?
     @State private var aiKey = ""
@@ -126,7 +128,9 @@ struct CreatorView: View {
                                 .accessibilityIdentifier("ai-caption-prompt")
                             Text("Only a caption-free sticker preview is sent after you confirm. Use an image you own or may license for this purpose.")
                                 .font(.caption).foregroundStyle(.secondary)
-                            Button("Suggest a caption", systemImage: "text.bubble", action: { aiConsentPresented = true })
+                            Button("Suggest a caption", systemImage: "text.bubble") {
+                                aiRightsConfirmed = false; aiOnlineConfirmed = false; aiConsentPresented = true
+                            }
                                 .disabled(aiBusy || aiPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || aiPrompt.count > 200)
                             if aiBusy { ProgressView("Preparing your private request…") }
                             if let aiJob {
@@ -138,6 +142,7 @@ struct CreatorView: View {
                                         .accessibilityIdentifier("apply-ai-caption")
                                 } else if ["uploading", "queued", "running"].contains(aiJob.status) {
                                     Button("Check suggestion") { checkAISuggestion() }.disabled(aiBusy)
+                                    Button("Cancel request", role: .destructive) { cancelAISuggestion() }.disabled(aiBusy)
                                 } else if aiJob.status == "failed" {
                                     Text("This request could not finish. You can make a local sticker or try a new suggestion.")
                                         .font(.caption).foregroundStyle(.secondary)
@@ -184,11 +189,29 @@ struct CreatorView: View {
         .operationFeedback(active: destination != nil)
         .task { await ai.checkAvailability() }
         .sheet(isPresented: $aiAccountPresented) { NavigationStack { PersonalCaptionAccountView(client: ai) } }
-        .alert("Send a preview for an AI caption?", isPresented: $aiConsentPresented) {
-            Button("Send preview") { requestAISuggestion() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("StickerDock sends one caption-free preview to its private caption service and Groq. Confirm you may use the image for general audiences. The suggestion is not saved until you choose it and save the sticker.")
+        .sheet(isPresented: $aiConsentPresented) {
+            NavigationStack {
+                Form {
+                    Section("Your image") {
+                        Toggle("I own or have permission to use this image", isOn: $aiRightsConfirmed)
+                        Text("Only general-audience photos can be sent. Mature packs and videos stay on this iPhone.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Section("Online processing") {
+                        Toggle("I agree to send one caption-free preview to StickerDock and Groq", isOn: $aiOnlineConfirmed)
+                        Text("The suggestion returns as text. It is not put in your library until you apply it, preview the sticker and save.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .navigationTitle("AI caption consent")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { aiConsentPresented = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Send preview") { aiConsentPresented = false; requestAISuggestion() }
+                            .disabled(!aiRightsConfirmed || !aiOnlineConfirmed)
+                    }
+                }
+            }
         }
         .photosPicker(isPresented: $photosPresented, selection: $photo, matching: .any(of: [.images, .videos]))
         .fileImporter(isPresented: $importer, allowedContentTypes: [.image, .movie]) { result in
@@ -210,11 +233,12 @@ struct CreatorView: View {
                 try await select(file.file, session: session)
             }
         }
-        .onChange(of: recipe) { _, _ in output = nil }
+        .onChange(of: recipe) { _, _ in output = nil; invalidateAISuggestion() }
         .onChange(of: recipe.duration) { _, duration in
             if let info { recipe.start = min(recipe.start, max(0, info.duration - duration)) }
         }
         .onChange(of: variants) { _, _ in output = nil }
+        .onChange(of: aiPrompt) { _, _ in invalidateAISuggestion() }
         .onDisappear {
             // Keep the main Create tab's draft when switching tabs. A dismissed
             // pack creator releases its media; system pickers are not dismissal.
@@ -227,7 +251,7 @@ struct CreatorView: View {
         try Task.checkCancellation()
         guard sessionID == session else { throw CancellationError() }
         source = file; info = inspected; output = nil
-        aiTask?.cancel(); aiTask = nil; aiOperationID = UUID(); aiJob = nil; aiKey = ""; aiBusy = false
+        invalidateAISuggestion()
         recipe.start = 0; recipe.duration = min(2, inspected.duration > 0 ? inspected.duration : 2)
         recipe.removeBackground = false
     }
@@ -320,6 +344,25 @@ struct CreatorView: View {
         }
     }
 
+    private func cancelAISuggestion() {
+        guard let id = aiJob.flatMap({ UUID(uuidString: $0.id) }), let owner = ai.ownerID, !aiBusy else { return }
+        let selectedSession = sessionID
+        let operationID = UUID(); aiOperationID = operationID
+        aiBusy = true
+        aiTask = Task {
+            defer { if aiOperationID == operationID { aiBusy = false; aiTask = nil } }
+            do {
+                let status = try await ai.cancel(id)
+                try Task.checkCancellation()
+                guard sessionID == selectedSession, ai.ownerID == owner else { throw CancellationError() }
+                if status == "cancelled" {
+                    ai.savePending(nil, for: aiKey)
+                    aiJob = PersonalCaptionJob(id: id.uuidString.lowercased(), status: status, caption: nil, errorCode: nil)
+                } else { aiJob = try await ai.status(id) }
+            } catch is CancellationError {} catch { if aiOperationID == operationID { model.error = error.localizedDescription } }
+        }
+    }
+
     private func run(_ label: String, action: @escaping @MainActor () async throws -> Void) {
         guard model.busy == nil else { return }
         ownsOperation = true
@@ -329,9 +372,14 @@ struct CreatorView: View {
         }
     }
 
+    private func invalidateAISuggestion() {
+        aiTask?.cancel(); aiTask = nil; aiOperationID = UUID()
+        aiJob = nil; aiKey = ""; aiBusy = false
+    }
+
     private func endSession() {
         if ownsOperation { model.cancel() }
-        aiTask?.cancel(); aiTask = nil; aiOperationID = UUID(); aiBusy = false; aiJob = nil; aiKey = ""
+        invalidateAISuggestion()
         sessionID = UUID()
         source = nil; info = nil; output = nil; photo = nil
     }

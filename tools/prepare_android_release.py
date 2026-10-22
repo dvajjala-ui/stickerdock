@@ -32,6 +32,8 @@ def prepare(apk, bundle, output, source, run_url):
     (output / "SHA256SUMS.txt").write_text("".join(f"{digest}  {name}\n" for name, digest in hashes.items()), encoding="utf-8")
     (output / "release-notes.md").write_text(
         f"Android {version} (build {code})\n\n"
+        "- Create real-media reaction stickers locally from your own photos, video clips and GIFs; review the result before saving.\n"
+        "- The Text tool now includes an opt-in private AI caption suggestion for general-audience static stickers. The server-side switch remains off until the database migration, provider and two-account live checks pass; local editing works normally.\n"
         "- Share one video or GIF from another Android app into the animated creator; trim, caption and preview locally, then save explicitly.\n"
         "- Device-local sticker Favorites with artwork, search/type/topic filters, move preservation and Delete/Undo recovery; removing a shortcut keeps the sticker.\n"
         "- Pack-centered Library and Discover, larger artwork previews and search grouped by pack.\n"
@@ -39,7 +41,7 @@ def prepare(apk, bundle, output, source, run_url):
         "- Simplified creation/settings and contextual WhatsApp or Business actions with an add-again recovery option.\n"
         "- Cutout edge brushes, saved drafts, public pack codes and explicit received-pack import with retry.\n"
         "- Private editable Android backups retain normalized originals, masks and drafts; portable saved-sticker backups remain compatible.\n"
-        "- Existing library formats and signing identity preserved; optional original-art worker remains server-side, disabled by default and not live-validated.\n\n"
+        "- Existing library formats and signing identity preserved; original image synthesis is not included in this build.\n\n"
         f"Source: `{source}`. [Build and acceptance evidence]({run_url}).\n\n"
         "The signed APK passes native unit checks and AOSP emulator acceptance before publication. "
         "Real-phone WhatsApp/Business acceptance remains separate. "

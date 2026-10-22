@@ -18,7 +18,8 @@ const assert = require('node:assert/strict');
         content_categories: ['EVERYDAY'], rating: 'GENERAL'},
       catalog: {version: 1, packs: []}, catalog_base: 'https://example.invalid/catalog/'
     };
-    let overviewRequests = 0, releaseBackground, backgroundStarted;
+    let overviewRequests = 0, releaseBackground, backgroundStarted, uploaded = 0;
+    const mediaItems = [];
     const sessionRequests = [];
     page.on('request', request => {if (request.url().endsWith('/api/session')) sessionRequests.push(request.url());});
     const backgroundObserved = new Promise(resolve => {backgroundStarted = resolve;});
@@ -30,6 +31,14 @@ const assert = require('node:assert/strict');
       if (payload.action === 'health') {
         return route.fulfill({json: {admin_ready: true, worker_ready: true, checks: []}});
       }
+      if (payload.action === 'source_upload') {
+        assert.equal(payload.rights, 'USER_OWNED');
+        assert.ok(payload.image.startsWith('data:image/png;base64,'));
+        uploaded++;
+        const path = 'inbox/' + 'b'.repeat(64) + '.png';
+        mediaItems.push({path, name: 'My own meme.png', size: 256});
+        return route.fulfill({json: {path}});
+      }
       assert.equal(payload.action, 'overview');
       overviewRequests++;
       if (overviewRequests === 2) {
@@ -37,6 +46,14 @@ const assert = require('node:assert/strict');
         await new Promise(resolve => {releaseBackground = resolve;});
       }
       await route.fulfill({json: snapshot});
+    });
+    await page.route('**/api/library', async route => {
+      const payload = route.request().postDataJSON();
+      if (payload.action === 'list') return route.fulfill({json: {items: mediaItems, next_offset: null}});
+      if (payload.action === 'preview') return route.fulfill({json: {
+        path: payload.path, name: 'My own meme', purpose: 'SOURCE', license: 'USER_OWNED',
+        preview: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg=='}});
+      throw new Error('Unexpected Admin library action: ' + payload.action);
     });
     await page.goto(process.env.ADMIN_PREVIEW_URL || 'http://127.0.0.1:4173/admin');
     await page.getByRole('heading', {name: 'Your sticker factory, at a glance.', exact: true}).waitFor();
@@ -70,6 +87,18 @@ const assert = require('node:assert/strict');
     await page.locator('#menu-button').click();
     await page.locator('nav button[data-page=catalog]').click();
     await page.getByText('Users preview and save the packs they want.', {exact: false}).waitFor();
+    await page.setViewportSize({width: 1280, height: 900});
+    await page.locator('nav button[data-page=media]').click();
+    await page.getByRole('heading', {name: 'Media library', exact: true}).waitFor();
+    await page.locator('#source-rights').selectOption('USER_OWNED');
+    const png = await page.evaluate(() => {
+      const canvas = document.createElement('canvas'); canvas.width = 2; canvas.height = 2;
+      return canvas.toDataURL('image/png').split(',')[1];
+    });
+    await page.locator('#source-upload').setInputFiles({name: 'my-own-meme.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64')});
+    await page.locator('.media-card').waitFor();
+    assert.equal(uploaded, 1, 'A rights-confirmed local image should reach the workspace upload action');
+    await page.getByText('My own meme', {exact: false}).first().waitFor();
     assert.deepEqual(errors, []);
     assert.deepEqual(sessionRequests, [], 'Dashboard must never call the removed session API');
 
@@ -100,7 +129,10 @@ const assert = require('node:assert/strict');
       studioActions.push(endpoint + ':' + payload.action);
       const path = 'inbox/' + 'a'.repeat(64) + '.png';
       if (endpoint === '/api/library' && payload.action === 'list')
-        return route.fulfill({json: {items: [{path, name: 'Owned test source', size: 1024}]}});
+        return route.fulfill({json: {items: [{path, name: 'Owned test source', size: 1024}], next_offset: null}});
+      if (endpoint === '/api/library' && payload.action === 'preview')
+        return route.fulfill({json: {path, name: 'Owned test source', purpose: 'SOURCE', license: 'USER_OWNED',
+          preview: await studio.locator('#canvas').evaluate(canvas => canvas.toDataURL('image/png'))}});
       if (endpoint === '/api/library' && payload.action === 'fetch')
         return route.fulfill({json: {image: await studio.locator('#canvas').evaluate(canvas => canvas.toDataURL('image/png'))}});
       if (endpoint === '/api/captions' && payload.action === 'queue')
@@ -111,8 +143,7 @@ const assert = require('node:assert/strict');
     });
     await studio.goto(new URL('/studio/index.html', process.env.ADMIN_PREVIEW_URL || 'http://127.0.0.1:4173').href);
     await studio.locator('#refresh').click();
-    await studio.locator('#library').selectOption('inbox/' + 'a'.repeat(64) + '.png');
-    await studio.locator('#load-library').click();
+    await studio.locator('#library-gallery .library-item').first().click();
     await studio.locator('#prompt').fill('An original reaction');
     await studio.waitForFunction(() => !document.querySelector('#generate').disabled);
     await studio.locator('#generate').click();
@@ -127,7 +158,8 @@ const assert = require('node:assert/strict');
       'settings form protected from polling', 'actions remain enabled', 'direct dashboard without login/session API',
       'startup outage and retry without fake data',
       'Studio source loading and fixture AI queue/result without authentication',
-      'rate-limit waiting state and retry time', 'mobile layout', 'explicit catalog save wording', 'no page errors'
+      'rate-limit waiting state and retry time', 'mobile layout', 'explicit catalog save wording',
+      'rights-confirmed Admin media upload', 'no page errors'
     ]}));
   } finally {
     await browser.close();

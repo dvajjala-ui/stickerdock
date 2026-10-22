@@ -150,11 +150,12 @@ struct PersonalCaptionJob {
 
     func checkAvailability() async {
         guard session != nil else { available = false; return }
+        let expected = generation
         do {
             let token = try await bearer()
             let result = try await request("/api/personal_ai", ["action": "availability"], bearer: token)
-            available = result["available"] as? Bool == true
-        } catch { available = false }
+            if generation == expected { available = result["available"] as? Bool == true }
+        } catch { if generation == expected { available = false } }
     }
 
     func submit(image: Data, prompt: String, id: UUID) async throws -> PersonalCaptionJob {
@@ -173,6 +174,17 @@ struct PersonalCaptionJob {
         let result = try await request("/api/personal_ai", ["action": "status", "id": id.uuidString.lowercased()], bearer: token)
         guard let job = result["job"] as? [String: Any] else { throw StickerError.invalid("AI status was unavailable.") }
         return try Self.job(job)
+    }
+
+    func cancel(_ id: UUID) async throws -> String {
+        let token = try await bearer()
+        let result = try await request("/api/personal_ai", ["action": "cancel", "id": id.uuidString.lowercased()], bearer: token)
+        guard result["id"] as? String == id.uuidString.lowercased(),
+              let status = result["status"] as? String,
+              ["cancelled", "complete", "failed"].contains(status) else {
+            throw StickerError.invalid("AI cancellation was unavailable.")
+        }
+        return status
     }
 
     private static func job(_ value: [String: Any]) throws -> PersonalCaptionJob {

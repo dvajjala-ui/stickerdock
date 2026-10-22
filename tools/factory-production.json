@@ -8,6 +8,7 @@
   "modes": ["photo", "clip"],
   "require_real_media": true,
   "require_reaction_media": true,
+  "min_distinct_source_images": 3,
   "topics": [
     "TECHNOLOGY | Latest technology and light news reactions in Hinglish",
     "EVERYDAY | Everyday desi reactions in Hinglish",

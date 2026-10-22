@@ -51,8 +51,9 @@ An existing operator caption queue does not establish native app AI support.
   the authenticated API reports `PERSONAL_AI_ENABLED=true` in Vercel. Mature
   packs have no online action. Existing cloud sign-in supplies encrypted session
   refresh; private sync can remain disabled.
-- iPhone Create now has its own optional account sign-in, private caption-free
-  static preview request, status refresh and explicit **Use as caption** action.
+- iPhone Create now has its own optional account sign-in, separate rights and
+  online-processing confirmations, private caption-free static preview request,
+  status/cancel actions and explicit **Use as caption** action.
   Its session is stored in the device-only Keychain; the request ID is keyed to
   the selected preview and prompt for retry after reselecting that media. No
   clip or mature-pack preview is sent. Apple CI is configured to compile and
@@ -63,6 +64,12 @@ The four-call cap is for the personal lane only. Factory and shared Studio have
 their own current local limits; a single cross-lane provider reservation is
 still required before claiming a unified budget. Original image synthesis is a separate unimplemented
 feature; Groq vision captioning does not create novel people or imagery.
+
+The migration contract is checked locally and in Web/API CI with
+`cd tools/sqlcheck && npm ci --ignore-scripts && npm test`. This executes the
+SQL in PGlite and checks grants, owner isolation, replay, claiming, budget and
+cancellation. It does not apply the migration to production or replace a live
+two-account Supabase test.
 
 ## Next code slice
 
