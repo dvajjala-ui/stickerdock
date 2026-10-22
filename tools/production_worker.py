@@ -538,6 +538,7 @@ def persist_failure(client, config, now, error, generated=None):
     client.upsert("factory_runs", [row], "day")
     return {"day": day, "status": "waiting" if waiting else "failed", "target": target,
             "generated": row["generated"], "result": result,
+            **({"recovery_kind": error.kind} if isinstance(error, ProviderResponseError) else {}),
             **({"retry_at": error.retry_at} if isinstance(error, (ProviderError, ProviderResponseError)) else {})}
 
 
@@ -656,6 +657,8 @@ def main():
         with tempfile.TemporaryDirectory(prefix="stickerdock-production-") as temporary:
             summary = run_production(config, Path(temporary), SupabaseFactory())
     print(json.dumps(summary, sort_keys=True))
+    if summary.get("recovery_kind") == "invalid_response":
+        raise SystemExit("Factory response failed validation; saved state will retry on schedule")
 
 
 if __name__ == "__main__":

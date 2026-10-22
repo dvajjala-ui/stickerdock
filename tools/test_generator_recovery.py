@@ -62,6 +62,13 @@ class GeneratorRecoveryTest(unittest.TestCase):
             self.assertNotIn("provider_error", state)
             self.assertEqual(state["next_request_at"], NOW + 900 + 10800)
 
+    def test_invalid_response_is_exposed_as_a_safe_worker_outcome(self):
+        client = FakeSupabase()
+        summary = worker.persist_failure(client, {"daily_target": 3}, NOW,
+                                         generator.ProviderResponseError("invalid_response", NOW + 900))
+        self.assertEqual(summary["recovery_kind"], "invalid_response")
+        self.assertNotIn("private provider", json.dumps(summary))
+
     def test_preflight_obeys_pause_daily_budget_and_saved_render(self):
         client = FakeSupabase()
         self.assertTrue(factory_preflight.due(client, now=NOW)[0])
