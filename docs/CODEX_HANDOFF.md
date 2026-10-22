@@ -1,4 +1,33 @@
-# StickerDock development handoff — updated October 21, 2026
+# StickerDock development handoff — updated October 22, 2026
+
+## Product audit and next implementation — October 22, 2026
+
+The latest user request is a product-wide list/research audit. The proposed
+features remain open after this documentation checkpoint. Read
+[PRODUCT_AUDIT_AND_BACKLOG_2026-10-22.md](PRODUCT_AUDIT_AND_BACKLOG_2026-10-22.md)
+and new ledger requirements R41–R43. There are 14 confirmed defect/operational
+items, 60 gaps/extensions, 12 acceptance gates and four decisions, with evidence,
+priorities, outcomes and official-source research.
+
+Read-only live refresh at 06:19 UTC: one public pack / four stickers; recent days
+15–25/40. production_worker.persist_run and auto_migrate_completed only make an
+ordinary review draft from the full daily-complete archive. Deliver completed
+batches independently of the daily target first, preserving idempotency,
+provenance and review. Then connect visual web review/publication to mobile
+Discover with explicit Save. Neither public catalog reads nor web Creator jobs
+prove an account-owned native AI flow exists.
+
+Upload already exists under Media library/Studio. Finish its purpose-aware
+Create/Template/Reference → pack → phone flow; fix absent previews, hash names,
+first-100-only listing, misleading private copy, retained EXIF, assumed ownership
+and non-idempotent job submission. Preserve R40 open Admin behavior and keep
+personal native AI account-scoped. Tenor's developer API retired June 2026;
+do not revive it as a new source dependency. See the audit's integration table.
+
+This continuation changes documentation only. No production content/database
+edits, provider generation, manual deployment, migration or new release/device
+acceptance was performed by the audit. Documentation follows the existing main
+integration; previous Android/iPhone artifacts and their evidence remain below.
 
 ## iPhone 0.10.2 photo ZIP acceptance — October 21, 2026
 

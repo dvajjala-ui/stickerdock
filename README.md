@@ -12,6 +12,14 @@ as explicitly requested on October 19. Their workspace data and controls are
 accessible to anyone with the URL. Existing database content is retained;
 phone cloud backups still require account authentication. See [the access model](docs/OPEN_ADMIN.md).
 
+October 22: [the product audit and implementation backlog](docs/PRODUCT_AUDIT_AND_BACKLOG_2026-10-22.md)
+records 90 prioritized defects, gaps/extensions, acceptance checks and decisions.
+Live generation creates partial batches but ordinary review-draft delivery waits
+for the complete daily target; the public catalog currently has one four-sticker
+pack. The plan connects automatic content, native personal AI, website uploads,
+real/animated media, iPhone completion and coherent navigation. It is an audit,
+not a claim that those pending features are implemented.
+
 These links stay current with successful releases. Android changes merged into
 `main` build and verify a signed APK/AAB, then run that exact APK on an Android 15
 emulator before advancing the download. Failed builds keep the previous release.

@@ -1,5 +1,20 @@
 # StickerDock requirements ledger
 
+## Product-wide audit and automatic memes — October 22, 2026
+
+User asks for all identified bugs, missing implementation, product suggestions,
+similar-product/case-study research and a complete pending-feature list. They
+also request automatic meme creation visible in mobile and a website upload
+destination for custom images that can become stickers or serve as references.
+See [the dated audit and 90-item backlog](PRODUCT_AUDIT_AND_BACKLOG_2026-10-22.md).
+This is an audit checkpoint, not completion of the proposed implementation.
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
+| R41 | Audit all currently identified bugs, missing implementation, product gaps and improvements against source/live behavior and similar-product research | Audit complete; implementation open | October 22 read-only production/browser inspection, current source, synthetic local probes and official product/provider research produce 14 defect/operational items, 60 gaps/extensions, 12 acceptance gates and four decisions. Each has a priority and outcome. Findings are bounded by the inspected scope, not a guarantee of no other bugs. |
+| R42 | Create useful memes automatically and make them accessible in the mobile product | Partial | Scheduled generation exists; October 17–21 runs report 15–25/40 while ordinary draft delivery requires a complete daily archive. The public catalog currently contains one four-sticker pack. Per-batch ready drafts, reliable publication/discovery and account-owned native AI/results remain open. Automatic creation/feed freshness does not reverse R22's explicit local Save requirement. |
+| R43 | Provide a clear website custom-upload flow for sticker creation, templates and references | Partial | Media library already has Upload new meme and Studio has image upload/canvas. Add a coherent Upload / Media destination with purpose/rights/privacy selection, thumbnails/human names, pagination/search, motion/bulk inputs, pack creation and phone handoff. The R40 workspace is shared, not personal private storage. |
+
 October 21 iPhone continuation (R13/R24/R32): tested 0.10.2/build 14 adds
 bounded native PNG/JPEG photo ZIP conversion, alpha/EXIF orientation, normalized
 dedup and static/animated segregation. Matching Apple CI (39606440645) passes an unsigned device build and 19 native /
@@ -24,7 +39,7 @@ passes unit/lint/build and signed on-screen acceptance and is published from
 See FAVORITES.md. This is a continuation of R05/R06/R13, not closure of broader
 AI, content, iPhone or physical-device requirements.
 
-Updated 2026-10-19. Preserve IDs and history. Add new user requests here before implementation. Never delete a requirement; mark it Updated (with a replacement ID) or Removed with the user's decision and date. Active means still required; Partial and Pending identify unfinished work. Source implementation is not device acceptance.
+Updated 2026-10-22. Preserve IDs and history. Add new user requests here before implementation. Never delete a requirement; mark it Updated (with a replacement ID) or Removed with the user's decision and date. Active means still required; Partial and Pending identify unfinished work. Source implementation is not device acceptance.
 
 Latest direction: [Product rebuild, October 18](PRODUCT_REBUILD_2026-10-18.md), with [verbatim user requests](PRODUCT_REBUILD_REQUEST_2026-10-18.md). Reconsider the full product, remove clutter and implement pack-centered creation/discovery/WhatsApp use; the complaints are examples, not the entire scope. The October 15 recovery/data guarantees and Android/iPhone requirements remain active. Automatic library population is superseded by R22.
 
@@ -100,7 +115,7 @@ User request: “push code abd upated latets apk and admin web site needed like�
 | R25 | Professional visual discovery, library, editor and account experience | Partial | 0.7.0 adds artwork-led Discover, preview/save, a compact welcome, consistent icons and neutral surfaces. Emulator checks found/fixed sheet/FAB/editor overlap. Full visual acceptance and remaining redesign are pending. |
 | R26 | Dependable photo/meme/animated/AI creation with visible job status and recovery | Partial | 0.7.0 adds 429 recovery, undo/redo and verified file commits. 0.8.0 adds editable starting stickers/recipes, local draft autosave/Resume, atomic recipe/artifact saves and manual traced cutout. Signed 0.9.0 passes real native WebM/MP4/GIF trim/caption/preview/save/restart and rotated-portrait emulator checks. Current acceptance: RECOVERY_PROGRESS.md. Automatic segmentation, native AI suggestions, durable editable video projects, full-resolution/project backup and physical acceptance remain pending. |
 | R27 | Content supply independent of Pinterest, with evaluated APIs/open-source tools | Partial | Commons/local media adapters, FFmpeg conversion and independently licensed human/animal trials exist; all eight reference repositories were reviewed. Broad reviewed catalog and durable attribution remain incomplete. GIPHY requires use-specific terms approval for persistent packs; no third-party catalog scraping or copying is implemented. |
-| R28 | Usable secure owner admin access and production operations | Partial | Portal and email/password entry previously verified; no default password is known, supplied or reset. Current hosted refresh, recovery mail/MFA, job health, rights review, user isolation and rollout/restore remain explicit gates. |
+| R28 | Usable secure owner admin access and production operations | Updated by R40 / operations partial | R40 intentionally replaced the former owner login with an open shared operator workspace. Do not restore a password gate without a new decision or describe these uploads/jobs as personal private data. Phone-cloud authentication remains separate. Accurate job health, rights review, resource controls, account-owned native AI and rollout/restore remain open; see the October 22 audit. |
 | R29 | Broaden implementation around real WhatsApp reaction memes and animated media, with repository/product research | Partial | All eight supplied repositories and actual Pinterest/Sticker.ly previews inspected; findings/licenses in REAL_MEDIA_CREATOR_PLAN_2026-10-16.md. Signed native 0.9.1 creator passes local creation/save/upgrade checks. Three additional licensed human/animal source works produce 12 real-photo/animated trial stickers in four explicitly imported packs, retained across upgrade/restart. Focal framing and sharper previews address observed photo problems. Broad catalog and content-quality acceptance remain pending; small trials are not catalog completion. Synthetic fixtures remain data-integrity evidence only. |
 | R30 | Permit architectural changes needed for a usable two-platform product | Active | October 16: user authorizes architecture changes and reference-code investigation. Prefer measured improvements and compatible migrations; approval does not imply private-endpoint access, third-party media rights or a verified iPhone build. API credentials and deployment retain their explicit setup gates. |
 | R31 | Groq-first media helper: research trends separately, suggest context-aware captions and create packs from supplied photos/videos/GIFs | Partial | Signed 0.9.0 native video/GIF trim/caption/preview/save works offline and passes emulator acceptance. Local worker adds six-frame motion context and revised Groq caption instructions; these worker changes are not deployed or live-tested. Native Groq suggestions, shared provider budgets and full assistant UX remain pending. Paid image synthesis is optional; no OpenAI purchase is required for conversion and two same-organization keys do not double quota. |
