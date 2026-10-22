@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -85,9 +86,16 @@ def overview(client):
         pending = {key: pool.submit(read) for key, read in reads.items()}
         result = {key: future.result() for key, future in pending.items()}
     for run in result["runs"]:
+        outcome = run.get("groq_metrics", {}).get("terminal_outcome")
+        if outcome in {"partial", "failed"}:
+            run["display_status"] = outcome
+        elif run["status"] == "running" and str(run.get("day", "")) < datetime.now(timezone.utc).date().isoformat():
+            run["display_status"] = "partial" if run.get("generated", 0) else "failed"
+            run["last_result"] = (f"UTC day ended with {run.get('generated', 0)}/{run.get('target', 0)} stickers. "
+                                  "Saved media is retained; check private review drafts.")
         recovery = run.get("groq_metrics", {}).get("recovery", {})
         retryable = recovery.get("http_status") == 429 or recovery.get("http_status", 0) >= 500 or recovery.get("kind") in {"invalid_response", "network_error"}
-        if retryable and run["status"] == "running":
+        if retryable and run["status"] == "running" and "display_status" not in run:
             retry_at = recovery.get("retry_at", 0)
             run["display_status"] = "waiting" if retry_at > time.time() else "retry_due"
             run["retry_at"] = retry_at

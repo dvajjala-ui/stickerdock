@@ -1,5 +1,6 @@
 import base64
 import copy
+from datetime import datetime, timezone
 import io
 import json
 import os
@@ -79,14 +80,24 @@ class AdminApiTest(unittest.TestCase):
         self.assertEqual(self.client.objects, before)
 
     def test_overview_exposes_cooldown_then_retry_due_without_changing_database_status(self):
-        row = {"day": DAY, "status": "running", "groq_metrics": {
+        today = datetime.now(timezone.utc).date().isoformat()
+        row = {"day": today, "status": "running", "groq_metrics": {
             "recovery": {"http_status": 429, "retry_at": NOW + 100}}}
-        self.client.rows[("factory_runs", DAY)] = row
+        self.client.rows[("factory_runs", today)] = row
         with patch.object(admin.time, "time", return_value=NOW):
             run = admin.overview(self.client)["runs"][0]
             self.assertEqual((run["display_status"], run["retry_at"]), ("waiting", NOW + 100))
         with patch.object(admin.time, "time", return_value=NOW + 101):
             self.assertEqual(admin.overview(self.client)["runs"][0]["display_status"], "retry_due")
+        self.assertNotIn("display_status", row)
+
+    def test_overview_labels_old_partial_day_without_mutating_row(self):
+        row = {"day": "2026-10-11", "status": "running", "generated": 5,
+               "target": 40, "groq_metrics": {}}
+        self.client.rows[("factory_runs", row["day"])] = row
+        run = admin.overview(self.client)["runs"][0]
+        self.assertEqual(run["display_status"], "partial")
+        self.assertIn("5/40", run["last_result"])
         self.assertNotIn("display_status", row)
 
     def test_migration_is_idempotent_and_keeps_original_archive(self):

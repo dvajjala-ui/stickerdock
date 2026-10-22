@@ -215,6 +215,9 @@ def relocate_state(runtime):
         pending = state.get("pending")
         if pending and pending.get("image_path"):
             pending["image_path"] = str(runtime / "reference-images" / Path(pending["image_path"]).name)
+        if pending and pending.get("image_paths"):
+            pending["image_paths"] = [str(runtime / "reference-images" / Path(path).name)
+                                      for path in pending["image_paths"]]
         atomic_json(state_path, state)
 
 
@@ -227,6 +230,8 @@ def trim_reference_cache(runtime, max_bytes=20_000_000):
         pending = json.loads(state_path.read_text()).get("pending")
         if pending and pending.get("image_path"):
             protected.add(Path(pending["image_path"]).name)
+        if pending:
+            protected.update(Path(path).name for path in pending.get("image_paths", []))
     files = sorted((path for path in references.iterdir()
                     if path.is_file() and path.suffix.lower() in INBOX_EXTENSIONS),
                    key=lambda path: path.stat().st_mtime)
@@ -474,6 +479,32 @@ def run_metrics(state):
     return metrics
 
 
+def close_previous_runs(client, today, now):
+    """Close yesterday's unfinished counters without inventing missing media.
+
+    The existing database constraint has no ``partial`` status. Persist a
+    terminal failed row with a distinct partial outcome in metrics so the
+    dashboard can present it accurately; retain counts and provider history.
+    """
+    closed = []
+    for row in client.list_rows("factory_runs", "day.desc", 30):
+        day = str(row.get("day", ""))
+        if day >= today or row.get("status") != "running":
+            continue
+        count = int(row.get("generated") or 0)
+        target = int(row.get("target") or 0)
+        outcome = "partial" if count else "failed"
+        metrics = dict(row.get("groq_metrics") or {})
+        metrics["terminal_outcome"] = outcome
+        metrics["closed_at"] = datetime.fromtimestamp(now, timezone.utc).isoformat()
+        result = (f"UTC day ended with {count}/{target} stickers. Saved media and review drafts are retained."
+                  if count else "UTC day ended without a saved sticker. Check provider and worker activity.")
+        client.update("factory_runs", {"status": "failed", "last_result": result,
+                                       "groq_metrics": metrics}, "day", day)
+        closed.append(day)
+    return closed
+
+
 def persist_failure(client, config, now, error, generated=None):
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
     target = int(config.get("daily_target", 40))
@@ -585,6 +616,12 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
                 "generated": summary["generated"], "attempts": int(state.get("requests", 0)),
                 "last_result": result[:500],
                 "groq_metrics": {**run_metrics(state), "postprocess_complete": True}}], "day")
+        try:
+            summary["closed_previous_days"] = close_previous_runs(client, summary["day"], now)
+        except (SupabaseError, ValueError, TypeError):
+            # A reporting repair must not turn a saved and drafted batch into
+            # an apparent generation failure. The next worker retries closure.
+            summary.setdefault("warnings", []).append("Historical run status repair is pending")
         return summary
     except Exception as error:
         recovery = None

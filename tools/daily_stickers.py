@@ -163,6 +163,25 @@ def reference_image(path):
         return image
 
 
+def reference_contact_sheet(paths):
+    """Show several approved sources to the vision model in one bounded image."""
+    if not 2 <= len(paths) <= 6:
+        raise ValueError("Contact sheet requires 2–6 source images")
+    width, height = 768, 768
+    columns = 2
+    rows = (len(paths) + columns - 1) // columns
+    cell_width, cell_height = width // columns, height // rows
+    sheet = Image.new("RGB", (width, height), "#202124")
+    draw = ImageDraw.Draw(sheet)
+    for index, path in enumerate(paths):
+        source = reference_image(Path(path))
+        tile = ImageOps.contain(source, (cell_width - 12, cell_height - 38), Image.Resampling.LANCZOS)
+        left, top = (index % columns) * cell_width, (index // columns) * cell_height
+        sheet.paste(tile, (left + (cell_width - tile.width) // 2, top + 32))
+        draw.text((left + 12, top + 8), f"IMAGE {index + 1}", fill="white")
+    return sheet
+
+
 def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
     prompt = {
         "count": count, "topic": topic, "references": sources,
@@ -172,16 +191,24 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
     }
     user_content = json.dumps(prompt)
     if image_path:
-        image = reference_image(Path(image_path))
+        image_paths = image_path if isinstance(image_path, list) else [image_path]
+        image = (reference_contact_sheet(image_paths) if len(image_paths) > 1
+                 else reference_image(Path(image_paths[0])))
         encoded = io.BytesIO()
         image.save(encoded, format="JPEG", quality=80)
+        assignment = ([i % len(image_paths) + 1 for i in range(count)]
+                      if len(image_paths) > 1 else None)
         user_content = [{"type": "text", "text": user_content +
                          "\nWrite varied, conversational English/Hinglish reaction captions fitting "
                          "the visible expression/action and the requested topic. This may be a "
                          "chronological video storyboard; captions describe its reaction, not frame "
                          "numbers or a literal object list. Vary social intent (disbelief, awkwardness, "
                          "playful sarcasm, surprise) rather than repeating one catchphrase. Do not "
-                         "invent a visible event, identify real people or infer sensitive traits."},
+                         "invent a visible event, identify real people or infer sensitive traits." +
+                         (" The sheet contains numbered images. In order, write each sticker caption "
+                          "for its assigned image number: " + json.dumps(assignment) +
+                          ". Each caption must fit that particular image, not a neighboring image."
+                          if assignment else "")},
                         {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," +
                          base64.b64encode(encoded.getvalue()).decode("ascii")}}]
     payload = {"model": model, "temperature": 0.7, "max_completion_tokens": 2048,
@@ -463,6 +490,7 @@ def run(config, root, font_path, now=None):
             topic = plan["topic"]
             category = plan["pack_category"]
             image_path = None
+            image_paths = []
             model = config.get("model", "openai/gpt-oss-20b")
             if mode in ("photo", "clip"):
                 from video_stickers import CLIP_EXTENSIONS
@@ -473,9 +501,16 @@ def run(config, root, font_path, now=None):
                     images = [p for p in images if p.name in config.get("allowed_media_files", [])]
                 if not images or not config.get("vision_model"):
                     raise ValueError("Photo mode requires supplied images and a configured Groq vision model")
-                image_path = str(images[batch_index % len(images)].resolve())
+                remaining = target - len(state["records"])
+                count = min(batch, remaining)
+                if remaining - count in (1, 2):
+                    count = remaining if remaining <= 10 else count - (3 - (remaining - count))
+                image_paths = [str(images[(batch_index * batch + index) % len(images)].resolve())
+                               for index in range(min(count, len(images), 6))] if mode == "photo" else []
+                image_path = image_paths[0] if image_paths else str(images[batch_index % len(images)].resolve())
                 model = config["vision_model"]
-                reference_image(Path(image_path))
+                for selected in image_paths or [image_path]:
+                    reference_image(Path(selected))
             if topic_plans:
                 # A categorized brief binds each current-event batch to its own
                 # source instead of leaking unrelated headlines across topics.
@@ -496,7 +531,8 @@ def run(config, root, font_path, now=None):
                 count = min(batch, remaining)
                 if remaining - count in (1, 2):
                     count = remaining if remaining <= 10 else count - (3 - (remaining - count))
-                ideas = groq_ideas(key, model, count, topic, sources, excluded, image_path)
+                ideas = groq_ideas(key, model, count, topic, sources, excluded,
+                                  image_paths if len(image_paths) > 1 else image_path)
             except urllib.error.HTTPError as error:
                 delay = retry_delay(error.headers, now) if error.code == 429 else 900
                 if error.code in (401, 403):
@@ -525,6 +561,7 @@ def run(config, root, font_path, now=None):
             state.pop("provider_error", None)
             state["pending"] = {"ideas": ideas, "sources": sources, "warnings": warnings,
                                  "mode": mode, "topic": topic, "image_path": image_path,
+                                 "image_paths": image_paths if mode == "photo" else [],
                                  "rating": rating, "category": category,
                                  "reference_mode": "references" if sources else "everyday reactions"}
             state["last_groq_metrics"] = dict(LAST_GROQ_METRICS)
@@ -537,26 +574,28 @@ def run(config, root, font_path, now=None):
         if pending["mode"] == "clip":
             from video_stickers import clip_frames
             clip_input = clip_frames(pending["image_path"])
-        media_credit = None
         if pending.get("image_path"):
             from media_library import provenance
-            media_credit = provenance(Path(pending["image_path"]))
         for index, idea in enumerate(pending["ideas"], start):
             sticker_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"stickerdock:{day}:{index}"))
             path = directory / (sticker_id + ".webp")
             kind = "ANIMATED" if pending["mode"] in ("animated", "clip") else "STATIC"
+            image_paths = pending.get("image_paths") or []
+            selected_image = (image_paths[(index - start) % len(image_paths)] if image_paths
+                              else pending.get("image_path"))
+            media_credit = provenance(Path(selected_image)) if selected_image else None
             if pending["mode"] == "clip":
                 from video_stickers import render_clip_frames
                 data = render_clip_frames(clip_input, idea, font_path)
             else:
-                data = render(idea, font_path, pending.get("image_path"), kind == "ANIMATED")
+                data = render(idea, font_path, selected_image, kind == "ANIMATED")
             path.write_bytes(data)
             records.append({**idea, "id": sticker_id, "file": str(path),
                             "sources": pending["sources"], "mode": pending["mode"],
                             "reference_mode": pending.get("reference_mode", "everyday reactions"),
                             "kind": kind, "rating": pending.get("rating", "GENERAL"),
                             "category": pending.get("category", "GENERAL"),
-                            "image_path": pending.get("image_path"), "topic": pending.get("topic"),
+                            "image_path": selected_image, "topic": pending.get("topic"),
                             "media_credit": media_credit})
         archive = directory / f"batch-{start + 1:02d}-{start + len(records):02d}.zip"
         export_zip(archive, records, day)

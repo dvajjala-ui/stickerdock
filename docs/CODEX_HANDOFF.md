@@ -9,13 +9,14 @@ and new ledger requirements R41–R43. There are 14 confirmed defect/operational
 items, 60 gaps/extensions, 12 acceptance gates and four decisions, with evidence,
 priorities, outcomes and official-source research.
 
-Read-only live refresh at 06:19 UTC: one public pack / four stickers; recent days
-15–25/40. production_worker.persist_run and auto_migrate_completed only make an
-ordinary review draft from the full daily-complete archive. Deliver completed
-batches independently of the daily target first, preserving idempotency,
-provenance and review. Then connect visual web review/publication to mobile
-Discover with explicit Save. Neither public catalog reads nor web Creator jobs
-prove an account-owned native AI flow exists.
+October 22 continuation: a passed live Factory run delivered a 5/40 licensed-
+photo batch to a private Admin draft with intact provenance. All five stickers
+reuse one shuttle photo, so this batch remains unpublished. Source now rotates
+licensed images within photo batches through one numbered vision contact sheet;
+verify the next live batch's visual diversity and caption fit. Previous UTC runs
+and delivery-health checks are repaired in source; verify hosted row/status
+read-back after deployment. Public catalog remains one four-sticker pack. Neither
+public catalog reads nor web Creator jobs prove an account-owned native AI flow.
 
 Upload already exists under Media library/Studio. Finish its purpose-aware
 Create/Template/Reference → pack → phone flow; fix absent previews, hash names,

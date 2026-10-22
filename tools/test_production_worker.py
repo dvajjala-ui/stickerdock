@@ -47,6 +47,13 @@ class FakeSupabase:
 
     def update(self, table, values, column, value):
         self.updates.append((table, values, column, value))
+        row = self.rows.get((table, str(value)))
+        if row is not None:
+            row.update(values)
+
+    def list_rows(self, table, order="updated_at.desc", limit=100):
+        rows = [row for (stored_table, _), row in self.rows.items() if stored_table == table]
+        return sorted(rows, key=lambda row: row.get("day", ""), reverse=True)[:limit]
 
     def find(self, table, column, value):
         return self.rows.get((table, str(value)))
@@ -78,6 +85,31 @@ def pack_bytes(rating="GENERAL"):
 
 
 class ProductionWorkerTest(unittest.TestCase):
+    def test_previous_utc_runs_close_without_losing_saved_counts(self):
+        client = FakeSupabase()
+        client.rows[("factory_runs", "2026-10-10")] = {
+            "day": "2026-10-10", "status": "running", "generated": 20,
+            "target": 40, "groq_metrics": {"postprocess_complete": True}}
+        client.rows[("factory_runs", "2026-10-11")] = {
+            "day": "2026-10-11", "status": "running", "generated": 0,
+            "target": 40, "groq_metrics": {}}
+        client.rows[("factory_runs", DAY)] = {
+            "day": DAY, "status": "running", "generated": 5,
+            "target": 40, "groq_metrics": {}}
+        client.rows[("factory_runs", "2026-10-09")] = {
+            "day": "2026-10-09", "status": "complete", "generated": 40,
+            "target": 40, "groq_metrics": {}}
+        closed = worker.close_previous_runs(client, DAY, NOW)
+        self.assertEqual(closed, ["2026-10-11", "2026-10-10"])
+        partial = client.rows[("factory_runs", "2026-10-10")]
+        self.assertEqual((partial["status"], partial["generated"]), ("failed", 20))
+        self.assertEqual(partial["groq_metrics"]["terminal_outcome"], "partial")
+        self.assertTrue(partial["groq_metrics"]["postprocess_complete"])
+        self.assertEqual(client.rows[("factory_runs", "2026-10-11")]["groq_metrics"]["terminal_outcome"], "failed")
+        self.assertEqual(client.rows[("factory_runs", DAY)]["status"], "running")
+        self.assertEqual(client.rows[("factory_runs", "2026-10-09")]["status"], "complete")
+        self.assertEqual(worker.close_previous_runs(client, DAY, NOW), [])
+
     def test_provider_auth_failure_stays_failed_during_later_cooldown(self):
         client = FakeSupabase()
         config = {"daily_target": 3, "batch_size": 3, "interval_seconds": 60, "modes": ["illustration"]}
@@ -338,12 +370,20 @@ class ProductionWorkerTest(unittest.TestCase):
             refs = root / "reference-images"
             refs.mkdir()
             (refs / "pending.png").write_bytes(b"1234")
+            (refs / "second.png").write_bytes(b"abcd")
             (refs / "old.png").write_bytes(b"5678")
             day = root / "generated-stickers" / DAY
             day.mkdir(parents=True)
-            (day / "state.json").write_text(json.dumps({"pending": {"image_path": str(refs / "pending.png")}}))
-            worker.trim_reference_cache(root, 4)
+            (day / "state.json").write_text(json.dumps({"pending": {
+                "image_path": "/old-run/reference-images/pending.png",
+                "image_paths": ["/old-run/reference-images/pending.png",
+                                "/old-run/reference-images/second.png"]}}))
+            worker.relocate_state(root)
+            pending = json.loads((day / "state.json").read_text())["pending"]
+            self.assertEqual(pending["image_paths"], [str(refs / "pending.png"), str(refs / "second.png")])
+            worker.trim_reference_cache(root, 8)
             self.assertTrue((refs / "pending.png").exists())
+            self.assertTrue((refs / "second.png").exists())
             self.assertFalse((refs / "old.png").exists())
 
     def test_repeated_complete_day_preserves_approval(self):

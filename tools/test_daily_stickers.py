@@ -179,6 +179,59 @@ class DailyStickersTest(unittest.TestCase):
                 self.assertLess(g, 30)
                 self.assertLess(b, 30)
 
+    def test_photo_batch_uses_distinct_licensed_sources_with_matching_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            colors = ["red", "green", "blue", "yellow", "purple"]
+            for index, color in enumerate(colors):
+                Image.new("RGB", (600, 600), color).save(inputs / f"photo-{index}.png")
+            config = {"modes": ["photo"], "image_directory": str(inputs), "vision_model": "test-vision"}
+            with patch.object(generator, "groq_ideas", return_value=ideas(5)) as call:
+                generator.run(config, root / "outputs", FONT, NOW)
+            selected = call.call_args.args[-1]
+            self.assertEqual(len(selected), 5)
+            self.assertEqual(len(set(selected)), 5)
+            records = json.loads((root / "outputs/2026-10-12/state.json").read_text())["records"]
+            self.assertEqual([record["image_path"] for record in records], selected)
+            self.assertEqual([record["media_credit"]["file"] for record in records],
+                             [Path(path).name for path in selected])
+            samples = []
+            for record in records:
+                with Image.open(record["file"]) as sticker:
+                    samples.append(sticker.convert("RGBA").getpixel((256, 150))[:3])
+            self.assertEqual(len(set(samples)), 5)
+
+    def test_contact_sheet_numbers_multiple_photo_sources(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = []
+            for index, color in enumerate(("red", "blue", "green")):
+                path = root / f"{index}.png"
+                Image.new("RGB", (500, 500), color).save(path)
+                files.append(str(path))
+            sheet = generator.reference_contact_sheet(files)
+            self.assertEqual(sheet.size, (768, 768))
+            self.assertNotEqual(sheet.getpixel((192, 120)), sheet.getpixel((576, 120)))
+
+    def test_vision_request_assigns_captions_to_numbered_contact_sheet(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = []
+            for index, color in enumerate(("red", "blue", "green")):
+                path = Path(temporary) / f"{index}.png"
+                Image.new("RGB", (500, 500), color).save(path)
+                paths.append(str(path))
+            reply = {"choices": [{"finish_reason": "stop", "message": {
+                "content": json.dumps({"stickers": ideas(3)})}}]}
+            with patch.object(generator, "fetch_bytes", return_value=json.dumps(reply).encode()) as fetch:
+                result = generator.groq_ideas("fixture", "test-vision", 3, "daily reactions", [], [], paths)
+            payload = json.loads(fetch.call_args.args[1])
+            content = payload["messages"][1]["content"]
+            self.assertIn("[1, 2, 3]", content[0]["text"])
+            self.assertTrue(content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,"))
+            self.assertEqual(len(result), 3)
+
     def test_portrait_photo_fills_reaction_area_without_changing_the_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             source=Path(temporary)/"portrait.png"
