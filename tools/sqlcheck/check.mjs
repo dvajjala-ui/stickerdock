@@ -6,7 +6,7 @@ import { PGlite } from '@electric-sql/pglite';
 // access contract; it does not claim a production Supabase migration happened.
 const db = new PGlite();
 try {
-  await db.exec(`create role anon; create role authenticated; create role service_role;
+  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; create table auth.users(id uuid primary key);`);
   const sql = readFileSync(new URL('../../supabase/migrations/202610220001_personal_ai_captions.sql', import.meta.url), 'utf8');
   await db.exec(sql);
@@ -52,13 +52,19 @@ try {
   assert.equal((await db.query('select * from public.activate_personal_ai_caption($1::uuid,$2::uuid)',
     [owner, ids[1]])).rows[0].job_status, 'cancelled');
 
-  await db.exec('set role anon');
-  for (const statement of [
-    'select * from public.personal_ai_jobs',
-    'select * from public.personal_ai_provider_reservations',
-    `select * from public.queue_personal_ai_caption('${owner}'::uuid,'${ids[3]}'::uuid,'${sha}','hello')`,
-    `select * from public.cancel_personal_ai_caption('${owner}'::uuid,'${ids[0]}'::uuid)`]) {
-    await assert.rejects(db.query(statement), /permission denied/);
+  await db.exec('set role service_role');
+  assert.equal((await db.query('select count(*)::int as count from public.personal_ai_jobs')).rows[0].count, 3);
+  await db.exec('reset role');
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`);
+    for (const statement of [
+      'select * from public.personal_ai_jobs',
+      'select * from public.personal_ai_provider_reservations',
+      `select * from public.queue_personal_ai_caption('${owner}'::uuid,'${ids[3]}'::uuid,'${sha}','hello')`,
+      `select * from public.cancel_personal_ai_caption('${owner}'::uuid,'${ids[0]}'::uuid)`]) {
+      await assert.rejects(db.query(statement), /permission denied/);
+    }
+    await db.exec('reset role');
   }
   console.log('Private AI migration: SQL, grants, owner isolation, replay, claim, budget and cancellation passed');
 } finally {

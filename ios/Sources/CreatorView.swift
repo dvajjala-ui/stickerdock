@@ -239,6 +239,7 @@ struct CreatorView: View {
         }
         .onChange(of: variants) { _, _ in output = nil }
         .onChange(of: aiPrompt) { _, _ in invalidateAISuggestion() }
+        .onChange(of: ai.ownerID) { _, _ in invalidateAISuggestion() }
         .onDisappear {
             // Keep the main Create tab's draft when switching tabs. A dismissed
             // pack creator releases its media; system pickers are not dismissal.
