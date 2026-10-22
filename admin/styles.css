@@ -16,3 +16,4 @@
 .hero-art.hero-art-empty{border:1px dashed #b8ca93;border-radius:16px;background:#ffffff65;padding:20px;min-height:120px;text-align:center;color:#52643c;font-size:13px;line-height:1.5;max-width:230px}
 
 .sticker-source{grid-column:2/4;display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:10px;min-width:0}.sticker-source small{overflow-wrap:anywhere}.sticker-source a{text-decoration:underline;color:#537a1d}@media(max-width:860px){.sticker-source{grid-column:2/3}}
+.media-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}.media-actions button{margin:0;padding:8px 6px;font-size:10px;white-space:nowrap}.media-actions button:first-child{grid-column:1/-1}
