@@ -134,12 +134,12 @@ def browse(client, payload):
 
 def oauth_start():
     app_id = os.environ.get("PINTEREST_APP_ID", DEFAULT_APP_ID)
-    signing_key = os.environ.get("STUDIO_ACCESS_TOKEN", "")
-    if not app_id.isdigit() or not os.environ.get("PINTEREST_APP_SECRET") or len(signing_key) < 32:
+    signing_key = os.environ.get("PINTEREST_APP_SECRET", "")
+    if not app_id.isdigit() or not signing_key:
         raise ValueError("Approve the Pinterest app, then configure PINTEREST_APP_ID and PINTEREST_APP_SECRET on the server")
     nonce = secrets.token_urlsafe(32)
     value = str(int(time.time())) + "." + nonce
-    state = value + "." + hmac.new(signing_key.encode(), value.encode(), hashlib.sha256).hexdigest()
+    state = value + "." + hmac.new(signing_key.encode(), ("pinterest-oauth-state:" + value).encode(), hashlib.sha256).hexdigest()
     url = "https://www.pinterest.com/oauth/?" + urllib.parse.urlencode({"client_id": app_id,
         "redirect_uri": CALLBACK, "response_type": "code", "scope": SCOPES, "state": state})
     return url, f"{COOKIE}={state}; Secure; HttpOnly; SameSite=Lax; Path=/; Max-Age=600"
@@ -154,8 +154,9 @@ def oauth_complete(query, cookies, client):
         stored = cookie[COOKIE].value
         created, nonce, signature = state.split(".")
         value = created + "." + nonce
-        expected = hmac.new(os.environ.get("STUDIO_ACCESS_TOKEN", "").encode(), value.encode(), hashlib.sha256).hexdigest()
-        valid = len(os.environ.get("STUDIO_ACCESS_TOKEN", "")) >= 32 and len(nonce) >= 32 and 0 <= time.time() - int(created) <= 600
+        signing_key = os.environ.get("PINTEREST_APP_SECRET", "")
+        expected = hmac.new(signing_key.encode(), ("pinterest-oauth-state:" + value).encode(), hashlib.sha256).hexdigest()
+        valid = bool(signing_key) and len(nonce) >= 32 and 0 <= time.time() - int(created) <= 600
         valid = valid and hmac.compare_digest(stored, state) and hmac.compare_digest(expected, signature)
     except (KeyError, ValueError):
         valid = False

@@ -15,7 +15,7 @@ import uuid
 import zipfile
 from PIL import Image
 
-from daily_stickers import atomic_json, run as run_generator, ProviderError, ProviderResponseError
+from daily_stickers import atomic_json, export_zip, run as run_generator, ProviderError, ProviderResponseError
 from sticker_fonts import default_font
 from media_library import sync as sync_media
 from supabase_factory import PRIVATE_BUCKET, SupabaseFactory, SupabaseError, require_production_environment
@@ -92,6 +92,73 @@ def auto_migrate_completed(client, generated, summary):
         "sticker_count": source["sticker_count"], "references": references,
         "origin_id": source_id}], "id")
     return target_id
+
+
+def batch_references(records):
+    """Keep the same per-sticker provenance as the daily archive."""
+    return [{"caption": record.get("caption", ""), "source": record.get("source"),
+             "sources": record.get("sources", []), "mode": record.get("mode"),
+             "image_path": record.get("image_path"), "topic": record.get("topic"),
+             "category": record.get("category", "GENERAL"),
+             "reference_mode": record.get("reference_mode"),
+             "media_credit": record.get("media_credit")}
+            for record in records]
+
+
+def migrate_ready_batches(client, generated, day, batch_size):
+    """Create private review drafts as soon as rendered batches are committed."""
+    directory = generated / day
+    state_path = directory / "state.json"
+    if not state_path.exists():
+        return []
+    state = json.loads(state_path.read_text())
+    records = state.get("records", [])
+    ranges = state.get("batches") or [
+        {"start": start, "end": min(start + batch_size, len(records))}
+        for start in range(0, len(records), batch_size)]
+    expected_start = 0
+    for item in ranges:
+        start, end = item["start"], item["end"]
+        if not (type(start) is int and type(end) is int and start == expected_start and start < end <= len(records)):
+            raise ValueError("Invalid saved Factory batch range")
+        expected_start = end
+    if expected_start != len(records):
+        raise ValueError("Saved Factory batches do not cover all rendered stickers")
+    drafted = []
+    for item in ranges:
+        start, end = item["start"], item["end"]
+        batch = records[start:end]
+        target_id = str(uuid.uuid5(uuid.NAMESPACE_URL,
+            f"stickerdock-admin-batch:{day}:{start}:{end}"))
+        # A reviewer may have renamed, edited, published or rejected the draft.
+        # Replaying the worker must never overwrite that decision.
+        if client.find("admin_packs", "id", target_id):
+            drafted.append(target_id)
+            continue
+        if any(not Path(record.get("file", "")).is_file() for record in batch):
+            # Older pruned state can lack media. Keep its run count truthful;
+            # never create a broken draft or regenerate by spending AI budget.
+            continue
+        archive_path = directory / f"batch-{start + 1:02d}-{end:02d}.zip"
+        export_zip(archive_path, batch, day)
+        archive = archive_path.read_bytes()
+        from publish_factory_pack import validate_pack
+        manifest = validate_pack(archive, public=False)
+        references = batch_references(batch)
+        if sum(len(pack["stickers"]) for pack in manifest["packs"]) != len(references):
+            raise ValueError("Factory batch provenance count mismatch")
+        digest = hashlib.sha256(archive).hexdigest()
+        remote = f"admin/packs/{target_id}/{digest}.zip"
+        client.upload(PRIVATE_BUCKET, remote, archive, "application/zip")
+        title = manifest["packs"][0]["name"]
+        name = (title if len(manifest["packs"]) == 1 else f"Daily {day} · batch {start + 1}-{end}")[:60]
+        client.upsert("admin_packs", [{"id": target_id, "name": name,
+            "creator": "StickerDock AI Factory",
+            "rating": "MATURE" if any(pack["rating"] == "MATURE" for pack in manifest["packs"]) else "GENERAL",
+            "status": "draft", "private_path": remote, "sha256": digest,
+            "sticker_count": len(references), "references": references}], "id")
+        drafted.append(target_id)
+    return drafted
 
 
 def safe_restore(data, destination):
@@ -364,9 +431,9 @@ def persist_run(client, generated, config, now, result):
         status = "failed"
         result = "Daily provider request budget exhausted. Saved stickers are kept; generation resumes next UTC day."
     metrics = run_metrics(state)
-    if status == "complete":
+    if count:
         # The due check must resume failed ZIP uploads/admin migration even
-        # when the provider target has already been reached.
+        # when the provider is cooling down or the daily target is incomplete.
         metrics["postprocess_complete"] = False
     client.upsert("factory_runs", [{
         "day": day, "status": status, "target": config["daily_target"],
@@ -430,10 +497,13 @@ def persist_failure(client, config, now, error, generated=None):
               if waiting else "Provider authentication rejected. Check worker credentials before retrying."
               if isinstance(error, ProviderError) and error.status in (401, 403)
               else type(error).__name__ + ": worker failed; inspect Actions logs")
+    metrics = run_metrics(state)
+    if state.get("records") and not isinstance(error, (ProviderError, ProviderResponseError)):
+        metrics["postprocess_complete"] = False
     row = {
         "day": day, "status": "running" if waiting else "failed", "target": target,
         "generated": len(state.get("records", [])), "attempts": int(state.get("requests", 0)),
-        "last_result": result, "groq_metrics": run_metrics(state)}
+        "last_result": result, "groq_metrics": metrics}
     client.upsert("factory_runs", [row], "day")
     return {"day": day, "status": "waiting" if waiting else "failed", "target": target,
             "generated": row["generated"], "result": result,
@@ -502,11 +572,16 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             summary["content_source"] = brief["source_mode"]
             summary["warnings"] = deferred
             if controls.get("auto_migrate_completed") is True:
-                summary["admin_draft_id"] = auto_migrate_completed(client, generated, summary)
-        if summary["status"] == "complete":
+                summary["admin_draft_ids"] = migrate_ready_batches(
+                    client, generated, summary["day"], configured["batch_size"])
+                # Historical/legacy complete archives may have no individual
+                # batch media available. Keep their existing migration route.
+                summary["admin_draft_id"] = (summary["admin_draft_ids"][-1]
+                    if summary["admin_draft_ids"] else auto_migrate_completed(client, generated, summary))
+        if summary["generated"]:
             state = json.loads((generated / summary["day"] / "state.json").read_text())
             client.upsert("factory_runs", [{
-                "day": summary["day"], "status": "complete", "target": configured["daily_target"],
+                "day": summary["day"], "status": summary["status"], "target": configured["daily_target"],
                 "generated": summary["generated"], "attempts": int(state.get("requests", 0)),
                 "last_result": result[:500],
                 "groq_metrics": {**run_metrics(state), "postprocess_complete": True}}], "day")

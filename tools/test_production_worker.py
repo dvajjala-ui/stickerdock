@@ -164,6 +164,52 @@ class ProductionWorkerTest(unittest.TestCase):
             worker.uuid.NAMESPACE_URL, "stickerdock-production:" + DAY)))
         self.assertIn((PRIVATE_BUCKET, "content-briefs/" + DAY + ".json"), client.objects)
 
+    def test_partial_day_batch_becomes_review_draft_and_replay_preserves_edits(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {
+            "enabled": True, "daily_target": 40, "batch_size": 5,
+            "rating": "GENERAL", "auto_migrate_completed": True,
+            "content_categories": ["EVERYDAY"]}
+        def generator(config, generated, font, now):
+            day = generated / DAY
+            day.mkdir(parents=True)
+            records = []
+            for index in range(5):
+                path = day / f"{index}.webp"
+                Image.new("RGB", (512, 512), "red").save(path, "WEBP")
+                records.append({"id": str(worker.uuid.uuid5(worker.uuid.NAMESPACE_URL, f"fixture:{index}")),
+                    "file": str(path), "caption": f"Reaction {index}", "mood": "happy",
+                    "kind": "STATIC", "rating": "GENERAL", "category": "GENERAL",
+                    "media_credit": {"license": "CC0", "credit": "Fixture"}})
+            (day / "state.json").write_text(json.dumps({"records": records,
+                "batches": [{"start": 0, "end": 5}], "requests": 1}))
+            return "Created five stickers"
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second, \
+                patch.object(worker, "ensure_content_brief", side_effect=lambda client, config, controls, now:
+                    (config, {"source_mode": "fixture"})):
+            summary = worker.run_production({"daily_target": 40, "batch_size": 5,
+                "modes": ["illustration"]}, Path(first), client, NOW, generator)
+            self.assertEqual((summary["status"], summary["generated"]), ("running", 5))
+            self.assertEqual(len(summary["admin_draft_ids"]), 1)
+            draft_id = summary["admin_draft_ids"][0]
+            draft = client.find("admin_packs", "id", draft_id)
+            self.assertEqual((draft["status"], draft["sticker_count"]), ("draft", 5))
+            self.assertEqual(len(draft["references"]), 5)
+            with zipfile.ZipFile(io.BytesIO(client.objects[(PRIVATE_BUCKET,
+                    draft["private_path"])])) as archive:
+                self.assertEqual(len(json.loads(archive.read("manifest.json"))["packs"][0]["stickers"]), 5)
+            draft["name"] = "Reviewed by owner"
+            draft["status"] = "reviewed"
+            def waiting(config, generated, font, now):
+                return "Waiting for next batch"
+            replay = worker.run_production({"daily_target": 40, "batch_size": 5,
+                "modes": ["illustration"]}, Path(second), client, NOW + 60, waiting)
+            self.assertEqual(replay["admin_draft_ids"], [draft_id])
+            self.assertEqual(client.find("admin_packs", "id", draft_id)["name"], "Reviewed by owner")
+            self.assertEqual(client.find("admin_packs", "id", draft_id)["status"], "reviewed")
+            self.assertEqual(len([key for key in client.objects if key[0] == PRIVATE_BUCKET
+                and key[1].startswith("admin/packs/")]), 1)
+
     def test_public_archive_must_fit_android_download_bound(self):
         from publish_factory_pack import MAX_PUBLIC_PACK_BYTES, validate_pack
         with self.assertRaises(ValueError):

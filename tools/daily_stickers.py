@@ -561,6 +561,7 @@ def run(config, root, font_path, now=None):
         archive = directory / f"batch-{start + 1:02d}-{start + len(records):02d}.zip"
         export_zip(archive, records, day)
         state["records"].extend(records)
+        state.setdefault("batches", []).append({"start": start, "end": start + len(records)})
         state["pending"] = None
         atomic_json(state_path, state)
         atomic_json(directory / "references.json", [{"caption": r["caption"],

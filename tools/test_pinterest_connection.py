@@ -11,8 +11,8 @@ from test_production_worker import FakeSupabase
 class PinterestConnectionTest(unittest.TestCase):
     def setUp(self):
         self.client = FakeSupabase()
-        self.env = patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN":"x" * 48,
-            "PINTEREST_APP_ID":"1624134", "PINTEREST_APP_SECRET":"fixture-secret",
+        self.env = patch.dict(os.environ, {"STUDIO_ACCESS_TOKEN":"",
+            "PINTEREST_APP_ID":"1624615", "PINTEREST_APP_SECRET":"fixture-secret",
             "PINTEREST_ACCESS_TOKEN":""})
         self.env.start()
         self.addCleanup(self.env.stop)
@@ -24,6 +24,15 @@ class PinterestConnectionTest(unittest.TestCase):
         self.assertEqual(args["scope"], ["boards:read,pins:read"])
         self.assertIn("Secure; HttpOnly; SameSite=Lax; Path=/", cookie)
         self.assertNotIn("fixture-secret", url)
+
+    def test_oauth_state_requires_app_secret_not_legacy_studio_token(self):
+        url, cookie = connection.oauth_start()
+        state = parse_qs(urlsplit(url).query)["state"][0]
+        with patch.dict(os.environ, {"PINTEREST_APP_SECRET":""}), \
+                patch.object(connection, "provider") as provider:
+            with self.assertRaises(ValueError):
+                connection.oauth_complete("code=example&state=" + state, cookie, self.client)
+            provider.assert_not_called()
 
     def test_valid_callback_stores_only_credentials_in_private_bucket(self):
         url, cookie = connection.oauth_start()

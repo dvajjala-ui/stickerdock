@@ -907,6 +907,18 @@ fresh OAuth token; board IDs can then be discovered automatically.
 captioned animated WebP using FFmpeg. This does not imply device-side animated
 preview/install has been accepted on a real phone.
 
+## October 22 product execution update
+
+Use [the dated execution tracker](PRODUCT_EXECUTION_2026-10-22.md) with
+[the full audit/backlog](PRODUCT_AUDIT_AND_BACKLOG_2026-10-22.md). Source now
+records exact Factory batch boundaries and prepares a private, idempotent review
+draft for each completed batch even below the daily target. Focused Python tests
+cover a 5/40 batch and replay without overwriting owner edits. This has not yet
+been verified in the deployed Factory or on a phone. Pinterest app 1624615
+showed Trial access active, but the live Admin status was still not connected;
+see [current reconnection status](PINTEREST_RECONNECTION.md). Earlier pending
+Pinterest text in this handoff is historical and superseded by that record.
+
 ## Remaining production gates
 
 These are the meaningful remaining gates; do not redo already-passed migrations,

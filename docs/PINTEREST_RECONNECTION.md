@@ -1,16 +1,23 @@
 # Pinterest reconnection and real-image stickers
 
-Updated October 15, 2026. Supersedes the archived Pin-download recommendations
+Updated October 22, 2026. Supersedes the archived Pin-download recommendations
 in older Factory/Pinterest documents; it does not remove the user's requirements.
 
-## Latest submitted request
+## Current connection status
 
-The new StickerDock request has been submitted as app **1624615** and the
-dashboard shows **Trial access pending**. The app secret and redirect settings
-remain unavailable during review. A user-generated 24-hour limited token was
-tested once against `/v5/boards?page_size=1`: HTTP 401, code 3, consumer type not
-supported. Do not claim a working authorized connection or rely on that temporary
-token for daily production. No request for broader write/advertising access.
+The Pinterest developer dashboard showed **Trial access active** for StickerDock
+app **1624615** on October 22. A same-day live Admin `pinterest_status` read
+reported `configured=false`, `oauth_ready=false`, `not_connected`: approval has
+not yet produced a working OAuth connection. The redirect URI must be saved in
+the app dashboard and `PINTEREST_APP_ID` / `PINTEREST_APP_SECRET` configured as
+server-only Production values before the owner connects from Admin. Browser
+control became unavailable before these steps could be completed. No Pin/Board
+response has been fetched by the new connection. No request for broader write
+or advertising access has been made.
+
+Before Trial approval, a user-generated 24-hour limited token was tested once
+against `/v5/boards?page_size=1`: HTTP 401, code 3, consumer type not supported.
+Do not reuse it or claim it verifies the approved application.
 
 The public About, Privacy and Support URLs all returned HTTP 200 with the chosen
 contact after deployment. Three independently verified public-domain/CC0 cat
@@ -51,8 +58,8 @@ uploaded or licensed source media. The previous app ID 1624134 was denied and
 contained placeholder links; this request supplies the real product pages and
 replaces the earlier download/archive use case with this read-only integration.
 
-The form can be prepared, but CAPTCHA/terms and Pinterest's review cannot be
-bypassed or marked complete by passing local tests. Once approved, set
+The app is approved for Trial access, but local tests cannot verify the OAuth
+redirect, production credentials or live board response. Set
 `PINTEREST_APP_ID` and `PINTEREST_APP_SECRET` as protected Vercel Production
 values; mirror app ID as a GitHub variable and the secret as a GitHub secret if
 daily OAuth refresh is required. Never commit credentials.
@@ -60,8 +67,9 @@ daily OAuth refresh is required. Never commit credentials.
 ## Implemented connection
 
 Admin → Pinterest connection supports status/check, official OAuth, live boards,
-live Pin source links, cursor pagination and disconnect. Ten-minute signed state
-is bound to a Secure/HttpOnly/SameSite cookie; token exchange happens server-side.
+live Pin source links, cursor pagination and disconnect. Ten-minute state signed
+with the server-only Pinterest app secret is bound to a Secure/HttpOnly/SameSite
+cookie; token exchange happens server-side.
 Access/refresh credentials live in private Supabase storage, not browser storage.
 Revocation is available in Pinterest's own account settings. The daily job now
 checks connection health without saving Pins or downloading images. Legacy Pin

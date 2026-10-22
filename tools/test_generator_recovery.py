@@ -64,6 +64,10 @@ class GeneratorRecoveryTest(unittest.TestCase):
         self.assertTrue(factory_preflight.due(client, now=NOW + 101)[0])
         run["attempts"] = 16
         self.assertFalse(factory_preflight.due(client, now=NOW + 101)[0])
+        run["groq_metrics"]["postprocess_complete"] = False
+        self.assertEqual(factory_preflight.due(client, now=NOW),
+                         (True, "Resume saved batch delivery without a new AI request"))
+        run["groq_metrics"].pop("postprocess_complete")
         run["groq_metrics"]["pending_render"] = True
         self.assertTrue(factory_preflight.due(client, now=NOW)[0])
         run.update(generated=40, status="failed")

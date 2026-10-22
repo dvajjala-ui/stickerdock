@@ -23,6 +23,8 @@ def due(client, target=40, budget=16, now=None):
     if not run:
         return True, "First batch of this UTC day is due"
     metrics = run.get("groq_metrics") or {}
+    if metrics.get("postprocess_complete") is False:
+        return True, "Resume saved batch delivery without a new AI request"
     if metrics.get("pending_render"):
         return True, "Resume saved artwork without a new caption request"
     if run.get("generated", 0) >= target:
