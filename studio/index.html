@@ -40,14 +40,10 @@
             <option value="REFERENCE_ONLY">Reference only · keep out of public packs</option>
           </select>
         </label>
-        <div class="source-label"><span>Factory inbox</span><button id="refresh" class="text-button">Refresh</button></div>
-        <select id="library" aria-label="Factory inbox image">
-          <option value="">Choose an existing inbox image</option>
-        </select>
-        <button id="load-library" class="secondary">Load selected image</button>
-        <div class="source-flow">
-          <span>Pinterest boards</span><span>Commons</span><span>Manual uploads</span>
-        </div>
+        <div class="source-label"><span>Workspace images</span><button id="refresh" class="text-button">Refresh</button></div>
+        <div id="library-gallery" class="library-gallery" aria-live="polite"></div>
+        <button id="library-more" class="secondary" hidden>Load more images</button>
+        <p class="source-flow-note">For inspiration, browse <a href="/admin">Pinterest boards in Admin</a>. Only use images you own or may reuse when making stickers.</p>
       </aside>
 
       <section class="canvas-panel">

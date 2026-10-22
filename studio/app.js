@@ -10,6 +10,10 @@
   let dragging = false;
   let sourcePath = null;
   let aiBusy = false;
+  let libraryOffset = 0;
+  let libraryBusy = false;
+  let libraryEpoch = 0;
+  const mediaDetails = new Map();
   const pendingAiKey = "stickerdock:pending-studio-ai";
   let pendingAiMemory = null;
   function readPendingAi() {try {return JSON.parse(sessionStorage.getItem(pendingAiKey));}catch (_) {return pendingAiMemory;}}
@@ -218,24 +222,90 @@
     } catch (error) { status(error.message, true); }
     finally { button.disabled = false; }
   });
-  async function refreshLibrary() {
-    status("Loading the Factory inbox…");
+  const sourceTitle = (name, index) => {
+    if (/^[0-9a-f]{40,64}\.(?:png|jpe?g|webp)$/i.test(name)) return `Image ${index + 1}`;
+    return name.replace(/^File:/i, "").replace(/\.(?:png|jpe?g|webp)$/i, "").trim() || `Image ${index + 1}`;
+  };
+  const observer = "IntersectionObserver" in window ? new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) {
+      observer.unobserve(entry.target);
+      const card = entry.target;
+      const path = card.dataset.path;
+      const epoch = Number(card.dataset.epoch);
+      (async () => {
+        try {
+          let detail = mediaDetails.get(path);
+          if (!detail) {
+            detail = await api("/api/library", {action: "preview", path});
+            mediaDetails.set(path, detail);
+          }
+          if (!card.isConnected || epoch !== libraryEpoch) return;
+          const img = document.createElement("img");
+          img.src = detail.preview;
+          img.alt = detail.name;
+          card.querySelector(".library-placeholder").replaceWith(img);
+          card.querySelector("strong").textContent = sourceTitle(detail.name, Number(card.dataset.index));
+          card.querySelector("small").textContent = `${detail.purpose} · ${detail.license}`;
+          card.setAttribute("aria-label", `Load ${sourceTitle(detail.name, Number(card.dataset.index))}, ${detail.purpose}, ${detail.license}`);
+        } catch (_) { if (card.isConnected) card.querySelector(".library-placeholder").textContent = "Preview unavailable"; }
+      })();
+    }
+  }, {root: $("library-gallery"), rootMargin: "80px"}) : null;
+  async function loadLibraryPage(reset = false) {
+    if (libraryBusy) return;
+    libraryBusy = true;
+    const more = $("library-more");
+    more.disabled = true;
+    const gallery = $("library-gallery");
+    if (reset) {
+      libraryEpoch += 1;
+      libraryOffset = 0;
+      gallery.replaceChildren();
+    }
+    status("Loading workspace images…");
     try {
-      const result = await api("/api/library", {action: "list"});
-      const select = $("library");
-      select.replaceChildren(new Option(result.items.length ? "Choose an inbox image" : "Inbox has no editable images", ""),
-        ...result.items.map((item) => new Option(`${item.name.slice(0, 14)}… (${Math.ceil(item.size / 1024)} KB)`, item.path)));
-      status(`Factory inbox loaded: ${result.items.length} image${result.items.length === 1 ? "" : "s"}.`);
+      const result = await api("/api/library", {action: "list", offset: libraryOffset, limit: 12});
+      for (const item of result.items) {
+        const index = gallery.children.length;
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "library-item";
+        card.dataset.path = item.path;
+        card.dataset.index = index;
+        card.dataset.epoch = libraryEpoch;
+        const placeholder = document.createElement("span");
+        placeholder.className = "library-placeholder";
+        placeholder.textContent = "Loading preview…";
+        const title = document.createElement("strong");
+        title.textContent = sourceTitle(item.name, index);
+        const detail = document.createElement("small");
+        detail.textContent = `${Math.ceil(item.size / 1024)} KB`;
+        card.setAttribute("aria-label", `Load ${title.textContent}`);
+        card.append(placeholder, title, detail);
+        card.addEventListener("click", async () => {
+          status(`Loading ${title.textContent}…`);
+          try { loadDataUrl((await api("/api/library", {action: "fetch", path: item.path})).image, item.path); }
+          catch (error) { status(error.message, true); }
+        });
+        gallery.append(card);
+        if (observer) observer.observe(card);
+        else { placeholder.textContent = "Tap to load"; }
+      }
+      libraryOffset = result.next_offset;
+      more.hidden = libraryOffset === null;
+      if (!gallery.children.length) {
+        const empty = document.createElement("p");
+        empty.className = "library-empty";
+        empty.textContent = "No workspace images yet. Upload one above.";
+        gallery.append(empty);
+      }
+      status(`${gallery.querySelectorAll(".library-item").length} workspace images ready.`);
     } catch (error) { status(error.message, true); }
+    finally { libraryBusy = false; more.disabled = false; }
   }
+  function refreshLibrary() { return loadLibraryPage(true); }
   $("refresh").addEventListener("click", refreshLibrary);
-  $("load-library").addEventListener("click", async () => {
-    const path = $("library").value;
-    if (!path) { status("Choose an inbox image first.", true); return; }
-    status("Loading inbox image…");
-    try { loadDataUrl((await api("/api/library", {action: "fetch", path})).image, path); }
-    catch (error) { status(error.message, true); }
-  });
+  $("library-more").addEventListener("click", () => loadLibraryPage());
   async function restorePendingAi() {
     const pending = readPendingAi();
     if (!pending?.path || !pending?.prompt) return;
