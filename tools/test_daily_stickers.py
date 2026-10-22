@@ -231,6 +231,8 @@ class DailyStickersTest(unittest.TestCase):
             self.assertIn("[1, 2, 3]", content[0]["text"])
             self.assertTrue(content[1]["image_url"]["url"].startswith("data:image/jpeg;base64,"))
             self.assertEqual(payload["response_format"], {"type": "json_object"})
+            self.assertEqual(generator.LAST_GROQ_METRICS["request_shape"]["source_images"], 3)
+            self.assertGreater(generator.LAST_GROQ_METRICS["request_shape"]["encoded_image_bytes"], 0)
             self.assertEqual(len(result), 3)
 
     def test_vision_image_numbers_do_not_become_news_provenance(self):

@@ -57,6 +57,24 @@ class GeneratorRecoveryTest(unittest.TestCase):
         self.assertIsNone(generator.safe_provider_code(invalid))
         invalid.close()
 
+    def test_http_error_persists_safe_request_shape_for_diagnosis(self):
+        body = json.dumps({"error": {"code": "invalid_request_error",
+                 "message": "private provider response"}}).encode()
+        error = urllib.error.HTTPError(generator.API_URL, 400, "bad", {}, io.BytesIO(body))
+        def reject(*_):
+            generator.LAST_GROQ_METRICS["request_shape"] = {
+                "format": "json_object", "source_images": 5,
+                "encoded_image_bytes": 45000}
+            raise error
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_API_KEY": "test"}), \
+             patch.object(generator, "groq_ideas", side_effect=reject):
+            with self.assertRaises(generator.ProviderError):
+                generator.run({}, Path(temporary), FONT, NOW)
+            state = json.loads((Path(temporary) / DAY / "state.json").read_text())
+        self.assertEqual(state["provider_error"]["code"], "invalid_request_error")
+        self.assertEqual(state["last_groq_metrics"]["request_shape"]["source_images"], 5)
+        self.assertNotIn("private provider response", json.dumps(state))
+
     def test_invalid_output_retries_after_fifteen_minutes_without_spending_during_wait(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"GROQ_API_KEY": "test"}):
             root = Path(temporary)

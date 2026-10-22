@@ -61,7 +61,10 @@ def fetch_bytes(url, payload=None, headers=None):
     with urllib.request.urlopen(request, timeout=45) as response:
         data = response.read(MAX_RESPONSE + 1)
         if url == API_URL:
+            request_shape = LAST_GROQ_METRICS.get("request_shape")
             LAST_GROQ_METRICS.clear()
+            if request_shape:
+                LAST_GROQ_METRICS["request_shape"] = request_shape
             LAST_GROQ_METRICS["rate_limits"] = {
                 key: response.headers[key] for key in (
                     "x-ratelimit-limit-requests", "x-ratelimit-limit-tokens",
@@ -190,12 +193,16 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
                                    "color": COLORS[0], "source": None}]},
     }
     user_content = json.dumps(prompt)
+    image_bytes = 0
+    image_count = 0
     if image_path:
         image_paths = image_path if isinstance(image_path, list) else [image_path]
+        image_count = len(image_paths)
         image = (reference_contact_sheet(image_paths) if len(image_paths) > 1
                  else reference_image(Path(image_paths[0])))
         encoded = io.BytesIO()
         image.save(encoded, format="JPEG", quality=80)
+        image_bytes = len(encoded.getvalue())
         assignment = ([i % len(image_paths) + 1 for i in range(count)]
                       if len(image_paths) > 1 else None)
         user_content = [{"type": "text", "text": user_content +
@@ -247,6 +254,10 @@ def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
         payload["reasoning_effort"] = "none" if model == "qwen/qwen3.8-27b" else "low"
     elif model == "qwen/qwen3.8-27b":
         payload["reasoning_effort"] = "none"
+    LAST_GROQ_METRICS["request_shape"] = {
+        "format": payload["response_format"]["type"],
+        "source_images": image_count,
+        "encoded_image_bytes": image_bytes}
     response = json.loads(fetch_bytes(API_URL, json.dumps(payload).encode(), {
         "Authorization": "Bearer " + key, "Content-Type": "application/json"}))
     if not isinstance(response, dict):
@@ -583,6 +594,7 @@ def run(config, root, font_path, now=None):
                 code = safe_provider_code(error)
                 if code:
                     state["provider_error"]["code"] = code
+                state["last_groq_metrics"] = dict(LAST_GROQ_METRICS)
                 atomic_json(state_path, state)
                 atomic_json(cooldown_path, {"next_request_at": state["next_request_at"],
                                             "provider_error": state["provider_error"]})
