@@ -234,16 +234,46 @@ private struct StickerDetail: View {
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
     @State private var deleting = false
+    @State private var editingMetadata = false
+    @State private var label = ""
+    @State private var tags = ""
     var body: some View {
         NavigationStack {
             VStack(spacing: 20) {
                 StickerImage(url: model.mediaURL(pack, sticker), pixels: 512, animated: pack.kind == .ANIMATED).aspectRatio(1, contentMode: .fit)
                 Text(sticker.label).font(.title3).multilineTextAlignment(.center)
+                Button("Edit label and tags", systemImage: "tag") {
+                    label = sticker.label; tags = sticker.tags; editingMetadata = true
+                }
                 Button("Toggle favorite", systemImage: "heart") { model.run("Updating favorite") { try await model.store.toggleFavorite(packID: pack.id, stickerID: sticker.id); dismiss() } }
                 Button("Delete sticker", systemImage: "trash", role: .destructive) { deleting = true }
             }.padding().navigationTitle("Sticker preview").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
                 .confirmationDialog("Delete this sticker?", isPresented: $deleting) { Button("Delete", role: .destructive) { model.run("Removing sticker") { try await model.store.remove(packID: pack.id, stickerID: sticker.id); dismiss() } } }
+                .sheet(isPresented: $editingMetadata) {
+                    NavigationStack {
+                        Form {
+                            TextField("Reaction label", text: $label).textInputAutocapitalization(.sentences)
+                            TextField("Tags, separated by commas", text: $tags)
+                            Text("Labels and tags help you find this sticker. WhatsApp also uses clear emotion words for sticker emoji search.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .navigationTitle("Sticker details")
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editingMetadata = false } }
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Save") {
+                                    editingMetadata = false
+                                    model.run("Saving sticker details") {
+                                        try await model.store.updateStickerMetadata(packID: pack.id, stickerID: sticker.id,
+                                                                                    label: label, tags: tags)
+                                        dismiss()
+                                    }
+                                }.disabled(model.busy != nil || label.utf16.count > 80 || tags.utf16.count > 400)
+                            }
+                        }
+                    }
+                }
         }
     }
 }

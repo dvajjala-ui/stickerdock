@@ -243,6 +243,26 @@ final class LibraryIntegrationTests: XCTestCase {
         XCTAssertEqual(WhatsAppHandoff.emojis(label: "unhappy", tags: ""), ["🙂"])
     }
 
+    func testStickerMetadataEditPersistsWithoutChangingMedia() async throws {
+        let image = try await photo(.systemPurple)
+        let root = try directory()
+        let store = LibraryStore(root: root)
+        let imported = try await store.importPacks([ImportedPack(name: "Situations", kind: .STATIC,
+            stickers: [image])])
+        let pack = try XCTUnwrap(imported.first)
+        let sticker = try XCTUnwrap(pack.stickers.first)
+        try await store.updateStickerMetadata(packID: pack.id, stickerID: sticker.id,
+                                              label: "  Monday mood  ", tags: "work, funny")
+        let reopened = LibraryStore(root: root)
+        let reloaded = try await reopened.load()
+        let saved = try XCTUnwrap(reloaded.first?.stickers.first)
+        XCTAssertEqual(saved.label, "Monday mood")
+        XCTAssertEqual(saved.tags, "work, funny")
+        let bytes = try await reopened.bytes(pack: pack, sticker: saved)
+        XCTAssertEqual(bytes, image.data)
+        XCTAssertEqual(WhatsAppHandoff.emojis(label: saved.label, tags: saved.tags), ["😂"])
+    }
+
     func testGenericWebPZipSeparatesStaticAndAnimatedWithoutExtracting() async throws {
         let red = try await photo(.systemRed)
         let blue = try await photo(.systemBlue)

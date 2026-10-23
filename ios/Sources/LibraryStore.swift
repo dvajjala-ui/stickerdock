@@ -129,6 +129,21 @@ actor LibraryStore {
         try commit(next)
     }
 
+    func updateStickerMetadata(packID: String, stickerID: String, label: String, tags: String) throws {
+        try require(label.utf16.count <= 80 && tags.utf16.count <= 400,
+                    "Use a label under 80 characters and tags under 400 characters.")
+        _ = try load()
+        var next = document
+        guard let i = next.packs.firstIndex(where: { $0.id == packID }),
+              let j = next.packs[i].stickers.firstIndex(where: { $0.id == stickerID }) else {
+            throw StickerError.invalid("Sticker no longer exists.")
+        }
+        next.packs[i].stickers[j].label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        next.packs[i].stickers[j].tags = tags.trimmingCharacters(in: .whitespacesAndNewlines)
+        next.packs[i].updatedAt = Date()
+        try commit(next)
+    }
+
     func remove(packID: String, stickerID: String? = nil) throws {
         _ = try load()
         guard let pack = document.packs.first(where: { $0.id == packID }) else { return }
