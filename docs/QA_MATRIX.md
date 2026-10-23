@@ -55,6 +55,16 @@ version-2 ZIP hash matches the saved pack row. Exactly one of five sticker
 artwork entries changed; the other four bytes are identical. The new 512×512
 sticker was visually inspected, and no pack was reviewed or published.
 
+A later full-size review of all five artworks in that private draft found two
+variants of the same cat-in-pan scene. One source already contains black
+letterboxing and an existing text panel, so its new caption double-renders over
+old text; another caption has awkward wording. The pack remains private. A
+bounded dark-border filter now excludes such padded photo canvases from future
+reaction-photo source selection before spending a Groq call. Its synthetic
+opaque/RGBA/transparent tests pass, and local analysis of the saved draft's
+exact artwork flags the bad fifth canvas while leaving the fourth. This is a
+source preflight improvement, not automatic meme-quality approval.
+
 ## iPhone 0.10.2 photo ZIP acceptance — October 21, 2026
 
 [PR #25](https://github.com/dvajjala-ui/stickerdock/pull/25) is merged at

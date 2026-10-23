@@ -187,12 +187,17 @@ class DailyStickersTest(unittest.TestCase):
             colors = ["red", "green", "blue", "yellow", "purple"]
             for index, color in enumerate(colors):
                 Image.new("RGB", (600, 600), color).save(inputs / f"photo-{index}.png")
-            config = {"modes": ["photo"], "image_directory": str(inputs), "vision_model": "test-vision"}
+            padded = Image.new("RGB", (600, 600), "black")
+            padded.paste(Image.new("RGB", (300, 600), "orange"), (150, 0))
+            padded.save(inputs / "padded-source.png")
+            config = {"modes": ["photo"], "image_directory": str(inputs),
+                      "vision_model": "test-vision", "require_reaction_media": True}
             with patch.object(generator, "groq_ideas", return_value=ideas(5)) as call:
                 generator.run(config, root / "outputs", FONT, NOW)
             selected = call.call_args.args[-1]
             self.assertEqual(len(selected), 5)
             self.assertEqual(len(set(selected)), 5)
+            self.assertNotIn(str(inputs / "padded-source.png"), selected)
             records = json.loads((root / "outputs/2026-10-12/state.json").read_text())["records"]
             self.assertEqual([record["image_path"] for record in records], selected)
             self.assertEqual([record["media_credit"]["file"] for record in records],
@@ -212,6 +217,34 @@ class DailyStickersTest(unittest.TestCase):
                 Image.new("RGB", (500, 500), "red").save(inputs / f"photo-{index}.png")
             config = {"modes": ["photo"], "image_directory": str(inputs),
                       "vision_model": "test-vision", "min_distinct_source_images": 3}
+            with patch.object(generator, "groq_ideas") as call:
+                result = generator.run(config, root / "outputs", FONT, NOW)
+            self.assertIn("Waiting for 3", result)
+            call.assert_not_called()
+            self.assertFalse((root / "outputs/2026-10-12/state.json").exists())
+
+    def test_reaction_photo_skips_padded_meme_canvas_before_provider_call(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            for index, color in enumerate(("red", "green")):
+                Image.new("RGB", (500, 500), color).save(inputs / f"photo-{index}.png")
+            padded = Image.new("RGB", (500, 500), "black")
+            padded.paste(Image.new("RGB", (280, 500), "orange"), (110, 0))
+            padded.save(inputs / "padded-meme.png")
+            padded.convert("RGBA").save(inputs / "padded-opaque-rgba.png")
+            self.assertTrue(generator.padded_photo_canvas(inputs / "padded-meme.png"))
+            self.assertTrue(generator.padded_photo_canvas(inputs / "padded-opaque-rgba.png"))
+            self.assertFalse(generator.padded_photo_canvas(inputs / "photo-0.png"))
+            self.assertFalse(generator.padded_photo_canvas(inputs / "photo-1.png"))
+            cutout = padded.convert("RGBA")
+            cutout.putalpha(0)
+            cutout.save(root / "transparent-cutout.png")
+            self.assertFalse(generator.padded_photo_canvas(root / "transparent-cutout.png"))
+            config = {"modes": ["photo"], "image_directory": str(inputs),
+                      "vision_model": "test-vision", "min_distinct_source_images": 3,
+                      "require_reaction_media": True}
             with patch.object(generator, "groq_ideas") as call:
                 result = generator.run(config, root / "outputs", FONT, NOW)
             self.assertIn("Waiting for 3", result)

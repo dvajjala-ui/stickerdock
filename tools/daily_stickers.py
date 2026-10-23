@@ -204,6 +204,32 @@ def reference_contact_sheet(paths):
     return sheet
 
 
+def padded_photo_canvas(path):
+    """Detect heavy dark side/top mats around a brighter embedded image.
+
+    These are usually pre-captioned screenshots or letterboxed meme canvases;
+    putting a second caption over them produces illegible double-text stickers.
+    Keep this conservative: uniformly dark photos and transparent cutouts pass.
+    """
+    with Image.open(path) as original:
+        upright = ImageOps.exif_transpose(original)
+        if "A" in upright.getbands() or "transparency" in upright.info:
+            alpha = upright.convert("RGBA").getchannel("A").resize((64, 64), Image.Resampling.NEAREST)
+            if sum(alpha.histogram()[:240]) / 4096 > .10:
+                return False
+        sample = upright.convert("RGB").resize((64, 64), Image.Resampling.BILINEAR)
+
+    def dark_fraction(left, top, right, bottom):
+        pixels = (sample.getpixel((x, y)) for y in range(top, bottom) for x in range(left, right))
+        return sum(max(pixel) < 32 for pixel in pixels) / ((right - left) * (bottom - top))
+
+    center = dark_fraction(16, 16, 48, 48)
+    if center > .25:
+        return False
+    return (dark_fraction(0, 0, 8, 64) >= .45 and dark_fraction(56, 0, 64, 64) >= .45 or
+            dark_fraction(0, 0, 64, 8) >= .45 and dark_fraction(0, 56, 64, 64) >= .45)
+
+
 def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
     prompt = {
         "count": count, "topic": topic, "references": sources,
@@ -581,6 +607,8 @@ def run(config, root, font_path, now=None):
                 images = sorted(p for p in input_dir.iterdir() if p.is_file() and p.suffix.lower() in extensions)
                 if config.get("require_real_media"):
                     images = [p for p in images if p.name in config.get("allowed_media_files", [])]
+                if mode == "photo" and config.get("require_reaction_media"):
+                    images = [p for p in images if not padded_photo_canvas(p)]
                 if not images or not config.get("vision_model"):
                     raise ValueError("Photo mode requires supplied images and a configured Groq vision model")
                 if mode == "photo" and len(images) < min_photo_sources:
