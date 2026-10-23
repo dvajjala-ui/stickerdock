@@ -23,13 +23,23 @@ contract checks for grants, ownership, replay, global provider budget and
 abandoned upload cleanup; it has **not** been applied to production, and the
 AI flag remains off.
 
-The next Admin source slice permits visible caption changes on static photo
-drafts only when both saved provenance and current source metadata allow reuse.
-It redraws and rechecksums artwork while retaining the original Factory ZIP;
+The Admin draft editor permits visible caption changes on static photo stickers
+only when both saved provenance and current source metadata allow reuse. It
+redraws and rechecksums artwork while retaining the original Factory ZIP;
 reference-only/Pinterest/missing sources fail closed. Local verification:
 249 Python tests pass (7 skipped), targeted Ruff passes, JavaScript syntax
-passes, and a 13-check Chrome fixture smoke passes including caption submit.
-This website slice is not yet a hosted write-path acceptance.
+passes, and a 15-check Chrome fixture smoke passes including full-size artwork
+review, caption submit and narrow editor layout. The follow-up UI simplification and large preview
+still need hosted browser acceptance after deployment.
+
+Hosted write-path acceptance on October 23 used private draft
+`8deca0ea-2d16-576c-8f1f-ad8670e3bab0` and a CC0 source with current
+reusable metadata. The exact version-1 ZIP was downloaded and hash-verified
+before the edit. One caption was changed to “Bas, ab sone do.”; version 2
+read-back shows `draft` status, the new label and artwork hash. The downloaded
+version-2 ZIP hash matches the saved pack row. Exactly one of five sticker
+artwork entries changed; the other four bytes are identical. The new 512×512
+sticker was visually inspected, and no pack was reviewed or published.
 
 ## iPhone 0.10.2 photo ZIP acceptance — October 21, 2026
 

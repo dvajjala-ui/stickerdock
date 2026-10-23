@@ -88,10 +88,23 @@ const assert = require('node:assert/strict');
     await page.getByRole('heading', {name: 'Your sticker factory, at a glance.', exact: true}).waitFor();
     assert.equal(await page.getByRole('button', {name: '＋ Create pack', exact: true}).isEnabled(), true);
     await page.getByRole('button', {name: 'Open Fixture reaction'}).click();
+    await page.getByRole('button', {name: 'Preview full-size artwork for Old caption'}).click();
+    await page.locator('#sticker-preview-dialog[open] #sticker-preview-image').waitFor();
+    if (process.env.ADMIN_ARTWORK_SCREENSHOT)
+      await page.locator('#sticker-preview-dialog').screenshot({path: process.env.ADMIN_ARTWORK_SCREENSHOT});
+    await page.getByRole('button', {name: 'Close artwork preview'}).click();
     await page.locator('[data-field=caption]').fill('Wait, what?');
     await page.getByRole('button', {name: 'Save changes'}).click();
     await page.waitForFunction(() => document.querySelector('#pack-dialog')?.open === false);
     assert.equal(captionEdit.caption, 'Wait, what?', 'Visible caption must reach the save API');
+    await page.setViewportSize({width: 390, height: 844});
+    await page.getByRole('button', {name: 'Open Fixture reaction'}).click();
+    assert.equal(await page.locator('#pack-dialog').evaluate(dialog => dialog.scrollWidth > dialog.clientWidth), false,
+      'Caption editor must fit a narrow phone viewport');
+    if (process.env.ADMIN_CAPTION_SCREENSHOT)
+      await page.locator('#pack-dialog').screenshot({path: process.env.ADMIN_CAPTION_SCREENSHOT});
+    await page.locator('#pack-dialog [data-close]').click();
+    await page.setViewportSize({width: 1280, height: 900});
     await page.locator('nav button[data-page=factory]').click();
     await page.getByText('Provider cooldown ends', {exact: false}).waitFor();
     assert.equal(await page.locator('.badge.waiting').count(), 1);
@@ -175,7 +188,8 @@ const assert = require('node:assert/strict');
       'startup outage and retry without fake data',
       'Studio source loading and fixture AI queue/result without authentication',
       'rate-limit waiting state and retry time', 'mobile layout', 'explicit catalog save wording',
-      'rights-confirmed Admin media upload', 'visible-caption edit sent to save API', 'no page errors'
+      'rights-confirmed Admin media upload', 'full-size sticker review',
+      'visible-caption edit sent to save API', 'narrow caption editor layout', 'no page errors'
     ]}));
   } finally {
     await browser.close();

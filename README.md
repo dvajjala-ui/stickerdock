@@ -40,8 +40,10 @@ manifest and acceptance record. The Text tool has an opt-in personal AI caption
 flow, but its server-side flag is **off** pending the private database migration
 and account/device checks. Admin draft review now supports redrawing a static
 photo sticker's visible caption from an independently reusable source; this
-later website change has source and local browser tests, with hosted acceptance
-pending. See [release evidence](docs/QA_MATRIX.md).
+later website change passed a private-draft production edit: one rendered
+sticker changed, four stayed byte-identical, and the pack remained private.
+The review UI now includes a full-size artwork preview. See
+[release evidence](docs/QA_MATRIX.md).
 
 October 21: **Android 0.11.2 (build 17)** was [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.2)
 after [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793).
