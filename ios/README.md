@@ -1,6 +1,16 @@
 # StickerDock for iPhone / iPad — tested candidate, not store release
 
-Current tested candidate: **0.10.2 (build 14)** adds PNG/JPEG photo ZIPs alongside WebP.
+Current source candidate: **0.10.3 (build 15)** adds an opt-in private AI caption
+suggestion for a selected static photo. It requires a StickerDock phone account,
+separate rights and online-processing consent, and an explicit Apply action;
+preview and Save remain local, separate steps. The server switch stays off until
+the private SQL migration and account isolation are verified in production.
+[Apple CI for the caption source](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788164695)
+passed an unsigned build and simulator tests before this version-number bump;
+the 0.10.3 versioned artifact needs its own passing run. No physical iPhone or
+WhatsApp acceptance is claimed.
+
+The prior tested candidate **0.10.2 (build 14)** adds PNG/JPEG photo ZIPs alongside WebP.
 The native converter preserves transparency, applies EXIF orientation and bounds
 source bytes/dimensions and normalized output. Static/animated packs stay separate;
 duplicates collapse. Malformed/animated-disguised photos reject the whole archive
@@ -42,6 +52,9 @@ acceptance is claimed.
   require explicit actions. Saved revisions deduplicate. Mature stays private.
 - Native share sheet for pack/all-library ZIPs; share archives are private cache
   files cleaned when the share sheet closes.
+- Optional account-owned AI caption suggestion for static, general-audience
+  photos. A bounded caption-free preview is sent only after two explicit
+  consents; the result is text until applied to the local editing recipe.
 - Documented WhatsApp local-only general-pasteboard payload, 60-second expiry,
   explicit single-pack URL handoff; opening is not installed-status confirmation.
 - Bounded 8 MB thumbnail/animation buffers; lazy grids/discovery, first-frame
@@ -113,8 +126,9 @@ belongs in this app.
    file metadata access for private-container and explicitly selected files.
    Store privacy labels/provider retention still need a release review; the
    manifest is not a claim that the whole product passed a privacy audit.
-6. Add opt-in private account/cloud adapter, native Groq assistant, durable
-   video projects/manual mask correction and remaining Android editor parity.
+6. Validate the opt-in private caption service after its production migration;
+   add optional account-scoped cloud backup, durable video projects/manual mask
+   correction and remaining Android editor parity.
    Current operator web APIs intentionally open under R40 are not an
    account-scoped consumer service. Do not wire private mobile jobs to them;
    use the boundary in [NATIVE_AI_HANDOFF.md](../docs/NATIVE_AI_HANDOFF.md).

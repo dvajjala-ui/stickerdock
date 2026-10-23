@@ -25,6 +25,7 @@
   "functions": {
     "api/account.py": {"includeFiles": "tools/**"},
     "api/cloud.py": {"includeFiles": "tools/**"},
+    "api/personal_ai.py": {"includeFiles": "tools/**"},
     "api/admin.py": {"includeFiles": "tools/**"},
     "api/pinterest_callback.py": {"includeFiles": "tools/**"}
   },
