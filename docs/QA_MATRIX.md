@@ -26,14 +26,19 @@ contract checks for grants, ownership, replay, global provider budget and
 abandoned upload cleanup; it has **not** been applied to production, and the
 AI flag remains off.
 
-The first reviewed animal-meme pack exposed a separate production bucket issue:
+The reviewed "Everyday Animal Reactions" pack exposed a separate production bucket issue:
 the public Storage bucket accepts ZIP/JSON but rejects an optional WebP cover
 preview. The publisher now omits that preview if Storage rejects it, while
-retaining the validated downloadable pack and exact archive checksum. A
-reviewed pack still needs live catalog and ZIP readback before public delivery
-is claimed. Until the bucket MIME configuration is updated and verified,
-Discover cards for newly published packs may show a text cover; opening a pack
-loads its artwork from the ZIP on explicit user action.
+retaining the validated downloadable pack and exact archive checksum. The
+October 23 live catalog readback showed two packs; an independent public ZIP
+download of the new pack was 198,723 bytes, SHA-256
+`b53b772af38d23ed4a0e7b9673f6df5fd448f28fecf3b725b24be482461ed16d`,
+and passed public manifest validation with the three reviewed captions. The
+pack is published; Android and iPhone Discover cards show a text cover until
+the additive WebP MIME migration is applied, while explicit pack preview
+loads the artwork from the ZIP. The additive migration is staged and passes a
+local PGlite idempotence/preservation check; it has **not** been applied to
+production. No physical phone/WhatsApp acceptance is claimed.
 
 The Admin draft editor permits visible caption changes on static photo stickers
 only when both saved provenance and current source metadata allow reuse. It
