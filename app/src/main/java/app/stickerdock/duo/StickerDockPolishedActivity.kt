@@ -135,6 +135,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         var searchText by rememberSaveable { mutableStateOf("") }
         var stickerMatches by remember { mutableStateOf<List<StickerSearchResult>>(emptyList()) }
+        var quickAddPack by remember { mutableStateOf<StickerPack?>(null) }
         var matchedStickerPackIds by remember { mutableStateOf<Set<String>>(emptySet()) }
         var packFilter by rememberSaveable { mutableStateOf("All") }
         var packSort by rememberSaveable { mutableStateOf("Newest") }
@@ -564,6 +565,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
 
+        fun quickAddToWhatsApp(candidate: StickerPack) {
+            if (busy) return
+            scope.launch {
+                val installed = withContext(Dispatchers.IO) {
+                    WhatsAppTarget.entries.filter { WhatsAppIntegration.status(this@StickerDockPolishedActivity, candidate.id, it).installed }
+                }
+                when (installed.size) {
+                    0 -> snackbar.showSnackbar("Install WhatsApp or WhatsApp Business to add this pack.")
+                    1 -> launchWhatsApp(candidate, installed.single())
+                    else -> quickAddPack = candidate
+                }
+            }
+        }
+
         LaunchedEffect(selectedId) {
             selectedStickerIds = emptySet()
             refresh()
@@ -723,7 +738,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                 favoriteStickers = filteredFavorites, favoriteCount = favoriteStickers.size,
                                                 favoritesOnly = favoritesOnly, onFavoritesOnlyChange = { favoritesOnly = it },
                                                 onOpenFavorite = { selectedId = it.packId; managingSticker = it },
-                                                onRemoveFavorite = ::toggleFavorite
+                                                onRemoveFavorite = ::toggleFavorite,
+                                                onQuickAddPack = ::quickAddToWhatsApp
                                             )
                                         }
                                         VerticalDivider()
@@ -806,7 +822,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         favoriteStickers = filteredFavorites, favoriteCount = favoriteStickers.size,
                                         favoritesOnly = favoritesOnly, onFavoritesOnlyChange = { favoritesOnly = it },
                                         onOpenFavorite = { selectedId = it.packId; managingSticker = it },
-                                        onRemoveFavorite = ::toggleFavorite
+                                        onRemoveFavorite = ::toggleFavorite,
+                                        onQuickAddPack = ::quickAddToWhatsApp
                                     )
                                 }
                                 section == PolishedHomeSection.CREATE -> AnimatedScreenSwap("create") {
@@ -877,6 +894,20 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+
+        quickAddPack?.let { candidate ->
+            AlertDialog(onDismissRequest = { quickAddPack = null },
+                title = { Text("Add ${candidate.name}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Choose where to add this pack. Confirm it inside WhatsApp.")
+                        Button(onClick = { quickAddPack = null; launchWhatsApp(candidate, WhatsAppTarget.PERSONAL) },
+                            modifier = Modifier.fillMaxWidth()) { Text("WhatsApp") }
+                        OutlinedButton(onClick = { quickAddPack = null; launchWhatsApp(candidate, WhatsAppTarget.BUSINESS) },
+                            modifier = Modifier.fillMaxWidth()) { Text("WhatsApp Business") }
+                    }
+                }, confirmButton = {}, dismissButton = { TextButton(onClick = { quickAddPack = null }) { Text("Cancel") } })
         }
 
         if (showSettings) LibrarySettingsSheet(

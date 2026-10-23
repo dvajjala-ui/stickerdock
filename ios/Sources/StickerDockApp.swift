@@ -79,17 +79,39 @@ struct RootView: View {
     }
 }
 
+private struct LibrarySearchHit: Identifiable {
+    let pack: SavedPack
+    let sticker: SavedSticker
+    var id: String { sticker.id }
+}
+
 struct LibraryView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var query = ""
     @State private var kind = "All"
     @State private var favorites = false
     @State private var importer = false
+    @State private var resultsView = "Stickers"
+    @State private var selectedSearchSticker: SavedSticker?
+    @State private var selectedSearchPack: SavedPack?
+    private var searchTerms: [String] { Array(query.split(whereSeparator: \.isWhitespace).prefix(8).map { String($0) }) }
     private var filtered: [SavedPack] {
         model.packs.filter { pack in
             (kind == "All" || pack.kind.rawValue == kind) && (!favorites || pack.stickers.contains { $0.favorite }) &&
-            (query.isEmpty || ([pack.name, pack.category] + pack.stickers.flatMap { [$0.label, $0.tags] }).contains { $0.localizedStandardContains(query) })
+            searchTerms.allSatisfy { term in
+                ([pack.name, pack.category] + pack.stickers.flatMap { [$0.label, $0.tags] }).contains { $0.localizedStandardContains(term) }
+            }
         }
+    }
+    private var stickerResults: [LibrarySearchHit] {
+        guard !searchTerms.isEmpty else { return [] }
+        return Array(filtered.flatMap { pack in
+            pack.stickers.filter { sticker in
+                searchTerms.allSatisfy { term in
+                    [pack.name, pack.category, sticker.label, sticker.tags].contains { $0.localizedStandardContains(term) }
+                }
+            }.map { LibrarySearchHit(pack: pack, sticker: $0) }
+        }.prefix(100))
     }
     var body: some View {
         ScrollView {
@@ -100,17 +122,51 @@ struct LibraryView: View {
                 }
                 if model.packs.isEmpty {
                     ContentUnavailableView { Label("Your reactions belong here", systemImage: "face.smiling") } description: { Text("Create from a photo or clip, or import a StickerDock ZIP. Your library stays on this device.") } actions: { Button("Import sticker ZIP") { importer = true }.buttonStyle(.borderedProminent) }
-                } else if filtered.isEmpty { ContentUnavailableView.search(text: query) }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 14)], spacing: 14) {
-                    ForEach(filtered) { pack in
-                        NavigationLink(value: pack.id) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(spacing: 4) { ForEach(Array(pack.stickers.prefix(3))) { item in StickerImage(url: model.mediaURL(pack, item)).frame(height: 100) } }.frame(maxWidth: .infinity, minHeight: 110)
-                                Text(pack.name).font(.headline).foregroundStyle(.primary).lineLimit(2)
-                                Text("\(pack.stickers.count) stickers · \(pack.kind == .ANIMATED ? "Animated" : "Static")").font(.caption).foregroundStyle(.secondary)
-                                if pack.rating == .MATURE { Label("Private mature pack", systemImage: "lock").font(.caption).foregroundStyle(.secondary) }
-                            }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
-                        }.buttonStyle(.plain)
+                } else if filtered.isEmpty && (searchTerms.isEmpty || resultsView == "Packs") {
+                    ContentUnavailableView.search(text: query)
+                }
+                if !searchTerms.isEmpty && !model.packs.isEmpty {
+                    Picker("Search results", selection: $resultsView) {
+                        Text("Stickers").tag("Stickers")
+                        Text("Packs").tag("Packs")
+                    }.pickerStyle(.segmented)
+                    Text("\(stickerResults.count) stickers · \(filtered.count) packs")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if !searchTerms.isEmpty && resultsView == "Stickers" {
+                    if stickerResults.isEmpty { ContentUnavailableView.search(text: query) }
+                    LazyVStack(spacing: 12) {
+                        ForEach(stickerResults) { hit in
+                            HStack(spacing: 12) {
+                                Button { selectedSearchPack = hit.pack; selectedSearchSticker = hit.sticker } label: {
+                                    HStack(spacing: 12) {
+                                        StickerImage(url: model.mediaURL(hit.pack, hit.sticker)).frame(width: 80, height: 80)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(hit.sticker.label.isEmpty ? "Sticker" : hit.sticker.label).font(.headline).lineLimit(2)
+                                            Text(hit.pack.name).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                            Text(hit.pack.kind == .ANIMATED ? "Animated" : "Static").font(.caption2).foregroundStyle(.secondary)
+                                        }
+                                        Spacer(minLength: 0)
+                                    }
+                                }.buttonStyle(.plain).accessibilityLabel("Preview \(hit.sticker.label.isEmpty ? "sticker" : hit.sticker.label)")
+                                Button { model.addToWhatsApp(hit.pack) } label: { Image(systemName: "message.fill") }
+                                    .disabled(model.busy != nil || hit.pack.stickers.count < 3)
+                                    .accessibilityLabel("Add \(hit.pack.name) to WhatsApp")
+                            }.padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                        }
+                    }
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 14)], spacing: 14) {
+                        ForEach(filtered) { pack in
+                            NavigationLink(value: pack.id) {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(spacing: 4) { ForEach(Array(pack.stickers.prefix(3))) { item in StickerImage(url: model.mediaURL(pack, item)).frame(height: 100) } }.frame(maxWidth: .infinity, minHeight: 110)
+                                    Text(pack.name).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                                    Text("\(pack.stickers.count) stickers · \(pack.kind == .ANIMATED ? "Animated" : "Static")").font(.caption).foregroundStyle(.secondary)
+                                    if pack.rating == .MATURE { Label("Private mature pack", systemImage: "lock").font(.caption).foregroundStyle(.secondary) }
+                                }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+                            }.buttonStyle(.plain)
+                        }
                     }
                 }
             }.padding()
@@ -121,6 +177,9 @@ struct LibraryView: View {
         .navigationDestination(for: String.self) { PackView(id: $0) }
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { importer = true } label: { Image(systemName: "square.and.arrow.down") }.accessibilityLabel("Import sticker ZIP") } }
         .fileImporter(isPresented: $importer, allowedContentTypes: [.zip]) { result in switch result { case .success(let url): model.importArchive(url); case .failure(let error): model.error = error.localizedDescription } }
+        .sheet(item: $selectedSearchSticker, onDismiss: { selectedSearchPack = nil }) { sticker in
+            if let pack = selectedSearchPack { StickerDetail(pack: pack, sticker: sticker) }
+        }
     }
 }
 

@@ -174,8 +174,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         original_id, label, digest, version = row
         before = self.counts()
         self.launch(restart=True); self.wait_text("Search library"); self.fill("Search library", "My photo")
-        self.wait_text("My photo reactions"); self.tap("My photo reactions")
-        self.wait_text(label); self.tap(label)
+        self.wait_text("Stickers"); self.wait_text(label); self.tap("Preview")
         self.scroll_to_text("Add to favorites"); self.tap("Add to favorites")
         self.wait_text("Remove from favorites")
         assert favorite_ids() == {original_id}
@@ -264,6 +263,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         def open_editor():
             self.launch(restart=True)
             self.wait_text("Search library"); self.fill("Search library", "001")
+            self.wait_text("Packs"); self.tap("Packs")
             self.wait_text("QA pack 001"); self.tap("QA pack 001")
             self.wait_text("QA sticker 00"); self.tap("QA sticker 00")
             self.wait_text("Edit artwork and captions"); self.tap("Edit artwork and captions")

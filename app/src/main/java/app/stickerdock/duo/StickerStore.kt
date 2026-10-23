@@ -230,39 +230,35 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
     }
     /** Pack discovery must not inherit the bounded sticker-preview query's limit. */
     fun searchStickerPackIds(query: String): Set<String> {
-        val needle = StickerMetadata.cleanLabel(query)
-        if (needle.isBlank()) return emptySet()
+        val terms = StickerMetadata.searchTerms(query)
+        if (terms.isEmpty()) return emptySet()
+        val fields = listOf("s.label", "s.tags", "s.file_name", "p.name", "p.category")
+        val where = terms.joinToString(" AND ") { fields.joinToString(" OR ", "(", ")") { field -> "instr(lower($field), lower(?)) > 0" } }
+        val args = terms.flatMap { term -> List(fields.size) { term } }.toTypedArray()
         val result = mutableSetOf<String>()
-        readableDatabase.rawQuery("""
-            SELECT DISTINCT pack_id FROM stickers
-            WHERE instr(lower(label), lower(?)) > 0
-               OR instr(lower(tags), lower(?)) > 0
-               OR instr(lower(file_name), lower(?)) > 0
-        """.trimIndent(), arrayOf(needle, needle, needle)).use { cursor ->
+        readableDatabase.rawQuery("SELECT DISTINCT s.pack_id FROM stickers s JOIN packs p ON p.id=s.pack_id WHERE $where", args).use { cursor ->
             while (cursor.moveToNext()) result += cursor.getString(0)
         }
         return result
     }
 
     fun searchStickers(query: String, limit: Int = 100): List<StickerSearchResult> {
-        val needle = StickerMetadata.cleanLabel(query)
-        if (needle.isBlank()) return emptyList()
+        val terms = StickerMetadata.searchTerms(query)
+        if (terms.isEmpty()) return emptyList()
         val safeLimit = limit.coerceIn(1, 200)
+        val fields = listOf("s.label", "s.tags", "s.file_name", "p.name", "p.category")
+        val where = terms.joinToString(" AND ") { fields.joinToString(" OR ", "(", ")") { field -> "instr(lower($field), lower(?)) > 0" } }
         val sql = """
             SELECT s.id,s.pack_id,s.file_name,s.sha256,s.created_at,s.label,s.tags,
                    p.id,p.name,p.version,p.created_at,p.kind,p.rating,p.category
             FROM stickers s
             JOIN packs p ON p.id=s.pack_id
-            WHERE instr(lower(s.label), lower(?)) > 0
-               OR instr(lower(s.tags), lower(?)) > 0
-               OR instr(lower(s.file_name), lower(?)) > 0
-               OR instr(lower(p.name), lower(?)) > 0
-               OR instr(lower(p.category), lower(?)) > 0
+            WHERE $where
             ORDER BY s.created_at DESC, s.id
             LIMIT $safeLimit
         """.trimIndent()
         val result = mutableListOf<StickerSearchResult>()
-        readableDatabase.rawQuery(sql, arrayOf(needle, needle, needle, needle, needle)).use { cursor ->
+        readableDatabase.rawQuery(sql, terms.flatMap { term -> List(fields.size) { term } }.toTypedArray()).use { cursor ->
             while (cursor.moveToNext()) {
                 result += StickerSearchResult(readSticker(cursor, 0), readPack(cursor, 7))
             }

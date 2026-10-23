@@ -60,9 +60,13 @@ fun LibraryScreen(
     packFilter: String = "All", onPackFilterChange: (String) -> Unit = {},
     favoriteStickers: List<StickerSearchResult> = emptyList(), favoriteCount: Int = 0,
     favoritesOnly: Boolean = false, onFavoritesOnlyChange: (Boolean) -> Unit = {},
-    onOpenFavorite: (StickerItem) -> Unit = {}, onRemoveFavorite: (StickerItem) -> Unit = {}
+    onOpenFavorite: (StickerItem) -> Unit = {}, onRemoveFavorite: (StickerItem) -> Unit = {},
+    onQuickAddPack: (StickerPack) -> Unit = {}
 ) {
     val matchesByPack = remember(stickerMatches) { stickerMatches.groupBy { it.pack.id } }
+    val visiblePackIds = remember(filteredPacks) { filteredPacks.mapTo(mutableSetOf()) { it.id } }
+    val visibleStickers = remember(stickerMatches, visiblePackIds) { stickerMatches.filter { it.pack.id in visiblePackIds } }
+    var resultsView by remember(searchText.isNotBlank()) { mutableStateOf("Stickers") }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = if (compactPane) 520.dp else 800.dp),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -112,7 +116,7 @@ fun LibraryScreen(
             }
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (favoritesOnly) "${favoriteStickers.size} favorite stickers" else if (searchText.isBlank()) "${packs.size} packs · ${counts.values.sum()} stickers" else "${filteredPacks.size} matching packs",
+                    Text(if (favoritesOnly) "${favoriteStickers.size} favorite stickers" else if (searchText.isBlank()) "${packs.size} packs · ${counts.values.sum()} stickers" else "${visibleStickers.size} stickers · ${filteredPacks.size} packs",
                         modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     TextButton(enabled = !busy, onClick = onCreatePack) { Text("New pack") }
                 }
@@ -132,6 +136,25 @@ fun LibraryScreen(
                 item { Spacer(Modifier.height(20.dp)) }
                 return@LazyColumn
             }
+            if (searchText.isNotBlank()) item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf("Stickers", "Packs")) { view ->
+                        FilterChip(selected = resultsView == view, onClick = { resultsView = view }, label = { Text(view) })
+                    }
+                }
+            }
+            if (searchText.isNotBlank() && resultsView == "Stickers") {
+                items(visibleStickers, key = { it.item.id }) { result ->
+                    SearchStickerCard(result, files, previewCache, counts[result.pack.id] ?: 0, !busy,
+                        { onOpenFavorite(result.item) }, { onQuickAddPack(result.pack) })
+                }
+                if (visibleStickers.isEmpty()) item {
+                    EmptyStateCard("No matching stickers", "Try a different reaction, caption or tag, or look in Packs.",
+                        "See matching packs", { resultsView = "Packs" })
+                }
+                item { Spacer(Modifier.height(20.dp)) }
+                return@LazyColumn
+            }
             items(filteredPacks, key = { it.id }) { pack ->
                 val matching = matchesByPack[pack.id].orEmpty()
                 VisualPackCard(pack, counts[pack.id] ?: 0,
@@ -146,6 +169,34 @@ fun LibraryScreen(
                     { onSearchChange(""); onClearFilters() })
             }
             item { Spacer(Modifier.height(20.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun SearchStickerCard(result: StickerSearchResult, files: StickerFiles, previewCache: StickerPreviewCache,
+    packCount: Int, enabled: Boolean, onOpen: () -> Unit, onAddPack: () -> Unit) {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PackPreviewImage(files.stickerFile(result.pack.id, result.item.fileName).path,
+                    result.item.displayName, previewCache, Modifier.size(88.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(result.item.displayName, style = MaterialTheme.typography.titleSmall,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(result.pack.name, style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${if (result.pack.kind == StickerKind.ANIMATED) "Animated" else "Static"}${if (result.pack.rating == PackRating.MATURE) " · Private" else ""}",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(enabled = enabled, onClick = onOpen) { Text("Preview") }
+                TextButton(enabled = enabled && packCount >= 3, onClick = onAddPack) {
+                    Text(if (packCount >= 3) "Add pack to WhatsApp" else "Add ${3 - packCount} more first")
+                }
+            }
         }
     }
 }

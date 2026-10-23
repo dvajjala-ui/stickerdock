@@ -232,8 +232,15 @@ final class LibraryIntegrationTests: XCTestCase {
         let stickers = try XCTUnwrap(json["stickers"] as? [[String: Any]])
         XCTAssertEqual(stickers.count, 3)
         XCTAssertEqual(stickers[0]["image_data"] as? String, image.data.base64EncodedString())
+        XCTAssertEqual(stickers[0]["emojis"] as? [String], ["🙂"])
         XCTAssertEqual(json["animated_sticker_pack"] as? Bool, false)
         XCTAssertThrowsError(try WhatsAppHandoff.payload(pack: pack, images: [image.data], tray: tray))
+    }
+
+    func testWhatsAppEmojisUseExplicitStickerMetadata() {
+        XCTAssertEqual(WhatsAppHandoff.emojis(label: "Funny hello", tags: "work"), ["😂", "👋"])
+        XCTAssertEqual(WhatsAppHandoff.emojis(label: "Monday mood", tags: "office"), ["🙂"])
+        XCTAssertEqual(WhatsAppHandoff.emojis(label: "unhappy", tags: ""), ["🙂"])
     }
 
     func testGenericWebPZipSeparatesStaticAndAnimatedWithoutExtracting() async throws {

@@ -15,4 +15,10 @@ internal object StickerMetadata {
         .distinctBy { it.lowercase(Locale.ROOT) }
         .take(12)
         .joinToString(", ")
+
+    /** A situation can span a caption, tags and a pack name without matching punctuation. */
+    fun searchTerms(value: String): List<String> = cleanLabel(value)
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(8)
 }

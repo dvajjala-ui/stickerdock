@@ -53,6 +53,10 @@ class StickerMetadataSearchTest {
         assertEquals(stored.id, store.searchStickers("office").single().item.id)
         assertEquals(stored.id, store.searchStickers("work").single().item.id)
         assertEquals(stored.id, store.searchStickers("generated.webp").single().item.id)
+        assertEquals(stored.id, store.searchStickers("monday work").single().item.id)
+        assertEquals(stored.id, store.searchStickers("office funny").single().item.id)
+        assertEquals(setOf(pack.id), store.searchStickerPackIds("team Monday"))
+        assertTrue(store.searchStickers("monday vacation").isEmpty())
         assertTrue(store.searchStickers("does-not-exist").isEmpty())
     }
 

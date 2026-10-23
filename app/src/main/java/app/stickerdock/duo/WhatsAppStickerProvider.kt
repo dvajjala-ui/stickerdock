@@ -53,7 +53,7 @@ class WhatsAppStickerProvider : ContentProvider() {
                 segments.size == 2 && segments[0] == "stickers" -> {
                     val cursor = MatrixCursor(STICKER_COLUMNS)
                     if (store.getPack(segments[1]) != null) store.listStickers(segments[1]).forEach {
-                        cursor.addRow(arrayOf(it.fileName, "😀", it.displayName))
+                        cursor.addRow(arrayOf(it.fileName, StickerEmojiTags.from(it.label, it.tags).joinToString(","), it.displayName))
                     }
                     cursor.setNotificationUri(ctx.contentResolver, uri)
                     cursor
