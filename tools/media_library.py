@@ -81,6 +81,35 @@ def commons_candidates(query):
     return candidates
 
 
+def openverse_candidates(query):
+    """Bounded Openverse keyless image search restricted to CC0 and public domain."""
+    args = {"q": query, "license": "cc0,pdm", "page_size": "10"}
+    data = json.loads(fetch("https://api.openverse.org/v1/images/?" +
+                            urllib.parse.urlencode(args), 1_000_000))
+    candidates = []
+    for item in data.get("results", []):
+        license_name = str(item.get("license", "")).strip().lower()
+        if license_name == "cc0":
+            license_id = "CC0"
+        elif license_name in ("pdm", "public domain"):
+            license_id = "PUBLIC_DOMAIN"
+        else:
+            continue
+        download = item.get("url", "")
+        suffix = Path(urllib.parse.urlsplit(download).path).suffix.lower()
+        if suffix not in (".png", ".jpg", ".jpeg", ".webp"):
+            continue
+        candidates.append({
+            "title": str(item.get("title") or "Openverse reference")[:240],
+            "source_url": item.get("foreign_landing_url") or download,
+            "download_url": download,
+            "license": license_id,
+            "license_url": item.get("license_url", ""),
+            "credit": str(item.get("creator") or "")[:400]
+        })
+    return candidates
+
+
 def pinterest_candidates(config):
     """Official authorized board reader; no partner search or public-page scrape.
 
@@ -183,6 +212,15 @@ def sync(config, root, now=None):
                     if not candidates:
                         raise
                     state["last_warning"] = "Discovery unavailable; explicit licensed queue used"
+            openverse_queries = config.get("openverse_queries", [])
+            if openverse_queries:
+                ov_query = openverse_queries[state["query_index"] % len(openverse_queries)]
+                try:
+                    candidates += openverse_candidates(ov_query)
+                except (OSError, ValueError):
+                    if not candidates and not queries:
+                        raise
+                    state["last_warning"] = "Openverse discovery unavailable"
             if config.get("pinterest_board_id"):
                 if state["attempts"] < daily:
                     state["attempts"] += 1

@@ -51,6 +51,28 @@ class MediaLibraryTest(unittest.TestCase):
         self.assertEqual([item["license"] for item in candidates], ["CC0", "PUBLIC_DOMAIN"])
         self.assertTrue(all(item["credit"] == "Artist" for item in candidates))
 
+    def test_openverse_filters_license_metadata(self):
+        response = {
+            "result_count": 3,
+            "results": [
+                {"title": "Cute cat", "url": "https://example.org/cat.jpg",
+                 "foreign_landing_url": "https://example.org/source/cat",
+                 "license": "cc0", "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+                 "creator": "Photographer"},
+                {"title": "Dog reaction", "url": "https://example.org/dog.png",
+                 "foreign_landing_url": "https://example.org/source/dog",
+                 "license": "pdm", "license_url": "", "creator": "Artist"},
+                {"title": "Restricted photo", "url": "https://example.org/bird.jpg",
+                 "license": "by-nc", "creator": "Someone"}
+            ]
+        }
+        with patch.object(library, "fetch", return_value=json.dumps(response).encode()):
+            candidates = library.openverse_candidates("happy pets")
+        self.assertEqual(len(candidates), 2)
+        self.assertEqual([c["license"] for c in candidates], ["CC0", "PUBLIC_DOMAIN"])
+        self.assertEqual(candidates[0]["credit"], "Photographer")
+        self.assertEqual(candidates[1]["credit"], "Artist")
+
     def test_save_sanitizes_and_keeps_provenance(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(library, "fetch", return_value=photo_bytes()):
             root = Path(temporary)

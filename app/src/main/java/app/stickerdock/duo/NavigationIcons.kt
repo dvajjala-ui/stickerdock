@@ -80,6 +80,31 @@ fun StickerDockNavIcon(label: String) {
                 }
                 drawPath(path, color, style = stroke)
             }
+            "Grid" -> {
+                for (x in listOf(3.5f, 13f)) for (y in listOf(3.5f, 13f)) {
+                    drawRoundRect(color, Offset(x * u, y * u), Size(7.5f * u, 7.5f * u), CornerRadius(2f * u), style = stroke)
+                }
+            }
+            "List" -> {
+                for (y in listOf(5f, 12f, 19f)) {
+                    drawRoundRect(color, Offset(3.5f * u, (y - 1.2f) * u), Size(17f * u, 2.4f * u), CornerRadius(1.2f * u))
+                }
+            }
+            "WhatsApp" -> {
+                val bubble = Path().apply {
+                    moveTo(12f * u, 2.5f * u)
+                    cubicTo(6.75f * u, 2.5f * u, 2.5f * u, 6.75f * u, 2.5f * u, 12f * u)
+                    cubicTo(2.5f * u, 13.85f * u, 3.05f * u, 15.58f * u, 4f * u, 17.05f * u)
+                    lineTo(3f * u, 21.5f * u)
+                    lineTo(7.65f * u, 20.25f * u)
+                    cubicTo(8.98f * u, 21.05f * u, 10.45f * u, 21.5f * u, 12f * u, 21.5f * u)
+                    cubicTo(17.25f * u, 21.5f * u, 21.5f * u, 17.25f * u, 21.5f * u, 12f * u)
+                    cubicTo(21.5f * u, 6.75f * u, 17.25f * u, 2.5f * u, 12f * u, 2.5f * u)
+                    close()
+                }
+                drawPath(bubble, color, style = stroke)
+                drawCircle(color, 2f * u, Offset(12f * u, 12f * u))
+            }
             else -> {
                 drawCircle(color, 9f * u, style = stroke)
                 val needle = Path().apply {

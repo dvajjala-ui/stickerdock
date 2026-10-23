@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -67,7 +68,18 @@ fun LibraryScreen(
     val visiblePackIds = remember(filteredPacks) { filteredPacks.mapTo(mutableSetOf()) { it.id } }
     val visibleStickers = remember(stickerMatches, visiblePackIds) { stickerMatches.filter { it.pack.id in visiblePackIds } }
     var resultsView by remember(searchText.isNotBlank()) { mutableStateOf("Stickers") }
+    var isGridView by rememberSaveable { mutableStateOf(false) }
+    var recentSearches by rememberSaveable { mutableStateOf(listOf("monday mood", "thanks", "lol")) }
     val quickSuggestions = listOf("monday mood", "thanks", "lol", "not today", "okay", "work done", "send help", "love this")
+
+    fun onSelectSearch(term: String) {
+        val cleaned = term.trim()
+        if (cleaned.isNotBlank()) {
+            recentSearches = (listOf(cleaned) + (recentSearches - cleaned)).take(6)
+        }
+        onSearchChange(term)
+    }
+
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = if (compactPane) 520.dp else 800.dp),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -80,32 +92,66 @@ fun LibraryScreen(
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LibrarySearch(searchText, onSearchChange, "monday mood, thanks, lol…", Modifier.weight(1f))
+                    LibrarySearch(searchText, { onSelectSearch(it) }, "monday mood, thanks, lol…", Modifier.weight(1f))
                     TextButton(onClick = onOpenFilters) { Text(if (activeFilterCount == 0) "Filters" else "Filters ($activeFilterCount)") }
                 }
             }
-            if (searchText.isBlank() && !favoritesOnly && packs.isNotEmpty()) item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                    items(quickSuggestions) { suggestion ->
-                        SuggestionChip(
-                            onClick = { onSearchChange(suggestion) },
-                            label = { Text(suggestion, style = MaterialTheme.typography.labelMedium) }
-                        )
+            if (searchText.isBlank() && !favoritesOnly && packs.isNotEmpty()) {
+                if (recentSearches.isNotEmpty()) item {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Recent:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(6.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(recentSearches) { term ->
+                                SuggestionChip(
+                                    onClick = { onSelectSearch(term) },
+                                    label = { Text(term, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+                    }
+                }
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                        items(quickSuggestions) { suggestion ->
+                            SuggestionChip(
+                                onClick = { onSelectSearch(suggestion) },
+                                label = { Text(suggestion, style = MaterialTheme.typography.labelMedium) }
+                            )
+                        }
                     }
                 }
             }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { FilterChip(!favoritesOnly, { onFavoritesOnlyChange(false) }, { Text("Your packs") }) }
-                    item { FilterChip(favoritesOnly, { onFavoritesOnlyChange(true) }, { Text("Favorites ($favoriteCount)") }, leadingIcon = { StickerDockNavIcon("Favorite") }) }
-                }
-            }
-            item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf("All", "Static", "Animated")) { type ->
-                        FilterChip(selected = packFilter == type, onClick = { onPackFilterChange(type) }, label = { Text(if (type == "All") if (favoritesOnly) "All types" else "All packs" else type) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary), border = null)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    item {
+                        FilterChip(
+                            selected = !favoritesOnly && packFilter == "All",
+                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("All") },
+                            label = { Text("All packs") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = !favoritesOnly && packFilter == "Animated",
+                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("Animated") },
+                            label = { Text("Animated ✦") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = !favoritesOnly && packFilter == "Static",
+                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("Static") },
+                            label = { Text("Static") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = favoritesOnly,
+                            onClick = { onFavoritesOnlyChange(true) },
+                            label = { Text("Favorites ($favoriteCount)") },
+                            leadingIcon = { StickerDockNavIcon("Favorite") }
+                        )
                     }
                 }
             }
@@ -129,6 +175,15 @@ fun LibraryScreen(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (favoritesOnly) "${favoriteStickers.size} favorite stickers" else if (searchText.isBlank()) "${packs.size} packs · ${counts.values.sum()} stickers" else "${visibleStickers.size} stickers · ${filteredPacks.size} packs",
                         modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!favoritesOnly && (searchText.isBlank() || resultsView == "Packs")) {
+                        IconButton(
+                            onClick = { isGridView = !isGridView },
+                            modifier = Modifier.size(32.dp).semantics { contentDescription = if (isGridView) "Switch to list view" else "Switch to grid view" }
+                        ) {
+                            StickerDockNavIcon(if (isGridView) "List" else "Grid")
+                        }
+                        Spacer(Modifier.width(4.dp))
+                    }
                     TextButton(enabled = !busy, onClick = onCreatePack) { Text("New pack") }
                 }
             }
@@ -160,24 +215,78 @@ fun LibraryScreen(
                         { onOpenFavorite(result.item) }, { onQuickAddPack(result.pack) })
                 }
                 if (visibleStickers.isEmpty()) item {
-                    EmptyStateCard("No matching stickers", "Try a different reaction, caption or tag, or look in Packs.",
-                        "See matching packs", { resultsView = "Packs" })
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    ) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("No stickers match \"$searchText\"", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Try searching for one of these situations:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(quickSuggestions.take(4)) { suggestion ->
+                                    SuggestionChip(
+                                        onClick = { onSelectSearch(suggestion) },
+                                        label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) }
+                                    )
+                                }
+                            }
+                            TextButton(onClick = { resultsView = "Packs" }) { Text("Search in packs instead") }
+                        }
+                    }
                 }
                 item { Spacer(Modifier.height(20.dp)) }
                 return@LazyColumn
             }
-            items(filteredPacks, key = { it.id }) { pack ->
-                val matching = matchesByPack[pack.id].orEmpty()
-                VisualPackCard(pack, counts[pack.id] ?: 0,
-                    if (searchText.isNotBlank() && matching.isNotEmpty()) matching.take(4).map { it.item } else previewItems[pack.id].orEmpty(),
-                    files, previewCache, selectedPackId == pack.id,
-                    if (searchText.isNotBlank() && matching.isNotEmpty()) "Matching stickers" else null,
-                    onClick = { onOpenPack(pack.id) })
+            if (isGridView && !compactPane) {
+                items(filteredPacks.chunked(2), key = { pair -> pair.joinToString("-") { it.id } }) { rowPacks ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (pack in rowPacks) {
+                            Box(Modifier.weight(1f)) {
+                                val matching = matchesByPack[pack.id].orEmpty()
+                                val previews = if (searchText.isNotBlank() && matching.isNotEmpty()) matching.take(4).map { it.item } else previewItems[pack.id].orEmpty()
+                                GridPackCard(pack, counts[pack.id] ?: 0, previews, files, previewCache,
+                                    selectedPackId == pack.id, onClick = { onOpenPack(pack.id) },
+                                    onQuickAdd = { onQuickAddPack(pack) })
+                            }
+                        }
+                        if (rowPacks.size == 1) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                items(filteredPacks, key = { it.id }) { pack ->
+                    val matching = matchesByPack[pack.id].orEmpty()
+                    VisualPackCard(pack, counts[pack.id] ?: 0,
+                        if (searchText.isNotBlank() && matching.isNotEmpty()) matching.take(4).map { it.item } else previewItems[pack.id].orEmpty(),
+                        files, previewCache, selectedPackId == pack.id,
+                        if (searchText.isNotBlank() && matching.isNotEmpty()) "Matching stickers" else null,
+                        onClick = { onOpenPack(pack.id) },
+                        onQuickAdd = { onQuickAddPack(pack) })
+                }
             }
             if (filteredPacks.isEmpty()) item {
-                EmptyStateCard(if (searchText.isBlank()) "No packs match these filters" else "No matching packs",
-                    "Try another name, label or tag, or clear your filters.", "Clear search & filters",
-                    { onSearchChange(""); onClearFilters() })
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(if (searchText.isBlank()) "No packs match these filters" else "No matching packs for \"$searchText\"",
+                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Try a situation reaction or clear filters:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(quickSuggestions.take(4)) { suggestion ->
+                                SuggestionChip(
+                                    onClick = { onSelectSearch(suggestion) },
+                                    label = { Text(suggestion, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+                        TextButton(onClick = { onSearchChange(""); onClearFilters() }) { Text("Clear search & filters") }
+                    }
+                }
             }
             item { Spacer(Modifier.height(20.dp)) }
         }
@@ -251,7 +360,8 @@ private fun LibraryOnboardingCard(busy: Boolean, onCreatePack: () -> Unit, onImp
 
 @Composable
 private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<StickerItem>, files: StickerFiles,
-    previewCache: StickerPreviewCache, selected: Boolean, matchLabel: String?, onClick: () -> Unit) {
+    previewCache: StickerPreviewCache, selected: Boolean, matchLabel: String?, onClick: () -> Unit,
+    onQuickAdd: (() -> Unit)? = null) {
     Surface(onClick = onClick, shape = MaterialTheme.shapes.large,
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)),
@@ -259,13 +369,32 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (pack.kind == StickerKind.ANIMATED) {
+                            Surface(
+                                shape = MaterialTheme.shapes.extraSmall,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ) {
+                                Text("✦ Motion", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
                     Text(matchLabel ?: buildString {
                         append("$stickerCount ${if (stickerCount == 1) "sticker" else "stickers"}")
                         if (pack.kind == StickerKind.ANIMATED) append(" · Animated")
                         if (pack.category != PackCategory.GENERAL) append(" · ${pack.category.label}")
                         if (pack.rating == PackRating.MATURE) append(" · Private")
                     }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (onQuickAdd != null && stickerCount >= 3) {
+                    IconButton(
+                        onClick = onQuickAdd,
+                        modifier = Modifier.size(36.dp).semantics { contentDescription = "Add ${pack.name} to WhatsApp" }
+                    ) {
+                        StickerDockNavIcon("WhatsApp")
+                    }
                 }
                 StickerDockNavIcon("Forward")
             }
@@ -277,6 +406,105 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
                         previewCache, Modifier.weight(1f).aspectRatio(1f))
                     else Box(Modifier.weight(1f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                         if (index == 0) StickerDockNavIcon("Create")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GridPackCard(
+    pack: StickerPack,
+    stickerCount: Int,
+    previews: List<StickerItem>,
+    files: StickerFiles,
+    previewCache: StickerPreviewCache,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onQuickAdd: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.large,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f)),
+        modifier = Modifier.fillMaxWidth().semantics { this.selected = selected; role = Role.Button }
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(1f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(4.dp)
+            ) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (idx in 0..1) {
+                            val item = previews.getOrNull(idx)
+                            if (item != null) {
+                                PackPreviewImage(
+                                    files.stickerFile(pack.id, item.fileName).path,
+                                    item.displayName,
+                                    previewCache,
+                                    Modifier.weight(1f).fillMaxHeight()
+                                )
+                            } else {
+                                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                                    if (idx == 0) StickerDockNavIcon("Create")
+                                }
+                            }
+                        }
+                    }
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (idx in 2..3) {
+                            val item = previews.getOrNull(idx)
+                            if (item != null) {
+                                PackPreviewImage(
+                                    files.stickerFile(pack.id, item.fileName).path,
+                                    item.displayName,
+                                    previewCache,
+                                    Modifier.weight(1f).fillMaxHeight()
+                                )
+                            } else {
+                                Box(Modifier.weight(1f).fillMaxHeight())
+                            }
+                        }
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        pack.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (pack.kind == StickerKind.ANIMATED) {
+                        Surface(
+                            shape = MaterialTheme.shapes.extraSmall,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Text("✦", modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "$stickerCount ${if (stickerCount == 1) "sticker" else "stickers"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (stickerCount >= 3) {
+                        IconButton(
+                            onClick = onQuickAdd,
+                            modifier = Modifier.size(28.dp).semantics { contentDescription = "Add ${pack.name} to WhatsApp" }
+                        ) {
+                            StickerDockNavIcon("WhatsApp")
+                        }
                     }
                 }
             }
