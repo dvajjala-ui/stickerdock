@@ -44,6 +44,10 @@ later website change passed a private-draft production edit: one rendered
 sticker changed, four stayed byte-identical, and the pack remained private.
 The review UI now includes a full-size artwork preview. See
 [release evidence](docs/QA_MATRIX.md).
+Admin pack cards are being upgraded to lazy, checksum-bound covers composed
+from actual GENERAL sticker artwork; the shared workspace keeps mature covers
+hidden. See the [implementation tracker](docs/PRODUCT_EXECUTION_2026-10-22.md)
+for the hosted verification state.
 
 October 21: **Android 0.11.2 (build 17)** was [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.2)
 after [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793).

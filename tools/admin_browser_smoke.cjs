@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
     page.on('pageerror', error => errors.push(error.message));
     const snapshot = {
       packs: [{id: 'fixture-pack', name: 'Fixture reaction', creator: 'Tester', rating: 'GENERAL',
+        sha256: 'a'.repeat(64),
         status: 'draft', version: 1, sticker_count: 1, references: [{media_credit: {license: 'CC0'}}]}],
       factory_packs: [], runs: [{day: '2026-10-15', generated: 10, target: 40,
         status: 'running', display_status: 'waiting', attempts: 3, retry_at: 1792098000,
@@ -46,6 +47,10 @@ const assert = require('node:assert/strict');
         stickers: [{name: 'fixture.webp', kind: 'STATIC', label: 'Old caption', tags: '',
           caption_editable: true, preview: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg=='}]
       }});
+      if (payload.action === 'pack_cover') return route.fulfill({json: {
+        id: payload.id, sha256: snapshot.packs[0].sha256,
+        preview: 'data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoBAAEAAUAmJaACdLoB+AADsAD+8ut//NgVzXPv9//S4P0uD9Lg/9KQAAA='
+      }});
       if (payload.action === 'pack_save') {
         captionEdit = payload.stickers[0];
         return route.fulfill({json: {saved: true}});
@@ -68,6 +73,8 @@ const assert = require('node:assert/strict');
     });
     await page.goto(process.env.ADMIN_PREVIEW_URL || 'http://127.0.0.1:4173/admin');
     await page.getByRole('heading', {name: 'Your sticker factory, at a glance.', exact: true}).waitFor();
+    await page.getByRole('img', {name: 'Fixture reaction cover'}).first().waitFor();
+    await page.waitForFunction(() => document.querySelector('.pack-art img')?.naturalWidth > 0);
     assert.equal(await page.locator('#connect-dialog, #owner-token, input[type=password]').count(), 0,
       'Dashboard must open directly without login controls');
     await page.clock.runFor(30000);
@@ -188,7 +195,7 @@ const assert = require('node:assert/strict');
       'startup outage and retry without fake data',
       'Studio source loading and fixture AI queue/result without authentication',
       'rate-limit waiting state and retry time', 'mobile layout', 'explicit catalog save wording',
-      'rights-confirmed Admin media upload', 'full-size sticker review',
+      'rights-confirmed Admin media upload', 'lazy real-art pack cover', 'full-size sticker review',
       'visible-caption edit sent to save API', 'narrow caption editor layout', 'no page errors'
     ]}));
   } finally {

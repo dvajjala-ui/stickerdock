@@ -158,6 +158,24 @@ class AdminApiTest(unittest.TestCase):
         self.assertTrue(detail["stickers"][0]["preview"].startswith("data:image/webp;base64,"))
         self.assertLess(len(json.dumps(detail)), 4_000_000)
 
+    def test_cover_uses_real_pack_art_without_changing_private_draft(self):
+        row = self.migrate()
+        before = copy.deepcopy(self.client.objects)
+        result = admin.dispatch({"action": "pack_cover", "id": row["id"]}, self.client)
+        self.assertEqual((result["id"], result["sha256"]), (row["id"], row["sha256"]))
+        data = base64.b64decode(result["preview"].split(",", 1)[1])
+        self.assertLessEqual(len(data), 100_000)
+        with Image.open(io.BytesIO(data)) as cover:
+            self.assertEqual(cover.size, (240, 240))
+            self.assertNotEqual(cover.convert("RGB").getpixel((60, 60)), (0, 0, 0))
+        self.assertEqual(self.client.objects, before)
+
+    def test_mature_pack_cover_is_not_available_to_shared_dashboard(self):
+        row = self.migrate()
+        self.client.rows[("admin_packs", row["id"])]["rating"] = "MATURE"
+        with self.assertRaisesRegex(ValueError, "Mature pack covers"):
+            admin.pack_cover(self.client, {"id": row["id"]})
+
     def test_pack_edits_preserve_bytes_and_reset_review(self):
         row = self.migrate()
         details = admin.pack_detail(self.client, {"id": row["id"]})

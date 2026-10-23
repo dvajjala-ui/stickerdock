@@ -130,6 +130,36 @@ def pack_detail(client, payload):
                               "count": len(pack["stickers"])} for pack in manifest["packs"]]}
 
 
+def pack_cover(client, payload):
+    """Bounded real-art cover for a visible GENERAL draft or published pack."""
+    row = current_pack(client, payload)
+    if row["rating"] != "GENERAL":
+        raise ValueError("Mature pack covers are not shown in the shared workspace")
+    data, manifest = pack_archive(client, row)
+    cover = Image.new("RGBA", (240, 240))
+    placed = 0
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        for pack in manifest["packs"]:
+            for sticker in pack["stickers"]:
+                if placed == 4:
+                    break
+                path = "packs/" + pack["id"] + "/" + sticker["name"]
+                with Image.open(io.BytesIO(archive.read(path))) as image:
+                    image.seek(0)
+                    tile = ImageOps.contain(image.convert("RGBA"), (112, 112), Image.Resampling.LANCZOS)
+                x, y = 4 + (placed % 2) * 120, 4 + (placed // 2) * 120
+                cover.alpha_composite(tile, (x + (112 - tile.width) // 2, y + (112 - tile.height) // 2))
+                placed += 1
+            if placed == 4:
+                break
+    output = io.BytesIO()
+    cover.save(output, "WEBP", quality=75, method=4)
+    if output.tell() > 100_000:
+        raise ValueError("Pack cover exceeds the preview limit")
+    return {"id": row["id"], "sha256": row["sha256"], "preview":
+            "data:image/webp;base64," + base64.b64encode(output.getvalue()).decode()}
+
+
 def store_draft(client, data, manifest, references, name, creator, origin_id=None, pack_id=None):
     validate_pack(data, public=False)
     digest = hashlib.sha256(data).hexdigest()
@@ -515,6 +545,8 @@ def dispatch(payload, client=None):
         return overview(client)
     if action == "pack_detail":
         return pack_detail(client, payload)
+    if action == "pack_cover":
+        return pack_cover(client, payload)
     if action == "pack_download":
         return signed_download(client, payload)
     if action == "queue_action":

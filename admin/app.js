@@ -10,7 +10,9 @@
   let loaded = false, connectionError = "", page = ["connected","failed"].includes(pinterestReturn)?"pinterest":"overview", data, library = [], libraryNextOffset = null, detail = null, working = false, confirmation = null, search = "", filter = "all", toastTimer;
   if(["connected","failed"].includes(pinterestReturn))history.replaceState(null,"",location.pathname);
   const mediaDetails = new Map();
+  const packCovers = new Map();
   let mediaObserver = null;
+  let packCoverObserver = null;
   let pendingCreatorJob = null;
   const creatorJobKey = "stickerdock:pending-creator-job";
   function readPendingCreatorJob() {try {return JSON.parse(sessionStorage.getItem(creatorJobKey));}catch (_) {return pendingCreatorJob;}}
@@ -115,16 +117,47 @@
   function badge(status) {return `<span class="badge ${esc(status)}">${esc(status.replaceAll("_"," "))}</span>`;}
   function heading(title,subtitle,actions="") {return `<div class="page-heading"><div><h1>${title}</h1><p>${subtitle}</p></div><div class="heading-actions">${actions}</div></div>`;}
   function button(label,action,id="",style="secondary") {return `<button class="${style}" data-action="${action}" data-id="${esc(id)}">${label}</button>`;}
-  function packCard(p,index) {return `<article class="pack-card"><div class="pack-art ${colors[index%4]} ${p.art?"real-cover":""}">${p.art?`<img src="${esc(p.art)}" alt="${esc(p.name)} cover">`:`<span class="letter-cover">${esc(p.name.slice(0,1))}</span>`}</div><div class="pack-info"><h3>${esc(p.name)}</h3><p>${p.sticker_count} stickers · ${esc(p.rating === "MATURE"?"Private mature":"General audience")}</p><div class="pack-bottom">${badge(p.status)}<button class="card-action" aria-label="Open ${esc(p.name)}" data-action="open-pack" data-id="${p.id}">↗</button></div></div></article>`;}
+  function coverKey(pack) {return `${pack.id}:${pack.sha256}`;}
+  function hydrateHeroCovers() {
+    if(page!=="overview")return;
+    const hero=document.querySelector(".hero-art");if(!hero)return;
+    const featured=data.packs.filter(p=>p.rating==="GENERAL"&&p.status!=="archived"&&packCovers.has(coverKey(p))).slice(0,2);
+    if(!featured.length)return;
+    hero.classList.remove("hero-art-empty");hero.replaceChildren();
+    for(const pack of featured){const img=document.createElement("img");img.src=packCovers.get(coverKey(pack));img.alt=pack.name+" cover";hero.append(img);}
+  }
+  function hydratePackCovers() {
+    packCoverObserver?.disconnect();
+    const nodes=document.querySelectorAll("[data-pack-cover]");
+    const load=async node=>{
+      if(!node.isConnected||node.dataset.loading)return;
+      node.dataset.loading="true";
+      const pack=data.packs.find(p=>p.id===node.dataset.packCover&&p.sha256===node.dataset.packSha);
+      if(!pack||pack.rating!=="GENERAL")return;
+      try{
+        const cover=await command("pack_cover",{id:pack.id});
+        if(cover.id!==pack.id||cover.sha256!==pack.sha256||!/^data:image\/webp;base64,[A-Za-z0-9+/=]+$/.test(cover.preview))return;
+        packCovers.set(coverKey(pack),cover.preview);
+        if(node.isConnected){const img=document.createElement("img");img.src=cover.preview;img.alt=pack.name+" cover";node.replaceChildren(img);node.classList.add("real-cover");}
+        hydrateHeroCovers();
+      }catch(_){/* The honest letter cover remains if private preview is unavailable. */}
+    };
+    if(!("IntersectionObserver" in window)){nodes.forEach(load);return;}
+    packCoverObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{
+      if(entry.isIntersecting){packCoverObserver.unobserve(entry.target);load(entry.target);}
+    }),{rootMargin:"250px"});
+    nodes.forEach(node=>packCoverObserver.observe(node));
+  }
+  function packCard(p,index) {const art=p.rating==="GENERAL"?packCovers.get(coverKey(p)):null;return `<article class="pack-card"><div class="pack-art ${colors[index%4]} ${art?"real-cover":""}" ${!art&&p.rating==="GENERAL"&&p.sha256?`data-pack-cover="${esc(p.id)}" data-pack-sha="${esc(p.sha256)}"`:""}>${art?`<img src="${esc(art)}" alt="${esc(p.name)} cover">`:`<span class="letter-cover">${esc(p.name.slice(0,1))}</span>`}</div><div class="pack-info"><h3>${esc(p.name)}</h3><p>${p.sticker_count} stickers · ${esc(p.rating === "MATURE"?"Private mature":"General audience")}</p><div class="pack-bottom">${badge(p.status)}<button class="card-action" aria-label="Open ${esc(p.name)}" data-action="open-pack" data-id="${p.id}">↗</button></div></div></article>`;}
   function empty(title,description) {return `<div class="empty"><h3>${title}</h3>${description}</div>`;}
   function renderOverview() {
     const visible=data.packs.filter(p=>p.status!=="archived"), pending=visible.filter(p=>p.status==="draft").length;
     const run=data.runs[0], queued=data.requests.filter(r=>["queued","running"].includes(r.status)).length;
     const total=visible.reduce((n,p)=>n+p.sticker_count,0),published=data.catalog.packs.length;
-    const featured=visible.filter(p=>p.rating==="GENERAL"&&p.art).slice(0,2);
+    const featured=visible.filter(p=>p.rating==="GENERAL"&&packCovers.has(coverKey(p))).slice(0,2);
     return heading("Your sticker factory, at a glance.","A little creativity. A lot of reactions. Everything in one place.",button("＋ Create pack","create-pack","","primary"))+
     `<div class="stats-grid">${[["Total stickers",total,"✦","green","In your managed library"],["Sticker packs",visible.length,"▧","purple",`${pending} waiting for review`],["Published packs",published,"↗","blue","Available in the Android feed"],["Generation queue",queued,"◷","orange","Factory AI requests"]].map(([label,value,icon,color,meta])=>`<div class="stat"><div class="stat-label">${label}<span class="stat-icon ${color}">${icon}</span></div><div class="stat-value">${value}</div><div class="stat-meta">${meta}</div></div>`).join("")}</div>
-    <section class="hero"><div><div class="eyebrow">THE NEXT GREAT REACTION STARTS HERE</div><h2>Turn an idea into a sticker.</h2><p>Bring your memes, add a little AI, and make packs people actually want to send.</p>${button("Open AI workbench  ↗","navigate","generate","primary")}</div><div class="hero-art ${featured.length?"":"hero-art-empty"}">${featured.length?featured.map(p=>`<img src="${esc(p.art)}" alt="${esc(p.name)} cover">`).join(""):`<span>Your real reactions appear here after you create a pack.</span>`}</div></section>
+    <section class="hero"><div><div class="eyebrow">THE NEXT GREAT REACTION STARTS HERE</div><h2>Turn an idea into a sticker.</h2><p>Bring your memes, add a little AI, and make packs people actually want to send.</p>${button("Open AI workbench  ↗","navigate","generate","primary")}</div><div class="hero-art ${featured.length?"":"hero-art-empty"}">${featured.length?featured.map(p=>`<img src="${esc(packCovers.get(coverKey(p)))}" alt="${esc(p.name)} cover">`).join(""):`<span>Your real reactions appear here after you create a pack.</span>`}</div></section>
     <div class="content-grid"><section><div class="section-head"><h2>Your latest packs <small>${visible.length} packs</small></h2>${button("View all →","navigate","packs","text-button")}</div>${visible.length?`<div class="pack-grid">${visible.slice(0,6).map(packCard).join("")}</div>`:empty("Your library starts here","Migrate an existing Factory output or create a pack from your own images.")}</section><aside class="overview-side"><section class="panel"><div class="panel-title"><span class="live-dot"></span> Factory schedule ${badge(data.settings?.enabled===false?"paused":"enabled")}</div><div class="progress-caption"><span>Latest UTC run</span><strong>${run?.generated||0} / ${run?.target||data.settings?.daily_target||40}</strong></div><div class="progress-track"><progress class="progress-fill" max="${run?.target||40}" value="${run?.generated||0}"></progress></div><p class="run-summary">${esc(run?.day||"No run recorded")} · ${esc(run?.display_status||run?.status||"Awaiting first batch")}</p><div class="run-item"><span class="status-dot">✓</span><div><strong>Generation</strong><small>${esc(run?.last_result||"No generation result yet")}</small></div></div><div class="run-item"><span class="status-dot">↗</span><div><strong>${published} packs on the app</strong><small>New approved packs appear on refresh</small></div></div>${button("View Factory activity →","navigate","factory","text-button")}</section><section class="panel phone-flow"><h3>From the Factory to WhatsApp.</h3><p>Review your pack, publish it, then open StickerDock on your phone. Find the pack in Discover, preview and save it, then tap Add to WhatsApp.</p><div class="flow-steps"><span>Generate</span>→<span>Review</span>→<span>Publish</span>→<span>Send</span></div></section></aside></div>`;
   }
   function renderPacks() {
@@ -189,6 +222,7 @@
     $("breadcrumb").textContent=titles[page];
     document.querySelectorAll("nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));connectionUi();
     if(loaded&&page==="media")hydrateMedia();else mediaObserver?.disconnect();
+    if(loaded&&["overview","packs"].includes(page))hydratePackCovers();else packCoverObserver?.disconnect();
     if(loaded&&page==="generate"){
       const saved=readPendingCreatorJob(),form=$("generate-form");
       if(saved&&form&&saved.source&&saved.prompt){
