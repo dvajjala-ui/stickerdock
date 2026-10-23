@@ -507,8 +507,13 @@ def export_zip(path, records, day):
             data = Path(record["file"]).read_bytes()
             filename = record["id"] + ".webp"
             caption = " ".join(str(record.get("caption", "")).split())[:80]
-            tags = ", ".join(dict.fromkeys(str(value).lower() for value in
-                             (record.get("mood", ""), category.lower(), "animated" if kind == "ANIMATED" else "") if value))[:200]
+            supplied_tags = record.get("tags")
+            if supplied_tags is not None:
+                tags = ", ".join(dict.fromkeys(part.strip().lower() for part in
+                                 re.split(r"[,;]", str(supplied_tags)) if part.strip()))[:200]
+            else:
+                tags = ", ".join(dict.fromkeys(str(value).lower() for value in
+                                 (record.get("mood", ""), category.lower(), "animated" if kind == "ANIMATED" else "") if value))[:200]
             pack["stickers"].append({"name": filename, "sha256": hashlib.sha256(data).hexdigest(),
                                      "label": caption, "tags": tags})
             assets[f"packs/{pack_id}/{filename}"] = data

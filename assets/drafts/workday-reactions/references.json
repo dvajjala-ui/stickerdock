@@ -1,0 +1,29 @@
+[
+  {
+    "media_credit": {
+      "title": "Original fictional meeting reaction",
+      "credit": "StickerDock original AI-assisted artwork",
+      "license": "USER_OWNED",
+      "source_url": "https://github.com/dvajjala-ui/stickerdock/blob/main/assets/drafts/workday-reactions/sources/meeting.png",
+      "source_sha256": "b5b733eafe0ed74f5e5171cb47241de5eb5c3b186c0accda691abceddd64f711"
+    }
+  },
+  {
+    "media_credit": {
+      "title": "Original fictional relief reaction",
+      "credit": "StickerDock original AI-assisted artwork",
+      "license": "USER_OWNED",
+      "source_url": "https://github.com/dvajjala-ui/stickerdock/blob/main/assets/drafts/workday-reactions/sources/relief.png",
+      "source_sha256": "157835e01e9ac2f4a423f2be58fd9805614ebccd9c694919daef07916a7200c7"
+    }
+  },
+  {
+    "media_credit": {
+      "title": "Original fictional messages reaction",
+      "credit": "StickerDock original AI-assisted artwork",
+      "license": "USER_OWNED",
+      "source_url": "https://github.com/dvajjala-ui/stickerdock/blob/main/assets/drafts/workday-reactions/sources/messages.png",
+      "source_sha256": "f7abf6366b558e2b385da02ba53a1ee7fe17850c96c72d8a43e46a6f2de1b1e9"
+    }
+  }
+]

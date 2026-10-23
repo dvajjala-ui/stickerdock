@@ -23,6 +23,20 @@ def ideas(count, offset=0):
 
 @unittest.skipUnless(FONT.exists(), "Install DejaVu Sans font")
 class DailyStickersTest(unittest.TestCase):
+    def test_export_preserves_explicit_search_tags(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sticker_id = str(generator.uuid.uuid4())
+            asset = root / "reaction.webp"
+            asset.write_bytes(b"RIFFtestWEBP")
+            archive_path = root / "reactions.zip"
+            generator.export_zip(archive_path, [{"id": sticker_id, "file": str(asset),
+                "caption": "Call finally ended", "tags": "  WORK ; relief, work, Happy  ",
+                "category": "WORK", "pack_title": "Workday Reactions"}], "2026-10-23")
+            with zipfile.ZipFile(archive_path) as archive:
+                pack = json.loads(archive.read("manifest.json"))["packs"][0]
+                self.assertEqual(pack["stickers"][0]["tags"], "work, relief, happy")
+
     def test_rendered_assets_and_native_archive(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

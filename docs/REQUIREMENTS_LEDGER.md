@@ -1,5 +1,23 @@
 # StickerDock requirements ledger
 
+## Fast reactions and broader product direction — October 23, 2026
+
+The user's [latest request transcription](USER_PRODUCT_INPUT_2026-10-23.md)
+extends the earlier [verbatim rebuild requests](PRODUCT_REBUILD_REQUEST_2026-10-18.md).
+The [decision and acceptance plan](PRODUCT_DIRECTION_2026-10-23.md) records
+implementation slices and platform boundaries. Keep these IDs active until
+matching evidence closes them.
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
+| R44 | Find a situation-specific individual sticker quickly using per-sticker metadata, with sticker/pack filters | Partial | Android/iPhone sticker-first results and multi-word caption/tag/pack matching are in source. Native CI, scale measurement, relevance ranking and richer filters remain. |
+| R45 | Add a found sticker's containing pack to WhatsApp or Business with minimal friction | Partial | Result actions offer the containing pack; Android chooses the sole installed target or asks when both exist. Official WhatsApp confirmation and physical personal/Business tests remain. |
+| R46 | Organize all WhatsApp stickers, including built-ins, if a permission exists | Platform-limited | The official integration only reports whether StickerDock's own packs were added. It cannot list/remove built-in or other apps' packs. Organize owned/imported media in StickerDock and use WhatsApp's own tray controls for the rest. |
+| R47 | Make icon, consumer navigation and admin UX professional and purposeful | Active | Three consumer destinations and a separate operator workspace exist. New screenshots, icon concepts, accessibility and real-user flow review remain. |
+| R48 | Expand real static/animated meme sources and produce useful current-affairs reactions automatically | Partial | Reviewed real-media packs exist and Factory builds private drafts. Source license review, OCR text-overlap guard, broader independent media, coherent jokes, delivery reliability and mobile discovery remain. |
+| R49 | Prevent duplicate scenes and captions covering text already in source images | Partial | Existing credited-title and padded-meme guard plus new exact/perceptual source check run before caption spend. Embedded-text detection and human visual acceptance remain. |
+| R50 | Preserve user input and product prompts in version-controlled Markdown | Active | This ledger links the dated request record and earlier verbatim rebuild requests. Add future dated requests here without deleting history. |
+
 ## Product-wide audit and automatic memes — October 22, 2026
 
 User asks for all identified bugs, missing implementation, product suggestions,

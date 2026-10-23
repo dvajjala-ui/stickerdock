@@ -76,6 +76,16 @@ class ReactionMediaTests(unittest.TestCase):
             self.assertEqual(checked.size, (512, 512))
             self.assertEqual(getattr(checked, "n_frames", 1), 1)
 
+    def test_transparent_photo_cutout_gets_readable_white_edge(self):
+        cutout = Image.new("RGBA", (200, 200))
+        from PIL import ImageDraw
+        ImageDraw.Draw(cutout).rectangle((50, 50, 150, 150), fill="black")
+        sticker = compose(cutout, "Really?", FONT, fit="contain", position="top")
+        self.assertEqual(sticker.getpixel((256, 256))[:3], (0, 0, 0))
+        self.assertTrue(all(channel >= 245 for channel in sticker.getpixel((128, 256))[:3]))
+        self.assertGreater(sticker.getpixel((128, 256))[3], 0)
+        self.assertEqual(sticker.getpixel((0, 0))[3], 0)
+
     def test_caption_controls_bounds_and_unicode(self):
         self.assertEqual(caption_text("  Kya   scene hai? "), "Kya scene hai?")
         self.assertEqual(caption_text("क्या बात है"), "क्या बात है")

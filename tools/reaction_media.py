@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import unicodedata
 
-from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 MAX_SOURCE_BYTES = 20_000_000
 MAX_PIXELS = 20_000_000
@@ -136,7 +136,15 @@ def compose(image, caption, font_path, fit="cover", position="bottom", focus=(.5
     else:
         canvas = Image.new("RGBA", (512, 512))
         fitted = ImageOps.contain(image, (488, 488), method=Image.Resampling.LANCZOS)
-        canvas.alpha_composite(fitted, ((512 - fitted.width) // 2, (512 - fitted.height) // 2))
+        location = ((512 - fitted.width) // 2, (512 - fitted.height) // 2)
+        alpha = fitted.getchannel("A")
+        if alpha.getextrema()[0] < 255:
+            # A narrow white edge keeps a transparent photo cutout visible in
+            # both light and dark chat bubbles without boxing it in.
+            outline = Image.new("RGBA", fitted.size, "white")
+            outline.putalpha(alpha.filter(ImageFilter.MaxFilter(17)))
+            canvas.alpha_composite(outline, location)
+        canvas.alpha_composite(fitted, location)
     draw = ImageDraw.Draw(canvas)
     for size in range(42, 19, -2):
         # Serverless runtimes need not have the host's DejaVu font installed.

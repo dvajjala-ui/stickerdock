@@ -532,6 +532,20 @@ class LibraryAcceptance(ClipCreatorSmoke):
         print(json.dumps(report), flush=True)
 
 
+def ensure_emulator_root(command, attempts=5):
+    """adb may close its first root transport while adbd restarts on CI."""
+    for attempt in range(attempts):
+        try:
+            subprocess.run(command + ["root"], check=False, capture_output=True, text=True, timeout=15)
+            subprocess.run(command + ["wait-for-device"], check=True, timeout=30)
+            if subprocess.check_output(command + ["shell", "id", "-u"], text=True, timeout=10).strip() == "0":
+                return
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f"Emulator root attempt {attempt + 1} did not settle: {error}", flush=True)
+        time.sleep(2)
+    raise RuntimeError("Emulator did not become root after adb restart")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True)
@@ -542,8 +556,7 @@ if __name__ == "__main__":
     assert args.serial.startswith("emulator-"), "Only a disposable emulator is allowed"
     command = [args.adb, "-s", args.serial]
     assert subprocess.check_output(command + ["shell", "getprop", "ro.kernel.qemu"], text=True).strip() == "1"
-    subprocess.run(command + ["root"], check=True)
-    subprocess.run(command + ["wait-for-device"], check=True)
+    ensure_emulator_root(command)
     test = LibraryAcceptance(args.adb, args.serial, args.output)
     try:
         test.run_acceptance(args.apk)
