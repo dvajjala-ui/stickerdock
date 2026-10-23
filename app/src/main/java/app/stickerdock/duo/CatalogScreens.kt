@@ -151,6 +151,17 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
             state.bitmap != null -> Image(state.bitmap!!, "Sticker previews from ${entry.name}",
                 Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit)
             state.loading -> CircularProgressIndicator(Modifier.size(24.dp))
+            entry.previewUrl == null && !state.failed -> Column(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.secondaryContainer).padding(18.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("CURATED STICKERS", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(entry.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 2)
+                Text("Open to see the stickers", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
             else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 StickerDockNavIcon("Library")
                 Text(if (state.failed) "Preview couldn't load" else "Open this pack to load its preview",

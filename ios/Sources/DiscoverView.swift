@@ -39,6 +39,19 @@ private struct CatalogCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let preview { StickerImage(data: preview, pixels: 576).frame(height: 190) }
+            else {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("CURATED STICKERS").font(.caption2.weight(.bold)).tracking(1.4)
+                    Spacer(minLength: 0)
+                    Text(pack.name).font(.title2.bold()).lineLimit(2)
+                    Text("Open to see the stickers").font(.caption)
+                }
+                .foregroundStyle(.primary)
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 190)
+                .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
+            }
             Text(pack.name).font(.headline)
             Text(pack.creator).font(.caption).foregroundStyle(.secondary)
             Label("Preview pack", systemImage: "arrow.up.right").font(.subheadline)

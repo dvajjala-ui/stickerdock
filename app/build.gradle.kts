@@ -17,8 +17,8 @@ android {
         applicationId = "app.stickerdock.duo"
         minSdk = 30
         targetSdk = 36
-        versionCode = 18
-        versionName = "0.11.3"
+        versionCode = 19
+        versionName = "0.11.4"
         val defaultCatalog = "https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/"
         val catalogBase = providers.gradleProperty("catalogBaseUrl").orElse(defaultCatalog).get()
         require(catalogBase.startsWith("https://") && catalogBase.endsWith("/"))
