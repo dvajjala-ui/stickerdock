@@ -29,8 +29,11 @@ redraws and rechecksums artwork while retaining the original Factory ZIP;
 reference-only/Pinterest/missing sources fail closed. Local verification:
 249 Python tests pass (7 skipped), targeted Ruff passes, JavaScript syntax
 passes, and a 15-check Chrome fixture smoke passes including full-size artwork
-review, caption submit and narrow editor layout. The follow-up UI simplification and large preview
-still need hosted browser acceptance after deployment.
+review, caption submit and narrow editor layout. Hosted headless Chrome opened
+the actual private draft after the UI deployment: the cleaner caption/tag rows
+fit 390 px without horizontal overflow, the 512 px artwork preview showed the
+edited caption, and no page errors occurred. This is Admin browser verification,
+not Android or iPhone acceptance.
 
 Hosted write-path acceptance on October 23 used private draft
 `8deca0ea-2d16-576c-8f1f-ad8670e3bab0` and a CC0 source with current
