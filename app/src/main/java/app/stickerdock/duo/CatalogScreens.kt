@@ -159,7 +159,7 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
                     color = MaterialTheme.colorScheme.onSecondaryContainer)
                 Text(entry.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 2)
-                Text("Open to see the stickers", style = MaterialTheme.typography.labelMedium,
+                Text("Open pack to see the stickers", style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
             else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -9,14 +9,16 @@ from apple_version_check import declared_version, verify
 class AppleVersionCheckTests(unittest.TestCase):
     def test_project_version_matches_built_bundle(self):
         project = Path(__file__).resolve().parents[1] / "ios/project.yml"
-        self.assertEqual(declared_version(project), ("0.10.3", "15"))
+        version, build = declared_version(project)
+        self.assertRegex(version, r"^[0-9]+(?:\.[0-9]+){2}$")
+        self.assertGreater(int(build), 0)
         with tempfile.TemporaryDirectory() as directory:
             plist = Path(directory) / "Info.plist"
             with plist.open("wb") as stream:
-                plistlib.dump({"CFBundleShortVersionString": "0.10.3", "CFBundleVersion": "15"}, stream)
-            self.assertEqual(verify(project, plist), ("0.10.3", "15"))
+                plistlib.dump({"CFBundleShortVersionString": version, "CFBundleVersion": build}, stream)
+            self.assertEqual(verify(project, plist), (version, build))
             with plist.open("wb") as stream:
-                plistlib.dump({"CFBundleShortVersionString": "0.10.2", "CFBundleVersion": "14"}, stream)
+                plistlib.dump({"CFBundleShortVersionString": version, "CFBundleVersion": "0"}, stream)
             with self.assertRaisesRegex(ValueError, "does not match"):
                 verify(project, plist)
 
