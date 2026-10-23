@@ -8,7 +8,14 @@ struct CatalogPack: Identifiable, Decodable {
     let sha256: String
     let rating: String?
     let preview: Preview?
+    let stickerCount: Int?
+    let kinds: [String]?
+    let categories: [String]?
     struct Preview: Decodable { let file: String; let sha256: String }
+    enum CodingKeys: String, CodingKey {
+        case id, name, creator, file, sha256, rating, preview, kinds, categories
+        case stickerCount = "sticker_count"
+    }
 }
 
 private final class NoRedirects: NSObject, URLSessionTaskDelegate {
@@ -39,6 +46,8 @@ actor CatalogClient {
             try require(pack.id.range(of: "^[a-z0-9-]{3,60}$", options: .regularExpression) != nil && ids.insert(pack.id).inserted && MediaRules.validName(pack.name) && MediaRules.validName(pack.creator), "Invalid catalog entry.")
             try require(pack.file.range(of: "^[A-Za-z0-9_-]{1,64}\\.zip$", options: .regularExpression) != nil && validHash(pack.sha256), "Invalid catalog archive.")
             if let preview = pack.preview { try require(validHash(preview.sha256) && preview.file == preview.sha256 + ".webp", "Invalid catalog preview.") }
+            if let count = pack.stickerCount { try require((1...100).contains(count), "Invalid catalog sticker count.") }
+            if let kinds = pack.kinds { try require(!kinds.isEmpty && Set(kinds).isSubset(of: ["STATIC", "ANIMATED"]), "Invalid catalog kinds.") }
             return pack
         }
     }

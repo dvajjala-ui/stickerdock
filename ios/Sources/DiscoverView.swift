@@ -3,18 +3,39 @@ import SwiftUI
 struct DiscoverView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var query = ""
+    @State private var kind = "ALL"
     @State private var selected: CatalogPack?
     @State private var loading = false
     @State private var failure: String?
+    private var visiblePacks: [CatalogPack] {
+        model.catalog.filter { pack in
+            (kind == "ALL" || pack.kinds?.contains(kind) == true) &&
+            (query.isEmpty || pack.name.localizedStandardContains(query) ||
+             pack.creator.localizedStandardContains(query) ||
+             pack.categories?.contains(where: { $0.localizedStandardContains(query) }) == true)
+        }
+    }
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
                 Text("Find your next reaction").font(.title2.bold())
                 Text("Preview a pack, then save only what you want.").foregroundStyle(.secondary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(["ALL", "STATIC", "ANIMATED"], id: \.self) { value in
+                            Button(value == "ALL" ? "All packs" : value.capitalized) { kind = value }
+                                .buttonStyle(.bordered)
+                                .tint(kind == value ? Color.accentColor : Color.gray)
+                        }
+                    }
+                }
                 if loading { ProgressView("Finding packs") }
                 if let failure { ContentUnavailableView { Label("Couldn’t load packs", systemImage: "wifi.exclamationmark") } description: { Text(failure) } actions: { Button("Retry") { Task { await refresh() } } } }
                 if !loading && failure == nil && model.catalog.isEmpty { ContentUnavailableView("More reactions soon", systemImage: "sparkles", description: Text("You can create from your own photos and clips while new packs are reviewed.")) }
-                ForEach(model.catalog.filter { query.isEmpty || $0.name.localizedStandardContains(query) || $0.creator.localizedStandardContains(query) }) { pack in
+                if !loading && failure == nil && !model.catalog.isEmpty && visiblePacks.isEmpty {
+                    ContentUnavailableView.search(text: query.isEmpty ? kind.capitalized : query)
+                }
+                ForEach(visiblePacks) { pack in
                     Button { selected = pack } label: { CatalogCard(pack: pack) }.buttonStyle(.plain)
                 }
             }.padding()
@@ -53,7 +74,8 @@ private struct CatalogCard: View {
                 .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
             }
             Text(pack.name).font(.headline)
-            Text(pack.creator).font(.caption).foregroundStyle(.secondary)
+            Text(pack.creator + (pack.stickerCount.map { " · \($0) stickers" } ?? ""))
+                .font(.caption).foregroundStyle(.secondary)
             Label("Preview pack", systemImage: "arrow.up.right").font(.subheadline)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
             .task(id: pack.sha256) { preview = try? await model.catalogClient.preview(pack) }
