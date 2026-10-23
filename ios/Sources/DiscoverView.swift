@@ -143,6 +143,7 @@ private struct CatalogDetail: View {
                     .navigationTitle(sticker.animated ? "Animated preview" : "Sticker preview")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { selectedSticker = nil } } }
+                }
             }
     }
 }
