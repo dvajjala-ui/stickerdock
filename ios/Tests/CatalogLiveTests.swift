@@ -4,6 +4,32 @@ import XCTest
 /// Read-only production integration. This does not upload, publish, sign in,
 /// consume a model budget or alter any server/library state.
 final class CatalogLiveTests: XCTestCase {
+    func testOriginalWorkdayPackKeepsRealArtworkAndSearchMetadata() async throws {
+        let base = try XCTUnwrap(URL(string: "https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/"))
+        let client = CatalogClient(base: base)
+        let entries = try await client.browse()
+        let entry = try XCTUnwrap(entries.first(where: { $0.id == "pack-81356871-c817-538e-8a62-573b20beed97" }))
+        XCTAssertEqual(entry.kinds, ["STATIC"])
+        XCTAssertEqual(entry.stickerCount, 3)
+        XCTAssertEqual(entry.sha256, "b7c370afeef27f41400f30f37ef88a6cce43912f920170c929707687a1526dfe")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("live-workday-test-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(root: root)
+        let packs = try await client.download(entry)
+        let pack = try XCTUnwrap(packs.first)
+        XCTAssertEqual(packs.count, 1)
+        XCTAssertEqual(pack.kind, .STATIC)
+        XCTAssertEqual(pack.stickers.map(\.label), ["Ye meeting email ho sakti thi.", "Call chhuti, jaan bachi!", "Main 5 min offline kya hui?"])
+        XCTAssertEqual(pack.stickers.map(\.tags), ["meeting, work, annoyed", "call, work, happy, relief", "messages, work, surprise"])
+        for sticker in pack.stickers { try MediaRules.validate(sticker.data, kind: .STATIC) }
+        let before = try await store.load()
+        XCTAssertTrue(before.isEmpty, "Preview/download must not silently import")
+        let saved = try await store.importPacks(packs, sourceKey: entry.id + ":" + entry.sha256)
+        XCTAssertEqual(saved.count, 1)
+        let reopened = try await LibraryStore(root: root).load()
+        XCTAssertEqual(reopened, saved)
+    }
+
     func testPublishedAnimatedPackDownloadsAndSavesWithMotionIntact() async throws {
         let base = try XCTUnwrap(URL(string: "https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/"))
         let client = CatalogClient(base: base)

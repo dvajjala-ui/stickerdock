@@ -1,5 +1,28 @@
 # StickerDock verification checklist
 
+## October 23 original-art pack and current native source
+
+The [Workday Reactions pack](../assets/drafts/workday-reactions/README.md)
+contains three fictional adult AI-art reactions. The checked-in archive passed
+the native pack/reference validators and light/dark 128 px visual inspection.
+Hosted Admin imported the exact ZIP as a private draft; its signed private
+download matched SHA-256
+`eb56a3be1a17211796aea379cf6f76d8a01f4aaacfb0bc4d23e2d53dd01a5393`.
+After creator labeling and review, the public catalog listed five packs. An
+independent public ZIP download matched the new entry's SHA-256
+`b7c370afeef27f41400f30f37ef88a6cce43912f920170c929707687a1526dfe`
+(148,200 bytes). The optional catalog cover failed its WebP bucket MIME gate;
+pack-opening still fetches full artwork. Physical WhatsApp acceptance and
+actual-user reaction testing remain open.
+
+[Apple CI for iPhone 0.10.7/build 19](https://github.com/dvajjala-ui/stickerdock/actions/runs/39945178923)
+passes the unsigned device build and simulator checks for sticker-first search,
+WhatsApp pack handoff and persisted metadata editing. This is not a signed
+iPhone installation or WhatsApp result. Android 0.11.6 signed release is
+running at [CI run 39946623361](https://github.com/dvajjala-ui/stickerdock/actions/runs/39946623361);
+no 0.11.6 artifact should be claimed until the workflow and independent
+download check pass.
+
 ## Published Android 0.11.4 and current source — October 23, 2026
 
 [Android 0.11.4 build 19](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.4)

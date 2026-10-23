@@ -17,9 +17,10 @@ records 90 prioritized defects, gaps/extensions, acceptance checks and decisions
 Live generation now delivers completed partial batches to private Admin review
 drafts; publication remains a separate human review step. The October 22 five-
 sticker draft was inspected and kept private because its images repeat. The
-public catalog now has four reviewed packs, including two new three-sticker
-real-photo animal packs and a three-sticker animated animal-meme pack with independently checked public ZIPs and credited
-sources. Their catalog cards have no artwork cover until the
+public catalog now has five reviewed packs, including two three-sticker
+real-photo animal packs, a three-sticker animated animal-meme pack and the new
+[Workday Reactions AI-art pack](assets/drafts/workday-reactions/README.md).
+The public ZIPs were independently checked against catalog digests. Their catalog cards have no artwork cover until the
 additive public-bucket WebP MIME migration is applied; opening the pack loads
 the ZIP artwork on demand. The plan connects automatic content, native personal AI, website uploads,
 real/animated media, iPhone completion and coherent navigation. It is an audit,

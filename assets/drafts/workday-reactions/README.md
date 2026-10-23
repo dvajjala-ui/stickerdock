@@ -1,9 +1,11 @@
-# Workday Reactions — private original-art draft
+# Workday Reactions — reviewed original-art pack
 
 Three static, transparent, photo-style reaction stickers for everyday work chats.
-This is a **private review draft**. The ZIP is not in the public catalog and has
-not been tested inside WhatsApp on a physical phone. The phone app can import the
-archive explicitly through its ZIP import flow.
+This pack was imported into private Admin review, checked at 128 px on light and
+dark backgrounds, then published to the [public catalog](https://qqicsllktmcmvmzplsxl.supabase.co/storage/v1/object/public/sticker-factory-public/catalog/packs.json)
+as `StickerDock AI Art` on October 23, 2026. It has not been tested inside
+WhatsApp on a physical phone. The phone app can discover it from the catalog or
+import the checked-in archive explicitly through its ZIP import flow.
 
 | Scene | Chat situation | Sticker caption | Search tags |
 | --- | --- | --- | --- |
@@ -31,10 +33,18 @@ the white cutout edge keeps the subjects visible on both. All three render
 without source text beneath their captions. Search labels and tags are stored
 per sticker in the schema-5 archive.
 
-The remaining publication checks are a human review of the actual ZIP artwork
-and captions for visual defects and humor, private Admin ZIP import/read-back,
-and physical WhatsApp/Business acceptance. The generated art must not be
-described as a licensed photograph of a real person.
+Private Admin import produced `81356871-c817-538e-8a62-573b20beed97`.
+Its downloaded private ZIP matched the checked-in ZIP SHA-256
+`eb56a3be1a17211796aea379cf6f76d8a01f4aaacfb0bc4d23e2d53dd01a5393`.
+The creator label was then changed, the pack was reviewed and published. An
+independent download of the public ZIP was 148,200 bytes with SHA-256
+`b7c370afeef27f41400f30f37ef88a6cce43912f920170c929707687a1526dfe`,
+matching the public catalog entry. The public bucket rejected its optional
+WebP preview cover, so the catalog card has no artwork thumbnail until the
+staged bucket MIME migration is applied; the full ZIP artwork loads when a
+user opens the pack. Physical WhatsApp/Business and iPhone acceptance remain
+open. The generated art must not be described as a licensed photograph of a
+real person.
 
 ## Generation prompt record
 
