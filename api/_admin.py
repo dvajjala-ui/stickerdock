@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import hashlib
 import io
 import json
+import logging
 import os
 import re
 import time
@@ -16,7 +17,7 @@ from PIL import Image, ImageOps
 
 from api import _shared
 from tools.publish_factory_pack import manifest_categories, validate_pack, validate_references, publish_preview
-from tools.supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, catalog_lease, public_catalog_base
+from tools.supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseError, SupabaseFactory, catalog_lease, public_catalog_base
 from tools.production_readiness import readiness
 from tools import pinterest_connection
 from tools.reaction_media import compose, encode_static
@@ -424,39 +425,53 @@ def pack_status(client, payload):
 def publish_pack(client, payload, unpublish=False):
     row = current_pack(client, payload)
     slug = "pack-" + row["id"]
-    catalog = read_catalog(client)
-    catalog["packs"] = [p for p in catalog["packs"] if p.get("id") != slug]
-    if not unpublish:
-        from api._cloud import rows
-        community = any(r.get("source") == "user-submission" for r in row.get("references", []))
-        submissions = rows(client, "community_submissions", "admin_pack_id=eq." + row["id"] + "&limit=1") if community else []
-        if community and (not submissions or submissions[0]["status"] != "draft"):
-            raise ValueError("The creator withdrew sharing permission")
-        if row["status"] not in {"reviewed", "published"} or row["rating"] != "GENERAL":
-            raise ValueError("Review a GENERAL pack before publishing")
-        data, _ = pack_archive(client, row)
-        manifest = validate_pack(data)
-        validate_references(json.dumps(row["references"]).encode(), row["sticker_count"])
-        filename = row["id"] + "-" + row["sha256"][:16] + ".zip"
-        client.upload(PUBLIC_BUCKET, "catalog/packs/" + filename, data, "application/zip")
-        catalog["packs"].insert(0, {"id": slug, "name": row["name"], "creator": row["creator"],
-                                 "rating": "GENERAL", "file": filename, "sha256": row["sha256"],
-                                 "categories": manifest_categories(manifest),
-                                 **publish_preview(client, data, manifest)})
-        if community:
-            catalog["packs"][0]["publisher_id"] = submissions[0]["owner_id"]
-        if len(catalog["packs"]) > 100:
-            raise ValueError("Catalog is full; unpublish a pack first")
-    audit(client, "catalog.unpublish.intent" if unpublish else "catalog.publish.intent", row["id"], {"sha256": row["sha256"]})
-    client.upload(PUBLIC_BUCKET, "catalog/packs.json", json.dumps(catalog, separators=(",", ":")).encode(), "application/json")
-    # Read back with the authenticated client to avoid a stale public CDN response.
-    verified = json.loads(client.download(PUBLIC_BUCKET, "catalog/packs.json"))
-    if verified != catalog:
-        raise ValueError("Catalog read-back mismatch; refresh before retrying")
-    status = "draft" if unpublish else "published"
-    client.update_versioned("admin_packs", {"status": status, "version": row["version"] + 1}, row["id"], row["version"])
-    audit(client, "catalog.unpublished" if unpublish else "catalog.published", row["id"])
-    return {"status": status, "catalog_base": public_catalog_base(client.url)}
+    stage = "reading the catalog"
+    try:
+        catalog = read_catalog(client)
+        catalog["packs"] = [p for p in catalog["packs"] if p.get("id") != slug]
+        if not unpublish:
+            from api._cloud import rows
+            community = any(r.get("source") == "user-submission" for r in row.get("references", []))
+            stage = "checking community consent"
+            submissions = rows(client, "community_submissions", "admin_pack_id=eq." + row["id"] + "&limit=1") if community else []
+            if community and (not submissions or submissions[0]["status"] != "draft"):
+                raise ValueError("The creator withdrew sharing permission")
+            if row["status"] not in {"reviewed", "published"} or row["rating"] != "GENERAL":
+                raise ValueError("Review a GENERAL pack before publishing")
+            stage = "reading the reviewed archive"
+            data, _ = pack_archive(client, row)
+            manifest = validate_pack(data)
+            validate_references(json.dumps(row["references"]).encode(), row["sticker_count"])
+            filename = row["id"] + "-" + row["sha256"][:16] + ".zip"
+            stage = "uploading the pack archive"
+            client.upload(PUBLIC_BUCKET, "catalog/packs/" + filename, data, "application/zip")
+            stage = "uploading the artwork preview"
+            preview = publish_preview(client, data, manifest)
+            catalog["packs"].insert(0, {"id": slug, "name": row["name"], "creator": row["creator"],
+                                     "rating": "GENERAL", "file": filename, "sha256": row["sha256"],
+                                     "categories": manifest_categories(manifest), **preview})
+            if community:
+                catalog["packs"][0]["publisher_id"] = submissions[0]["owner_id"]
+            if len(catalog["packs"]) > 100:
+                raise ValueError("Catalog is full; unpublish a pack first")
+        stage = "recording the publication intent"
+        audit(client, "catalog.unpublish.intent" if unpublish else "catalog.publish.intent", row["id"], {"sha256": row["sha256"]})
+        stage = "writing the public catalog"
+        client.upload(PUBLIC_BUCKET, "catalog/packs.json", json.dumps(catalog, separators=(",", ":")).encode(), "application/json")
+        # Read back with the authenticated client to avoid a stale public CDN response.
+        stage = "verifying the public catalog"
+        verified = json.loads(client.download(PUBLIC_BUCKET, "catalog/packs.json"))
+        if verified != catalog:
+            raise ValueError("Catalog read-back mismatch; refresh before retrying")
+        status = "draft" if unpublish else "published"
+        stage = "updating the pack status"
+        client.update_versioned("admin_packs", {"status": status, "version": row["version"] + 1}, row["id"], row["version"])
+        stage = "recording the publication result"
+        audit(client, "catalog.unpublished" if unpublish else "catalog.published", row["id"])
+        return {"status": status, "catalog_base": public_catalog_base(client.url)}
+    except SupabaseError as error:
+        logging.exception("Catalog operation stopped while %s", stage)
+        raise ValueError(f"Catalog operation stopped while {stage}. Refresh the catalog before retrying.") from error
 
 
 def save_settings(client, payload):

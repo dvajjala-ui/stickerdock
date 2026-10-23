@@ -133,6 +133,15 @@ class AdminApiTest(unittest.TestCase):
         self.assertTrue(self.client.objects[(PRIVATE_BUCKET, row["private_path"])])
         self.assertTrue(any(e["action"] == "catalog.published" for e in self.client.events))
 
+    def test_publication_reports_safe_stage_and_keeps_reviewed_draft_on_storage_failure(self):
+        row = self.migrate()
+        admin.dispatch({"action": "pack_status", "id": row["id"], "status": "reviewed"}, self.client)
+        with patch.object(self.client, "upload", side_effect=admin.SupabaseError("Supabase HTTP 503; response body omitted")):
+            with self.assertRaisesRegex(ValueError, "uploading the pack archive"):
+                admin.dispatch({"action": "publish", "id": row["id"]}, self.client)
+        self.assertEqual(self.client.find("admin_packs", "id", row["id"])["status"], "reviewed")
+        self.assertFalse(any(bucket == PUBLIC_BUCKET for bucket, _ in self.client.objects))
+
     def test_unreviewed_pack_cannot_publish(self):
         row = self.migrate()
         with self.assertRaisesRegex(ValueError, "Review"):
