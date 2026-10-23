@@ -160,6 +160,17 @@ class AdminApiTest(unittest.TestCase):
         archive = self.client.objects[(PUBLIC_BUCKET, "catalog/packs/" + entry["file"])]
         self.assertEqual(__import__("hashlib").sha256(archive).hexdigest(), entry["sha256"])
 
+        # After the bucket allows WebP, republishing the same reviewed archive
+        # backfills the cover without duplicating a catalog row or changing ZIPs.
+        version = self.client.find("admin_packs", "id", row["id"])["version"]
+        repaired = admin.dispatch({"action": "publish", "id": row["id"], "version": version}, self.client)
+        self.assertEqual(repaired["status"], "published")
+        entries = json.loads(self.client.objects[(PUBLIC_BUCKET, "catalog/packs.json")])["packs"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["sha256"], entry["sha256"])
+        self.assertIn("preview", entries[0])
+        self.assertEqual(self.client.objects[(PUBLIC_BUCKET, "catalog/packs/" + entry["file"])], archive)
+
     def test_unreviewed_pack_cannot_publish(self):
         row = self.migrate()
         with self.assertRaisesRegex(ValueError, "Review"):
