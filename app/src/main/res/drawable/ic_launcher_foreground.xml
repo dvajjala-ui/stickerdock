@@ -4,19 +4,21 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#F6F7F1"
-        android:pathData="M27,20H81C84.3,20 87,22.7 87,26V68L69,86H27C23.7,86 21,83.3 21,80V26C21,22.7 23.7,20 27,20Z" />
+    <!-- The lime back sheet makes the mark read as a small sticker stack. -->
     <path
         android:fillColor="#D9FF6A"
-        android:pathData="M69,86V72C69,69.8 70.8,68 73,68H87Z" />
+        android:pathData="M35,20H80C84.4,20 88,23.6 88,28V73C88,77.4 84.4,81 80,81H35C30.6,81 27,77.4 27,73V28C27,23.6 30.6,20 35,20Z" />
+    <path
+        android:fillColor="#F6F7F1"
+        android:pathData="M28,27H73C77.4,27 81,30.6 81,35V80C81,84.4 77.4,88 73,88H28C23.6,88 20,84.4 20,80V35C20,30.6 23.6,27 28,27Z" />
+    <path
+        android:fillColor="#D9FF6A"
+        android:pathData="M65,88L81,72V80C81,84.4 77.4,88 73,88Z" />
+    <!-- A single bold chat glyph remains legible at launcher size. -->
     <path
         android:fillColor="#12130F"
-        android:pathData="M40,43m-4,0a4,4 0,1 0,8 0a4,4 0,1 0,-8 0M64,43m-4,0a4,4 0,1 0,8 0a4,4 0,1 0,-8 0" />
+        android:pathData="M39,40H62C66.4,40 70,43.6 70,48V57C70,61.4 66.4,65 62,65H47L34,72L38,61C34,60.5 31,57.1 31,53V48C31,43.6 34.6,40 39,40Z" />
     <path
-        android:fillColor="@android:color/transparent"
-        android:pathData="M38,57C42,64 48,67 54,67C60,67 66,64 70,57"
-        android:strokeColor="#12130F"
-        android:strokeLineCap="round"
-        android:strokeWidth="4" />
+        android:fillColor="#D9FF6A"
+        android:pathData="M41,52L52,42V48H64L53,60V54Z" />
 </vector>

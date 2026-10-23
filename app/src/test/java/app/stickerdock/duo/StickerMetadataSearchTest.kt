@@ -77,6 +77,21 @@ class StickerMetadataSearchTest {
     }
 
     @Test
+    fun exactStickerReactionRanksBeforeTagAndPackMatches() {
+        val team = store.createPack("Team")
+        val work = store.createPack("Work Reactions")
+        assertTrue(store.addSticker(StickerItem("exact", team.id, "exact.webp", "hash-1", 1,
+            label = "work")))
+        assertTrue(store.addSticker(StickerItem("tag", team.id, "tag.webp", "hash-2", 3,
+            label = "Relief", tags = "work")))
+        assertTrue(store.addSticker(StickerItem("pack", work.id, "pack.webp", "hash-3", 5,
+            label = "Hello")))
+
+        assertEquals(listOf("exact", "tag", "pack"), store.searchStickers("work").map { it.item.id })
+        assertEquals(listOf("exact", "tag"), store.searchStickers("work", limit = 2).map { it.item.id })
+    }
+
+    @Test
     fun indexedCountsAndHashesStayScopedToPack() {
         val first = store.createPack("First")
         val second = store.createPack("Second")

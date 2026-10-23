@@ -85,6 +85,19 @@ private struct LibrarySearchHit: Identifiable {
     var id: String { sticker.id }
 }
 
+enum StickerSearchRanking {
+    static func rank(query: String, label: String, tags: String, packName: String, category: String, fileName: String) -> Int {
+        let phrase = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !label.isEmpty && label.localizedCaseInsensitiveCompare(phrase) == .orderedSame { return 0 }
+        if label.localizedStandardContains(phrase) { return 1 }
+        if tags.localizedStandardContains(phrase) { return 2 }
+        if packName.localizedStandardContains(phrase) { return 3 }
+        if category.localizedStandardContains(phrase) { return 4 }
+        if fileName.localizedStandardContains(phrase) { return 5 }
+        return 6
+    }
+}
+
 struct LibraryView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var query = ""
@@ -99,19 +112,29 @@ struct LibraryView: View {
         model.packs.filter { pack in
             (kind == "All" || pack.kind.rawValue == kind) && (!favorites || pack.stickers.contains { $0.favorite }) &&
             searchTerms.allSatisfy { term in
-                ([pack.name, pack.category] + pack.stickers.flatMap { [$0.label, $0.tags] }).contains { $0.localizedStandardContains(term) }
+                ([pack.name, pack.category] + pack.stickers.flatMap { [$0.label, $0.tags, $0.fileName] }).contains { $0.localizedStandardContains(term) }
             }
         }
     }
     private var stickerResults: [LibrarySearchHit] {
         guard !searchTerms.isEmpty else { return [] }
-        return Array(filtered.flatMap { pack in
+        let matches = filtered.flatMap { pack in
             pack.stickers.filter { sticker in
                 searchTerms.allSatisfy { term in
-                    [pack.name, pack.category, sticker.label, sticker.tags].contains { $0.localizedStandardContains(term) }
+                    [pack.name, pack.category, sticker.label, sticker.tags, sticker.fileName].contains { $0.localizedStandardContains(term) }
                 }
             }.map { LibrarySearchHit(pack: pack, sticker: $0) }
-        }.prefix(100))
+        }
+        let ranked = matches.map { hit in
+            (hit: hit, rank: StickerSearchRanking.rank(query: query, label: hit.sticker.label,
+                tags: hit.sticker.tags, packName: hit.pack.name, category: hit.pack.category,
+                fileName: hit.sticker.fileName))
+        }
+        return Array(ranked.sorted { left, right in
+            if left.rank != right.rank { return left.rank < right.rank }
+            if left.hit.pack.updatedAt != right.hit.pack.updatedAt { return left.hit.pack.updatedAt > right.hit.pack.updatedAt }
+            return left.hit.sticker.id < right.hit.sticker.id
+        }.prefix(100).map(\.hit))
     }
     var body: some View {
         ScrollView {
@@ -173,7 +196,7 @@ struct LibraryView: View {
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Your library")
-        .searchable(text: $query, prompt: "Packs, captions or tags")
+        .searchable(text: $query, prompt: "monday mood, thanks, lol…")
         .navigationDestination(for: String.self) { PackView(id: $0) }
         .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { importer = true } label: { Image(systemName: "square.and.arrow.down") }.accessibilityLabel("Import sticker ZIP") } }
         .fileImporter(isPresented: $importer, allowedContentTypes: [.zip]) { result in switch result { case .success(let url): model.importArchive(url); case .failure(let error): model.error = error.localizedDescription } }

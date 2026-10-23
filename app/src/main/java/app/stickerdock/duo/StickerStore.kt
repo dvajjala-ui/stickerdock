@@ -245,6 +245,7 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
     fun searchStickers(query: String, limit: Int = 100): List<StickerSearchResult> {
         val terms = StickerMetadata.searchTerms(query)
         if (terms.isEmpty()) return emptyList()
+        val phrase = StickerMetadata.cleanLabel(query)
         val safeLimit = limit.coerceIn(1, 200)
         val fields = listOf("s.label", "s.tags", "s.file_name", "p.name", "p.category")
         val where = terms.joinToString(" AND ") { fields.joinToString(" OR ", "(", ")") { field -> "instr(lower($field), lower(?)) > 0" } }
@@ -254,11 +255,20 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
             FROM stickers s
             JOIN packs p ON p.id=s.pack_id
             WHERE $where
-            ORDER BY s.created_at DESC, s.id
+            ORDER BY CASE
+                WHEN lower(s.label)=lower(?) THEN 0
+                WHEN instr(lower(s.label), lower(?)) > 0 THEN 1
+                WHEN instr(lower(s.tags), lower(?)) > 0 THEN 2
+                WHEN instr(lower(p.name), lower(?)) > 0 THEN 3
+                WHEN instr(lower(p.category), lower(?)) > 0 THEN 4
+                WHEN instr(lower(s.file_name), lower(?)) > 0 THEN 5
+                ELSE 6 END,
+                s.created_at DESC, s.id
             LIMIT $safeLimit
         """.trimIndent()
         val result = mutableListOf<StickerSearchResult>()
-        readableDatabase.rawQuery(sql, terms.flatMap { term -> List(fields.size) { term } }.toTypedArray()).use { cursor ->
+        val arguments = terms.flatMap { term -> List(fields.size) { term } } + List(6) { phrase }
+        readableDatabase.rawQuery(sql, arguments.toTypedArray()).use { cursor ->
             while (cursor.moveToNext()) {
                 result += StickerSearchResult(readSticker(cursor, 0), readPack(cursor, 7))
             }

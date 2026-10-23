@@ -307,6 +307,35 @@ class DailyStickersTest(unittest.TestCase):
             call.assert_not_called()
             self.assertFalse((root / "outputs/2026-10-12/state.json").exists())
 
+    def test_likely_has_meme_text_detects_white_caption_strips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # Classic meme: dark photo with a bright white top strip.
+            meme = Image.new("RGB", (800, 600), (60, 60, 60))
+            meme.paste(Image.new("RGB", (800, 90), (250, 250, 250)), (0, 0))
+            meme_path = root / "meme.png"
+            meme.save(meme_path)
+            self.assertTrue(generator.likely_has_meme_text(meme_path))
+
+            # Uniform dark photo: no bright strip, no false positive.
+            dark = Image.new("RGB", (800, 600), (50, 80, 70))
+            dark_path = root / "dark.png"
+            dark.save(dark_path)
+            self.assertFalse(generator.likely_has_meme_text(dark_path))
+
+            # Transparent cutout: always returns False.
+            cutout = Image.new("RGBA", (512, 512), (255, 255, 255, 0))
+            cutout_path = root / "cutout.png"
+            cutout.save(cutout_path)
+            self.assertFalse(generator.likely_has_meme_text(cutout_path))
+
+            # Bottom strip only: should also be flagged.
+            bottom_meme = Image.new("RGB", (800, 600), (60, 60, 60))
+            bottom_meme.paste(Image.new("RGB", (800, 90), (252, 252, 252)), (0, 510))
+            bottom_path = root / "bottom_meme.png"
+            bottom_meme.save(bottom_path)
+            self.assertTrue(generator.likely_has_meme_text(bottom_path))
+
     def test_photo_batches_prefer_recently_unused_sources(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
             root = Path(temporary)

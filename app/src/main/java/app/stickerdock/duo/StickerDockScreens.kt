@@ -67,6 +67,7 @@ fun LibraryScreen(
     val visiblePackIds = remember(filteredPacks) { filteredPacks.mapTo(mutableSetOf()) { it.id } }
     val visibleStickers = remember(stickerMatches, visiblePackIds) { stickerMatches.filter { it.pack.id in visiblePackIds } }
     var resultsView by remember(searchText.isNotBlank()) { mutableStateOf("Stickers") }
+    val quickSuggestions = listOf("monday mood", "thanks", "lol", "not today", "okay", "work done", "send help", "love this")
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = if (compactPane) 520.dp else 800.dp),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -79,8 +80,18 @@ fun LibraryScreen(
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LibrarySearch(searchText, onSearchChange, "Search library", Modifier.weight(1f))
+                    LibrarySearch(searchText, onSearchChange, "monday mood, thanks, lol…", Modifier.weight(1f))
                     TextButton(onClick = onOpenFilters) { Text(if (activeFilterCount == 0) "Filters" else "Filters ($activeFilterCount)") }
+                }
+            }
+            if (searchText.isBlank() && !favoritesOnly && packs.isNotEmpty()) item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                    items(quickSuggestions) { suggestion ->
+                        SuggestionChip(
+                            onClick = { onSearchChange(suggestion) },
+                            label = { Text(suggestion, style = MaterialTheme.typography.labelMedium) }
+                        )
+                    }
                 }
             }
             item {
@@ -172,10 +183,12 @@ fun LibraryScreen(
         }
     }
 }
-
 @Composable
 private fun SearchStickerCard(result: StickerSearchResult, files: StickerFiles, previewCache: StickerPreviewCache,
     packCount: Int, enabled: Boolean, onOpen: () -> Unit, onAddPack: () -> Unit) {
+    val visibleTags = remember(result.item.tags) {
+        result.item.tags.split(',').map { it.trim() }.filter { it.isNotBlank() }.take(4)
+    }
     Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,6 +202,14 @@ private fun SearchStickerCard(result: StickerSearchResult, files: StickerFiles, 
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${if (result.pack.kind == StickerKind.ANIMATED) "Animated" else "Static"}${if (result.pack.rating == PackRating.MATURE) " · Private" else ""}",
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (visibleTags.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(top = 2.dp)) {
+                            items(visibleTags) { tag ->
+                                SuggestionChip(onClick = {}, label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                                    modifier = Modifier.height(24.dp))
+                            }
+                        }
+                    }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

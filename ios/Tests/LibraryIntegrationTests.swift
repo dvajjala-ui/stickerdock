@@ -199,6 +199,13 @@ final class LibraryIntegrationTests: XCTestCase {
         let packs = try await store.load(); XCTAssertEqual(packs.count, 1)
     }
 
+    func testSituationSearchRanksStickerMeaningBeforeBroadPackMatch() {
+        XCTAssertEqual(StickerSearchRanking.rank(query: "work", label: "work", tags: "", packName: "Team", category: "GENERAL", fileName: "one.webp"), 0)
+        XCTAssertEqual(StickerSearchRanking.rank(query: "work", label: "Relief", tags: "work", packName: "Team", category: "GENERAL", fileName: "two.webp"), 2)
+        XCTAssertEqual(StickerSearchRanking.rank(query: "work", label: "Hello", tags: "", packName: "Work Reactions", category: "GENERAL", fileName: "three.webp"), 3)
+        XCTAssertEqual(StickerSearchRanking.rank(query: "work", label: "Hello", tags: "", packName: "Team", category: "WORK", fileName: "four.webp"), 4)
+    }
+
     func testFavoritesRenameAndDeletionPersistWithoutChangingAnotherPack() async throws {
         let root = try directory()
         let store = LibraryStore(root: root)

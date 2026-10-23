@@ -230,6 +230,50 @@ def padded_photo_canvas(path):
             dark_fraction(0, 0, 64, 8) >= .45 and dark_fraction(0, 56, 64, 64) >= .45)
 
 
+def likely_has_meme_text(path):
+    """Heuristic: does this image already have baked-in caption text?
+
+    Classic Impact-font meme images have a white or near-white opaque stripe
+    at the top or bottom with very high contrast to a darker interior. We
+    detect that pattern by looking for a nearly uniform, very bright strip
+    adjacent to a darker center zone. This is not OCR; it is a pre-filter
+    that flags the image for human review. A true positive causes callers to
+    emit a warning and skip automatic captioning. False positives (e.g. movie
+    title cards, scoreboards) should be reviewed rather than automatically
+    published.
+
+    Returns True when the image *probably* already carries text overlay.
+    """
+    try:
+        with Image.open(path) as original:
+            upright = ImageOps.exif_transpose(original)
+            if "A" in upright.getbands() or "transparency" in upright.info:
+                return False  # transparent-background art never carries a meme strip
+            sample = upright.convert("L").resize((64, 64), Image.Resampling.BILINEAR)
+    except Exception:
+        return False
+
+    def row_brightness(top, bottom):
+        pixels = [sample.getpixel((x, y)) for y in range(top, bottom) for x in range(64)]
+        return sum(pixels) / len(pixels)
+
+    def row_stddev(top, bottom):
+        pixels = [sample.getpixel((x, y)) for y in range(top, bottom) for x in range(64)]
+        mean = sum(pixels) / len(pixels)
+        return (sum((p - mean) ** 2 for p in pixels) / len(pixels)) ** 0.5
+
+    top_strip = row_brightness(0, 8)
+    bottom_strip = row_brightness(56, 64)
+    center_mean = row_brightness(20, 44)
+    # A bright strip is >=200/255 average with low internal variance (solid fill, not photo).
+    # It must also be markedly lighter than the center of the image.
+    for strip_brightness in (top_strip, bottom_strip):
+        if strip_brightness >= 200 and (strip_brightness - center_mean) >= 60:
+            # Low stddev confirms it is a solid bar, not a naturally bright sky.
+            if row_stddev(0, 8) < 30 or row_stddev(56, 64) < 30:
+                return True
+    return False
+
 def distinct_photo_sources(images):
     """Keep one credited scene, including across renamed or recompressed copies."""
     from media_library import provenance
@@ -646,6 +690,16 @@ def run(config, root, font_path, now=None):
                     images = [p for p in images if p.name in config.get("allowed_media_files", [])]
                 if mode == "photo" and config.get("require_reaction_media"):
                     images = [p for p in images if not padded_photo_canvas(p)]
+                # Warn and exclude sources that already carry baked-in caption text.
+                # Placing a second caption over an existing meme produces unreadable
+                # double-text stickers. These need manual review; not a hard error.
+                if mode == "photo":
+                    meme_text_sources = [p for p in images if likely_has_meme_text(p)]
+                    if meme_text_sources:
+                        print(f"[WARN] {len(meme_text_sources)} source(s) likely have embedded text – "
+                              f"excluded from auto-captioning: "
+                              f"{', '.join(p.name for p in meme_text_sources)}")
+                        images = [p for p in images if p not in meme_text_sources]
                 if mode == "photo" and config.get("require_unique_photo_per_sticker"):
                     images = distinct_photo_sources(images)
                 if not images or not config.get("vision_model"):
