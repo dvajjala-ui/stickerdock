@@ -33,7 +33,17 @@ emulator before advancing the download. Failed builds keep the previous release.
 The admin website follows the existing Vercel production deployment from `main`.
 See [installation, update and release verification](docs/ANDROID_RELEASES.md).
 
-October 21: **Android 0.11.2 (build 17)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.2)
+October 22: **Android 0.11.3 (build 18)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.3)
+after [signed APK and Android 15 emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39787507683).
+The exact public APK was downloaded again and its SHA-256 matched the release
+manifest and acceptance record. The Text tool has an opt-in personal AI caption
+flow, but its server-side flag is **off** pending the private database migration
+and account/device checks. Admin draft review now supports redrawing a static
+photo sticker's visible caption from an independently reusable source; this
+later website change has source and local browser tests, with hosted acceptance
+pending. See [release evidence](docs/QA_MATRIX.md).
+
+October 21: **Android 0.11.2 (build 17)** was [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.2)
 after [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39605443793).
 Share one video/GIF into the animated creator, trim/caption, preview and save
 explicitly. Real human-reaction media and a fresh iPhone archive round trip also

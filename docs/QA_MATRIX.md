@@ -1,5 +1,36 @@
 # StickerDock verification checklist
 
+## Published Android 0.11.3 and current source — October 23, 2026
+
+[Android 0.11.3 build 18](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.3)
+was published from `ba3f681110659d6b62d3b39231e84068f274279c` after
+[signed-release CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39787507683)
+passed compilation, signing, exact-APK Android 15 emulator acceptance and
+publication. An independent download of the public APK has SHA-256
+`fe0f8b77e6d58838f8feb45c79b2d497574a9f0512c926206b6643c67961386c`;
+that matches GitHub's asset digest, `release.json` and the passing
+`acceptance.json`. ZIP integrity passes. The signed artifact is Android source
+from that SHA; later `main` commits change iPhone/SQL tests and website code,
+not this binary. Physical WhatsApp/Business acceptance is still open.
+
+[Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788164695)
+passes unsigned device build plus simulator integration/navigation tests for
+the iPhone personal-caption source. There is no signed iPhone installation or
+physical WhatsApp result. [Current web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788619453)
+and [Android debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788619993)
+pass at `b65752b`. The personal-caption SQL migration passed local PGlite
+contract checks for grants, ownership, replay, global provider budget and
+abandoned upload cleanup; it has **not** been applied to production, and the
+AI flag remains off.
+
+The next Admin source slice permits visible caption changes on static photo
+drafts only when both saved provenance and current source metadata allow reuse.
+It redraws and rechecksums artwork while retaining the original Factory ZIP;
+reference-only/Pinterest/missing sources fail closed. Local verification:
+249 Python tests pass (7 skipped), targeted Ruff passes, JavaScript syntax
+passes, and a 13-check Chrome fixture smoke passes including caption submit.
+This website slice is not yet a hosted write-path acceptance.
+
 ## iPhone 0.10.2 photo ZIP acceptance — October 21, 2026
 
 [PR #25](https://github.com/dvajjala-ui/stickerdock/pull/25) is merged at

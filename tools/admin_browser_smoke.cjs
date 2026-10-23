@@ -10,7 +10,9 @@ const assert = require('node:assert/strict');
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     const snapshot = {
-      packs: [], factory_packs: [], runs: [{day: '2026-10-15', generated: 10, target: 40,
+      packs: [{id: 'fixture-pack', name: 'Fixture reaction', creator: 'Tester', rating: 'GENERAL',
+        status: 'draft', version: 1, sticker_count: 1, references: [{media_credit: {license: 'CC0'}}]}],
+      factory_packs: [], runs: [{day: '2026-10-15', generated: 10, target: 40,
         status: 'running', display_status: 'waiting', attempts: 3, retry_at: 1792098000,
         last_result: 'Provider rate limit reached. Progress saved; the next scheduled worker retries after cooldown.'}],
       requests: [], events: [], briefs: [],
@@ -18,7 +20,7 @@ const assert = require('node:assert/strict');
         content_categories: ['EVERYDAY'], rating: 'GENERAL'},
       catalog: {version: 1, packs: []}, catalog_base: 'https://example.invalid/catalog/'
     };
-    let overviewRequests = 0, releaseBackground, backgroundStarted, uploaded = 0;
+    let overviewRequests = 0, releaseBackground, backgroundStarted, uploaded = 0, captionEdit = null;
     const mediaItems = [];
     const sessionRequests = [];
     page.on('request', request => {if (request.url().endsWith('/api/session')) sessionRequests.push(request.url());});
@@ -38,6 +40,15 @@ const assert = require('node:assert/strict');
         const path = 'inbox/' + 'b'.repeat(64) + '.png';
         mediaItems.push({path, name: 'My own meme.png', size: 256});
         return route.fulfill({json: {path}});
+      }
+      if (payload.action === 'pack_detail') return route.fulfill({json: {
+        pack: snapshot.packs[0], offset: 0, preview_count: 5, categories: ['GENERAL'], target_packs: [],
+        stickers: [{name: 'fixture.webp', kind: 'STATIC', label: 'Old caption', tags: '',
+          caption_editable: true, preview: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg=='}]
+      }});
+      if (payload.action === 'pack_save') {
+        captionEdit = payload.stickers[0];
+        return route.fulfill({json: {saved: true}});
       }
       assert.equal(payload.action, 'overview');
       overviewRequests++;
@@ -76,6 +87,11 @@ const assert = require('node:assert/strict');
     await page.locator('nav button[data-page=overview]').click();
     await page.getByRole('heading', {name: 'Your sticker factory, at a glance.', exact: true}).waitFor();
     assert.equal(await page.getByRole('button', {name: '＋ Create pack', exact: true}).isEnabled(), true);
+    await page.getByRole('button', {name: 'Open Fixture reaction'}).click();
+    await page.locator('[data-field=caption]').fill('Wait, what?');
+    await page.getByRole('button', {name: 'Save changes'}).click();
+    await page.waitForFunction(() => document.querySelector('#pack-dialog')?.open === false);
+    assert.equal(captionEdit.caption, 'Wait, what?', 'Visible caption must reach the save API');
     await page.locator('nav button[data-page=factory]').click();
     await page.getByText('Provider cooldown ends', {exact: false}).waitFor();
     assert.equal(await page.locator('.badge.waiting').count(), 1);
@@ -159,7 +175,7 @@ const assert = require('node:assert/strict');
       'startup outage and retry without fake data',
       'Studio source loading and fixture AI queue/result without authentication',
       'rate-limit waiting state and retry time', 'mobile layout', 'explicit catalog save wording',
-      'rights-confirmed Admin media upload', 'no page errors'
+      'rights-confirmed Admin media upload', 'visible-caption edit sent to save API', 'no page errors'
     ]}));
   } finally {
     await browser.close();

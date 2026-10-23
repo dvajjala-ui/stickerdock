@@ -19,6 +19,14 @@ CREDIT = {"title": "Test input", "author": "Test fixture", "source_url": "https:
           "license": "USER_OWNED", "license_url": "https://example.com/fixture-license"}
 
 
+class ReactionFontFallbackTest(unittest.TestCase):
+    def test_serverless_caption_render_without_host_font(self):
+        artwork = compose(Image.new("RGB", (320, 240), "blue"), "Wait, what?",
+                          Path("/missing-system-font/DejaVuSans-Bold.ttf"))
+        with Image.open(io.BytesIO(encode_static(artwork))) as image:
+            self.assertEqual(image.size, (512, 512))
+
+
 @unittest.skipUnless(FONT.is_file(), "Requires the configured sticker font")
 class ReactionMediaTests(unittest.TestCase):
     def test_focal_crop_keeps_subjects_at_either_edge(self):

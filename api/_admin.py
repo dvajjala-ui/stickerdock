@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import time
 import uuid
 import zipfile
@@ -18,6 +19,8 @@ from tools.publish_factory_pack import manifest_categories, validate_pack, valid
 from tools.supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, catalog_lease, public_catalog_base
 from tools.production_readiness import readiness
 from tools import pinterest_connection
+from tools.reaction_media import compose, encode_static
+from tools.sticker_fonts import default_font
 
 CATEGORIES = {"GENERAL", "REACTIONS", "HINGLISH", "MOVIES", "NEWS", "ANIMALS", "LOVE", "WORK", "FESTIVALS", "OTHER"}
 CONTENT_CATEGORIES = {"TRENDING", "POLITICS", "CREATIVE", "MOVIES", "SERIES", "INDIA", "SPORTS", "TECHNOLOGY", "EVERYDAY", "ADULT_HUMOR"}
@@ -109,10 +112,14 @@ def pack_detail(client, payload):
     offset = max(0, min(int(payload.get("offset", 0)), 100))
     details = []
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        index = 0
         for pack in manifest["packs"]:
             for sticker in pack["stickers"]:
                 details.append({**sticker, "pack_id": pack["id"], "kind": pack["kind"],
-                                "pack_name": pack["name"], "category": pack.get("category", "GENERAL")})
+                                "pack_name": pack["name"], "category": pack.get("category", "GENERAL"),
+                                "caption_editable": pack["kind"] == "STATIC" and bool(editable_caption_source(
+                                    row["references"][index] if index < len(row["references"]) else None))})
+                index += 1
         # Base64 responses remain under Vercel's response limit, even for animation.
         for item in details[offset:offset + 5]:
             asset = archive.read("packs/" + item["pack_id"] + "/" + item["name"])
@@ -171,6 +178,42 @@ def normalize_static(data):
     raise ValueError("Image cannot fit the sticker size limit")
 
 
+def editable_caption_source(reference):
+    """Only independent, reusable inbox photos can be used to redraw text."""
+    if not isinstance(reference, dict):
+        return None
+    credit = reference.get("media_credit") or {}
+    if not isinstance(credit, dict) or credit.get("license") not in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}:
+        return None
+    if credit.get("purpose") in {"REFERENCE", "RESULT"} or str(credit.get("source", "")).startswith("pinterest"):
+        return None
+    if "pinterest.com" in str(credit.get("source_url", "")):
+        return None
+    path = reference.get("source_path") or credit.get("inbox_path")
+    return path if isinstance(path, str) and _shared.CREATOR_SOURCE_RE.fullmatch(path) else None
+
+
+def redraw_caption(reference, caption):
+    source = editable_caption_source(reference)
+    if not source:
+        raise ValueError("This sticker has no reusable original photo for a visible caption edit")
+    # The saved pack reference and the current private source record must both
+    # permit reuse. Missing/relabelled metadata fails closed before rewriting.
+    current_rights = _shared.source_metadata(source)
+    if not editable_caption_source({"media_credit": {**current_rights, "inbox_path": source}}):
+        raise ValueError("The original photo no longer has reusable rights metadata")
+    caption = text(caption, "visible caption", 64)
+    if not re.fullmatch(r"[ -~]+", caption):
+        raise ValueError("Use basic letters and punctuation for a visible caption")
+    data_url = _shared.fetch_inbox(source)
+    data, _, _ = _shared.decode_image(data_url, 3_000_000)
+    with Image.open(io.BytesIO(data)) as original:
+        image = ImageOps.exif_transpose(original).convert("RGB")
+        image.thumbnail((512, 512), Image.Resampling.LANCZOS)
+        artwork = compose(image, caption, default_font())
+    return caption, encode_static(artwork)
+
+
 def create_pack(client, payload):
     name = text(payload.get("name"), "pack name", 60)
     creator = text(payload.get("creator", "StickerDock"), "creator", 60)
@@ -227,6 +270,11 @@ def save_pack(client, payload):
     all_names = {item["name"] for pack in manifest["packs"] for item in pack["stickers"]}
     if not set(edit_map).issubset(all_names):
         raise ValueError("Unknown sticker edit")
+    original_labels = {item["name"]: item.get("label", "") for pack in manifest["packs"] for item in pack["stickers"]}
+    caption_changes = sum("caption" in edit and edit["caption"] != original_labels[name]
+                          for name, edit in edit_map.items())
+    if caption_changes > 3:
+        raise ValueError("Redraw at most three visible captions per save")
     output, references, index = io.BytesIO(), [], 0
     with zipfile.ZipFile(io.BytesIO(data)) as old, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as new:
         surviving_packs = []
@@ -238,12 +286,19 @@ def save_pack(client, payload):
                 index += 1
                 if edit.get("remove") is True:
                     continue
-                item["label"] = text(edit.get("label", item.get("label", "")), "label", 80, False)
+                path = "packs/" + pack["id"] + "/" + item["name"]
+                asset = old.read(path)
+                if "caption" in edit and edit["caption"] != item.get("label", ""):
+                    if pack["kind"] != "STATIC":
+                        raise ValueError("Visible caption edits require a static photo sticker")
+                    item["label"], asset = redraw_caption(reference, edit["caption"])
+                    item["sha256"] = hashlib.sha256(asset).hexdigest()
+                else:
+                    item["label"] = text(edit.get("label", item.get("label", "")), "label", 80, False)
                 item["tags"] = text(edit.get("tags", item.get("tags", "")), "tags", 400, False)
                 surviving.append(item)
                 references.append(reference)
-                path = "packs/" + pack["id"] + "/" + item["name"]
-                zip_entry(new, path, old.read(path))
+                zip_entry(new, path, asset)
             if surviving:
                 pack.update(name=name, stickers=surviving, category=category or pack.get("category", "GENERAL"))
                 surviving_packs.append(pack)

@@ -139,7 +139,10 @@ def compose(image, caption, font_path, fit="cover", position="bottom", focus=(.5
         canvas.alpha_composite(fitted, ((512 - fitted.width) // 2, (512 - fitted.height) // 2))
     draw = ImageDraw.Draw(canvas)
     for size in range(42, 19, -2):
-        font = ImageFont.truetype(str(font_path), size)
+        # Serverless runtimes need not have the host's DejaVu font installed.
+        # Pillow's bundled scalable default keeps caption edits usable there.
+        font = (ImageFont.truetype(str(font_path), size) if Path(font_path).is_file()
+                else ImageFont.load_default(size=size))
         lines = _lines(text, font, draw)
         if lines:
             break

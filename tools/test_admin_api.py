@@ -174,6 +174,58 @@ class AdminApiTest(unittest.TestCase):
         self.assertEqual(after["stickers"][0]["sha256"], details["stickers"][0]["sha256"])
         self.assertEqual(self.client.objects[(PRIVATE_BUCKET, row["private_path"])], original)
 
+    def test_visible_caption_redraws_reusable_static_photo_and_preserves_factory_archive(self):
+        row = self.migrate()
+        original_archive = self.client.objects[(PRIVATE_BUCKET, row["private_path"])]
+        source = "inbox/" + "b" * 64 + ".png"
+        self.client.rows[("admin_packs", row["id"])]["references"][0] = {
+            "media_credit": {"license": "CC0", "source": "wikimedia-commons",
+                             "source_url": "https://commons.wikimedia.org/wiki/File:Reaction",
+                             "inbox_path": source}}
+        detail = admin.pack_detail(self.client, {"id": row["id"]})
+        sticker = detail["stickers"][0]
+        self.assertTrue(sticker["caption_editable"])
+        image = "data:image/png;base64," + base64.b64encode(png_bytes("blue")).decode()
+        with patch.object(_shared, "source_metadata", return_value={"license": "CC0", "source": "wikimedia-commons"}), \
+             patch.object(_shared, "fetch_inbox", return_value=image) as fetch:
+            admin.save_pack(self.client, {"id": row["id"], "version": 1,
+                "name": row["name"], "creator": row["creator"],
+                "stickers": [{"name": sticker["name"], "caption": "Wait, what?"}]})
+        fetch.assert_called_once_with(source)
+        revised = admin.pack_detail(self.client, {"id": row["id"]})["stickers"][0]
+        self.assertEqual(revised["label"], "Wait, what?")
+        self.assertNotEqual(revised["sha256"], sticker["sha256"])
+        self.assertEqual(self.client.objects[(PRIVATE_BUCKET, row["private_path"])], original_archive)
+        self.assertEqual(self.client.find("admin_packs", "id", row["id"])["status"], "draft")
+
+    def test_visible_caption_rejects_unlicensed_or_missing_original(self):
+        row = self.migrate()
+        sticker = admin.pack_detail(self.client, {"id": row["id"]})["stickers"][0]
+        payload = {"id": row["id"], "version": 1, "name": row["name"], "creator": row["creator"],
+                   "stickers": [{"name": sticker["name"], "caption": "Wait, what?"}]}
+        with self.assertRaisesRegex(ValueError, "reusable original"):
+            admin.save_pack(self.client, payload)
+        self.client.rows[("admin_packs", row["id"])]["references"][0] = {
+            "media_credit": {"license": "CC0", "source": "pinterest",
+                             "inbox_path": "inbox/" + "b" * 64 + ".png"}}
+        with self.assertRaisesRegex(ValueError, "reusable original"):
+            admin.save_pack(self.client, payload)
+        self.assertEqual(self.client.find("admin_packs", "id", row["id"])["version"], 1)
+
+    def test_visible_caption_fails_closed_when_live_source_rights_change(self):
+        row = self.migrate()
+        source = "inbox/" + "b" * 64 + ".png"
+        self.client.rows[("admin_packs", row["id"])]["references"][0] = {
+            "media_credit": {"license": "CC0", "inbox_path": source}}
+        sticker = admin.pack_detail(self.client, {"id": row["id"]})["stickers"][0]
+        with patch.object(_shared, "source_metadata", return_value={"license": "REFERENCE_ONLY"}), \
+             patch.object(_shared, "fetch_inbox") as fetch:
+            with self.assertRaisesRegex(ValueError, "no longer has reusable rights"):
+                admin.save_pack(self.client, {"id": row["id"], "version": 1,
+                    "name": row["name"], "creator": row["creator"],
+                    "stickers": [{"name": sticker["name"], "caption": "Wait, what?"}]})
+            fetch.assert_not_called()
+
     def test_published_pack_cannot_be_edited_or_archived(self):
         row = self.migrate()
         self.client.rows[("admin_packs", row["id"])]["status"] = "published"
