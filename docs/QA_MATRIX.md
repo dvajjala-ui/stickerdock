@@ -19,6 +19,15 @@ passes the unsigned device build, pinned dependencies, native integration and
 simulator navigation tests at `504b6f3`. iPhone Discover now filters static and
 animated packs; signed installation and WhatsApp delivery remain open.
 
+[Apple CI for iPhone 0.10.6 build 18](https://github.com/dvajjala-ui/stickerdock/actions/runs/39940596790)
+passes the unsigned device build, 20 native tests and one navigation UI test at
+`f9d8faf`. The live integration test downloaded the exact published animated
+pack, checked all three captions and animated media rules, confirmed preview
+did not save, then explicitly saved and reloaded it. Discover now opens tapped
+stickers in a full-size sheet and plays animated WebP while the sheet is active.
+This is simulator/source acceptance, not Apple signing, a physical iPhone or
+WhatsApp delivery.
+
 The live public catalog now contains four packs. "Moving Animal Moods" is a
 three-sticker ANIMATED pack made from independently credited CC0 animal clips.
 The checked-in archive and an independently downloaded public ZIP both have
@@ -26,7 +35,8 @@ SHA-256 `c22c5c63db1bc772c79aba05a68b57e343f2c21a952fa4f86cea4f33240351fc`
 (668,072 bytes). Admin's private ZIP import, exact private read-back, explicit
 review and publication were verified; the public catalog reports
 `kinds: ["ANIMATED"]`. See the [source and motion record](../assets/reviewed/moving-animal-moods/README.md).
-Neither phone has been tested with this exact public pack yet.
+The iPhone simulator test above has exercised this exact public pack; no
+physical phone has been tested with it yet.
 The hosted Admin at 390 px opened this published pack and decoded all three
 512×512 preview images; the dialog had no horizontal overflow or JavaScript
 page errors. This is browser preview evidence, not mobile-app motion playback.
@@ -63,7 +73,7 @@ AI flag remains off.
 The two reviewed animal packs exposed a separate production bucket issue:
 the public Storage bucket accepts ZIP/JSON but rejects an optional WebP cover
 preview. The publisher now omits that preview if Storage rejects it, while
-retaining the validated downloadable pack and exact archive checksum. The
+retaining the validated downloadable pack and exact archive checksum.
 An earlier October 23 live catalog readback showed three packs; independent public ZIP
 downloads of "Everyday Animal Reactions" (198,723 bytes, SHA-256
 `b53b772af38d23ed4a0e7b9673f6df5fd448f28fecf3b725b24be482461ed16d`)

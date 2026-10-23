@@ -47,9 +47,11 @@ photo sticker's visible caption from an independently reusable source; this
 later website change passed a private-draft production edit: one rendered
 sticker changed, four stayed byte-identical, and the pack remained private.
 The review UI now includes a full-size artwork preview. See
-[release evidence](docs/QA_MATRIX.md). The latest iPhone 0.10.5 source also
-passes [unsigned device and simulator CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39913799107),
-but still needs Apple signing and physical iPhone/WhatsApp testing.
+[release evidence](docs/QA_MATRIX.md). The latest iPhone 0.10.6 source also
+passes [unsigned device and simulator CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39940596790),
+including a live download and explicit local save of the reviewed animated pack.
+Discover now plays a tapped sticker's motion before saving. Apple signing and
+physical iPhone/WhatsApp testing remain open.
 Admin pack cards now load lazy, checksum-bound covers composed from actual
 GENERAL sticker artwork; the shared workspace keeps mature covers hidden.
 The hosted desktop and mobile Admin views display them. See the

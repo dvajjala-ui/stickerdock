@@ -223,6 +223,27 @@ class DailyStickersTest(unittest.TestCase):
             call.assert_not_called()
             self.assertFalse((root / "outputs/2026-10-12/state.json").exists())
 
+    def test_photo_batch_waits_when_five_files_represent_four_scenes(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            titles = ["Cat in pan (1).jpg", "Cat in pan (3).jpg", "Sleepy cat.jpg",
+                      "Smiling dog.jpg", "Yawning dog.jpg"]
+            for index, title in enumerate(titles):
+                Image.new("RGB", (500, 500), (index * 40, 80, 120)).save(inputs / f"photo-{index}.png")
+            (inputs / "library.json").write_text(json.dumps({"assets": [
+                {"file": f"photo-{index}.png", "title": title} for index, title in enumerate(titles)
+            ]}))
+            config = {"modes": ["photo"], "image_directory": str(inputs),
+                      "vision_model": "test-vision", "require_unique_photo_per_sticker": True}
+            self.assertEqual(len(generator.distinct_photo_sources(sorted(inputs.glob("*.png")))), 4)
+            with patch.object(generator, "groq_ideas") as call:
+                result = generator.run(config, root / "outputs", FONT, NOW)
+            self.assertIn("Waiting for 5 distinct", result)
+            call.assert_not_called()
+            self.assertFalse((root / "outputs/2026-10-12/state.json").exists())
+
     def test_reaction_photo_skips_padded_meme_canvas_before_provider_call(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
             root = Path(temporary)

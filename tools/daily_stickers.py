@@ -230,6 +230,22 @@ def padded_photo_canvas(path):
             dark_fraction(0, 0, 64, 8) >= .45 and dark_fraction(0, 56, 64, 64) >= .45)
 
 
+def distinct_photo_sources(images):
+    """Keep one file from each credited photo or numbered source-photo series."""
+    from media_library import provenance
+
+    selected, seen = [], set()
+    for path in images:
+        credit = provenance(path)
+        title = credit.get("title") or credit.get("source_url") or path.name
+        # Wikimedia/Pixabay exports often contain several crops of one scene.
+        title = re.sub(r"\s*\(\d+\)(?=\.[^.]+$)", "", title.strip()).casefold()
+        if title not in seen:
+            seen.add(title)
+            selected.append(path)
+    return selected
+
+
 def groq_ideas(key, model, count, topic, sources, excluded, image_path=None):
     prompt = {
         "count": count, "topic": topic, "references": sources,
@@ -609,6 +625,8 @@ def run(config, root, font_path, now=None):
                     images = [p for p in images if p.name in config.get("allowed_media_files", [])]
                 if mode == "photo" and config.get("require_reaction_media"):
                     images = [p for p in images if not padded_photo_canvas(p)]
+                if mode == "photo" and config.get("require_unique_photo_per_sticker"):
+                    images = distinct_photo_sources(images)
                 if not images or not config.get("vision_model"):
                     raise ValueError("Photo mode requires supplied images and a configured Groq vision model")
                 if mode == "photo" and len(images) < min_photo_sources:
@@ -617,6 +635,8 @@ def run(config, root, font_path, now=None):
                 count = min(batch, remaining)
                 if remaining - count in (1, 2):
                     count = remaining if remaining <= 10 else count - (3 - (remaining - count))
+                if mode == "photo" and config.get("require_unique_photo_per_sticker") and len(images) < count:
+                    return f"Waiting for {count} distinct licensed reaction photos"
                 if mode == "photo":
                     recent_use = Counter(Path(record.get("image_path", "")).name
                                          for record in history if record.get("image_path"))
