@@ -94,7 +94,7 @@ struct LibraryView: View {
     @State private var resultsView = "Stickers"
     @State private var selectedSearchSticker: SavedSticker?
     @State private var selectedSearchPack: SavedPack?
-    private var searchTerms: [String] { Array(query.split(whereSeparator: \.isWhitespace).prefix(8).map { String($0) }) }
+    private var searchTerms: [String] { query.split(whereSeparator: { $0.isWhitespace }).prefix(8).map { String($0) } }
     private var filtered: [SavedPack] {
         model.packs.filter { pack in
             (kind == "All" || pack.kind.rawValue == kind) && (!favorites || pack.stickers.contains { $0.favorite }) &&

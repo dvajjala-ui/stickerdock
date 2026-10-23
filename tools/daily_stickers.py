@@ -28,7 +28,7 @@ import uuid
 import zipfile
 import xml.etree.ElementTree as ET
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageStat
 from file_lock import acquire
 from sticker_fonts import default_font
 
@@ -231,18 +231,34 @@ def padded_photo_canvas(path):
 
 
 def distinct_photo_sources(images):
-    """Keep one file from each credited photo or numbered source-photo series."""
+    """Keep one credited scene, including across renamed or recompressed copies."""
     from media_library import provenance
 
-    selected, seen = [], set()
+    selected, seen, digests, visual_hashes = [], set(), set(), []
     for path in images:
         credit = provenance(path)
         title = credit.get("title") or credit.get("source_url") or path.name
         # Wikimedia/Pixabay exports often contain several crops of one scene.
         title = re.sub(r"\s*\(\d+\)(?=\.[^.]+$)", "", title.strip()).casefold()
-        if title not in seen:
-            seen.add(title)
-            selected.append(path)
+        if title in seen:
+            continue
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest in digests:
+            continue
+        grayscale = reference_image(path).convert("L")
+        preview = grayscale.resize((9, 8), Image.Resampling.LANCZOS)
+        pixels = preview.tobytes()
+        visual_hash = sum((pixels[row * 9 + col] > pixels[row * 9 + col + 1]) << (row * 8 + col)
+                          for row in range(8) for col in range(8))
+        contrast = ImageStat.Stat(grayscale.resize((32, 32))).stddev[0]
+        # Flat graphics have near-identical difference hashes even when unrelated.
+        if contrast >= 12 and any(previous_contrast >= 12 and (visual_hash ^ previous_hash).bit_count() <= 2
+                                  for previous_hash, previous_contrast in visual_hashes):
+            continue
+        seen.add(title)
+        digests.add(digest)
+        visual_hashes.append((visual_hash, contrast))
+        selected.append(path)
     return selected
 
 

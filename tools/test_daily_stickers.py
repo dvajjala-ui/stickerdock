@@ -8,7 +8,7 @@ from unittest.mock import patch
 import urllib.error
 import zipfile
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageEnhance
 import daily_stickers as generator
 
 FONT = generator.default_font()
@@ -243,6 +243,27 @@ class DailyStickersTest(unittest.TestCase):
             self.assertIn("Waiting for 5 distinct", result)
             call.assert_not_called()
             self.assertFalse((root / "outputs/2026-10-12/state.json").exists())
+
+    def test_renamed_and_recompressed_photo_scene_is_not_counted_twice(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original = Image.new("RGB", (256, 256), (95, 95, 95))
+            draw = ImageDraw.Draw(original)
+            draw.ellipse((20, 10, 125, 180), fill=(210, 210, 210))
+            draw.rectangle((140, 90, 250, 250), fill=(25, 25, 25))
+            original.save(root / "a.png")
+            original.save(root / "b.png")
+            ImageEnhance.Brightness(original).enhance(1.04).save(root / "c.png")
+            different = Image.new("RGB", (256, 256), (95, 95, 95))
+            draw = ImageDraw.Draw(different)
+            draw.rectangle((10, 10, 120, 245), fill=(20, 20, 20))
+            draw.ellipse((150, 25, 250, 170), fill=(220, 220, 220))
+            different.save(root / "d.png")
+            (root / "library.json").write_text(json.dumps({"assets": [
+                {"file": f"{name}.png", "title": f"Different credit {name}"} for name in "abcd"
+            ]}))
+            self.assertEqual([path.name for path in generator.distinct_photo_sources(sorted(root.glob("*.png")))],
+                             ["a.png", "d.png"])
 
     def test_reaction_photo_skips_padded_meme_canvas_before_provider_call(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):
