@@ -25,7 +25,10 @@ publication, then downloaded independently from the live catalog:
 | Everyday Animal Reactions | `b53b772af38d23ed4a0e7b9673f6df5fd448f28fecf3b725b24be482461ed16d` | 198,723 bytes |
 | Big Mood Animals | `3e4c40eb9036e4b5051c30c65c7ff6cebaa66735890124a42b802f971bdac65f` | 141,826 bytes |
 
-The live catalog contains three packs including the older Desi photo reactions.
+At the time these two static packs were published, the live catalog contained
+three packs including the older Desi photo reactions. A separate reviewed
+animated pack was published later the same day; see
+[Moving Animal Moods](../assets/reviewed/moving-animal-moods/README.md).
 The public bucket currently rejects optional WebP covers. Both phone apps can
 load pack artwork from a ZIP when a user opens the pack; the staged bucket fix
 and cover backfill are described in [PUBLIC_PREVIEW_MIGRATION.md](PUBLIC_PREVIEW_MIGRATION.md).

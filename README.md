@@ -17,8 +17,8 @@ records 90 prioritized defects, gaps/extensions, acceptance checks and decisions
 Live generation now delivers completed partial batches to private Admin review
 drafts; publication remains a separate human review step. The October 22 five-
 sticker draft was inspected and kept private because its images repeat. The
-public catalog now has three reviewed packs, including two new three-sticker
-real-photo animal packs with independently checked public ZIPs and credited
+public catalog now has four reviewed packs, including two new three-sticker
+real-photo animal packs and a three-sticker animated animal-meme pack with independently checked public ZIPs and credited
 sources. Their catalog cards have no artwork cover until the
 additive public-bucket WebP MIME migration is applied; opening the pack loads
 the ZIP artwork on demand. The plan connects automatic content, native personal AI, website uploads,
@@ -37,8 +37,8 @@ emulator before advancing the download. Failed builds keep the previous release.
 The admin website follows the existing Vercel production deployment from `main`.
 See [installation, update and release verification](docs/ANDROID_RELEASES.md).
 
-October 22: **Android 0.11.3 (build 18)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.3)
-after [signed APK and Android 15 emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39787507683).
+October 23: **Android 0.11.4 (build 19)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.4)
+after [signed APK and Android 15 emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/39913314036).
 The exact public APK was downloaded again and its SHA-256 matched the release
 manifest and acceptance record. The Text tool has an opt-in personal AI caption
 flow, but its server-side flag is **off** pending the private database migration
@@ -47,7 +47,9 @@ photo sticker's visible caption from an independently reusable source; this
 later website change passed a private-draft production edit: one rendered
 sticker changed, four stayed byte-identical, and the pack remained private.
 The review UI now includes a full-size artwork preview. See
-[release evidence](docs/QA_MATRIX.md).
+[release evidence](docs/QA_MATRIX.md). The latest iPhone 0.10.5 source also
+passes [unsigned device and simulator CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39913799107),
+but still needs Apple signing and physical iPhone/WhatsApp testing.
 Admin pack cards now load lazy, checksum-bound covers composed from actual
 GENERAL sticker artwork; the shared workspace keeps mature covers hidden.
 The hosted desktop and mobile Admin views display them. See the

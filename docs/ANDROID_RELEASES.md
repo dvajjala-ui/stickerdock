@@ -11,6 +11,12 @@ If Android reports an incompatible signature, export a library backup before
 removing any previous installation. Never uninstall first without a backup.
 
 The APK link always selects the latest successfully published signed release.
+As of October 23, 2026 that is
+[0.11.4 build 19](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.4),
+APK SHA-256 `739cf836bb1cf78122c0eb77a70b5c08350a5b3a1f4c3e68996d749fa92be99c`.
+The [signed release run](https://github.com/dvajjala-ui/stickerdock/actions/runs/39913314036)
+passed exact-APK Android 15 emulator acceptance. Physical WhatsApp and Business
+verification remain open.
 The site also exposes it at `https://stickerdock.vercel.app/download` and in the
 admin sidebar. APK installation remains an explicit user action.
 

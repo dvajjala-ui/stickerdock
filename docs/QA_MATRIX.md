@@ -1,6 +1,40 @@
 # StickerDock verification checklist
 
-## Published Android 0.11.3 and current source — October 23, 2026
+## Published Android 0.11.4 and current source — October 23, 2026
+
+[Android 0.11.4 build 19](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.4)
+was published from `0a39188a597b543f23de851994455a56acee9b32` after
+[signed-release CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39913314036)
+passed backend tests, signed APK/AAB verification and exact-APK Android 15
+emulator acceptance. An independent public APK download was 3,902,503 bytes,
+SHA-256 `739cf836bb1cf78122c0eb77a70b5c08350a5b3a1f4c3e68996d749fa92be99c`;
+this matches `SHA256SUMS.txt`, `release.json` and the passing `acceptance.json`.
+The emulator record includes 334 packs/10,000 stickers, media preview, backup
+and import flows. Physical WhatsApp acceptance remains open. Source commits
+after the release add the animated catalog pack and Admin ZIP import; they are
+not inside this APK.
+
+[Apple CI for iPhone 0.10.5 build 17](https://github.com/dvajjala-ui/stickerdock/actions/runs/39913799107)
+passes the unsigned device build, pinned dependencies, native integration and
+simulator navigation tests at `504b6f3`. iPhone Discover now filters static and
+animated packs; signed installation and WhatsApp delivery remain open.
+
+The live public catalog now contains four packs. "Moving Animal Moods" is a
+three-sticker ANIMATED pack made from independently credited CC0 animal clips.
+The checked-in archive and an independently downloaded public ZIP both have
+SHA-256 `c22c5c63db1bc772c79aba05a68b57e343f2c21a952fa4f86cea4f33240351fc`
+(668,072 bytes). Admin's private ZIP import, exact private read-back, explicit
+review and publication were verified; the public catalog reports
+`kinds: ["ANIMATED"]`. See the [source and motion record](../assets/reviewed/moving-animal-moods/README.md).
+Neither phone has been tested with this exact public pack yet.
+The hosted Admin at 390 px opened this published pack and decoded all three
+512×512 preview images; the dialog had no horizontal overflow or JavaScript
+page errors. This is browser preview evidence, not mobile-app motion playback.
+[Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39916021008)
+and [Android debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39916021017)
+pass on the import commit `6d9cf69`.
+
+### Historical 0.11.3 evidence
 
 [Android 0.11.3 build 18](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.3)
 was published from `ba3f681110659d6b62d3b39231e84068f274279c` after
@@ -30,7 +64,7 @@ The two reviewed animal packs exposed a separate production bucket issue:
 the public Storage bucket accepts ZIP/JSON but rejects an optional WebP cover
 preview. The publisher now omits that preview if Storage rejects it, while
 retaining the validated downloadable pack and exact archive checksum. The
-October 23 live catalog readback showed three packs; independent public ZIP
+An earlier October 23 live catalog readback showed three packs; independent public ZIP
 downloads of "Everyday Animal Reactions" (198,723 bytes, SHA-256
 `b53b772af38d23ed4a0e7b9673f6df5fd448f28fecf3b725b24be482461ed16d`)
 and "Big Mood Animals" (141,826 bytes, SHA-256
