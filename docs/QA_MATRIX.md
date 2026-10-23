@@ -35,12 +35,16 @@ fit 390 px without horizontal overflow, the 512 px artwork preview showed the
 edited caption, and no page errors occurred. This is Admin browser verification,
 not Android or iPhone acceptance.
 
-The next Admin pack-cover source slice builds a 240 px preview from at most
+The Admin pack-cover source slice builds a 240 px preview from at most
 four real stickers in the checksum-validated private archive. GENERAL cards
 load it lazily and cache it by pack digest; MATURE cards keep a neutral cover.
 251 Python tests pass (7 skipped), targeted Ruff and JavaScript syntax pass,
-and 16 local Chrome fixture checks pass. Hosted cover read-back and layout
-remain open until the deployment is inspected.
+and 16 local Chrome fixture checks pass. On October 23 the deployed API returned
+200 for actual cover requests, and fresh headless Chrome loaded 240×240 real
+artwork in four visible pack cards and two overview hero images. Desktop and
+fresh 390 px mobile views had no JavaScript page errors or horizontal overflow.
+The images and layout were visually inspected. This verifies the Admin display,
+not the public phone catalog or physical-device experience.
 
 Hosted write-path acceptance on October 23 used private draft
 `8deca0ea-2d16-576c-8f1f-ad8670e3bab0` and a CC0 source with current
