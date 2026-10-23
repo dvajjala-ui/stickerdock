@@ -87,6 +87,7 @@ private struct CatalogDetail: View {
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
     @State private var contents: [ImportedPack]?
+    @State private var selectedSticker: CatalogStickerPreview?
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -95,7 +96,26 @@ private struct CatalogDetail: View {
                     ForEach(Array(contents.enumerated()), id: \.offset) { _, group in
                         Text(group.name).font(.headline)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))]) {
-                            ForEach(Array(group.stickers.enumerated()), id: \.offset) { _, item in StickerImage(data: item.data).frame(height: 110) }
+                            ForEach(Array(group.stickers.enumerated()), id: \.offset) { _, item in
+                                Button {
+                                    selectedSticker = CatalogStickerPreview(data: item.data,
+                                        label: item.label, animated: group.kind == .ANIMATED)
+                                } label: {
+                                    StickerImage(data: item.data).frame(height: 110)
+                                        .frame(maxWidth: .infinity)
+                                        .overlay(alignment: .bottomTrailing) {
+                                            if group.kind == .ANIMATED {
+                                                Image(systemName: "play.circle.fill")
+                                                    .font(.title2).foregroundStyle(.white)
+                                                    .shadow(color: .black.opacity(0.7), radius: 3)
+                                                    .padding(5)
+                                            }
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(group.kind == .ANIMATED ?
+                                    "Play animated sticker: \(item.label)" : "Preview sticker: \(item.label)")
+                            }
                         }
                     }
                     Button("Save to library", systemImage: "tray.and.arrow.down") {
@@ -112,5 +132,24 @@ private struct CatalogDetail: View {
             }.padding()
         }.navigationTitle(pack.name).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .sheet(item: $selectedSticker) { sticker in
+                NavigationStack {
+                    VStack(spacing: 16) {
+                        StickerImage(data: sticker.data, pixels: 512, animated: sticker.animated)
+                            .aspectRatio(1, contentMode: .fit)
+                        if !sticker.label.isEmpty { Text(sticker.label).font(.headline).multilineTextAlignment(.center) }
+                    }
+                    .padding()
+                    .navigationTitle(sticker.animated ? "Animated preview" : "Sticker preview")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { selectedSticker = nil } } }
+            }
     }
+}
+
+private struct CatalogStickerPreview: Identifiable {
+    let id = UUID()
+    let data: Data
+    let label: String
+    let animated: Bool
 }
