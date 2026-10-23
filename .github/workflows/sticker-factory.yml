@@ -4,7 +4,9 @@ on:
   schedule:
     # Check cheaply every 15 minutes; persisted three-hour batch intervals,
     # provider cooldowns and daily request limits still govern actual generation.
-    - cron: '*/15 * * * *'
+    # Offset from :00/:15/:30/:45, when shared Actions scheduling is busiest.
+    # GitHub may still delay/drop events; measure actual starts, not cron alone.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 concurrency:

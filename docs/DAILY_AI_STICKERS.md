@@ -20,6 +20,15 @@ whose upload/migration failed resumes without asking the model again. Admin
 shows waiting/retry-due status; authentication failures and exhausted budgets
 remain failures. A simulated 40/day recovery test is not live capacity proof.
 
+October 23 schedule audit: the October 22 UTC day closed at 15/40, and GitHub
+recorded only a handful of scheduled starts despite the 15-minute cron.
+GitHub [documents that scheduled events may be delayed or dropped](https://docs.github.com/en/actions/how-tos/troubleshoot-workflows)
+under load, especially near the start of an hour. The check minutes now fall
+at :07, :22, :37 and :52 UTC rather than the quarter-hour boundaries. This is
+an attempt to reduce missed starts, not a 40/day guarantee. Track actual run
+start times, due-batch completion, caption quality and published pack count
+before claiming the daily target. Public publication remains human reviewed.
+
 Android remains fully usable without a Groq key. The key never enters the APK.
 The recommended production host is GitHub Actions with private secrets and
 Supabase state/storage; a Linux/macOS machine with systemd/launchd is still a
