@@ -31,11 +31,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install media test tools
-        run: |
-          if ! command -v ffmpeg >/dev/null || ! test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf; then
-            sudo apt-get update -qq
-            sudo apt-get install -y ffmpeg fonts-dejavu-core
-          fi
+        run: bash tools/ci_media_tools.sh
       - name: Install test dependencies
         run: python -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt -r tools/requirements-checks.txt
       - name: Validate web scripts and API
