@@ -88,6 +88,20 @@ class CommunityCatalog(
         return bytes
     }
 
+    /** Explicit full preview verifies the catalog digest and never imports a sticker. */
+    fun previewStickers(item: Listing): List<CatalogStickerPreview.Item> {
+        require(CatalogUrls.isAllowed(base, item.downloadUrl) && item.downloadUrl.startsWith(base + "packs/")) {
+            "Invalid pack URL"
+        }
+        val bytes = fetch(item.downloadUrl, 25_000_000)
+        require(sha256(bytes) == item.sha256) { "Public pack checksum mismatch" }
+        val temporary = File.createTempFile("catalog-stickers-", ".zip", context.cacheDir)
+        return try {
+            temporary.writeBytes(bytes)
+            CatalogStickerPreview.fromArchive(temporary)
+        } finally { temporary.delete() }
+    }
+
     fun downloadAndImport(item: Listing): StickerBackup.RestoreSummary = synchronized(importLock) {
         StickerStore(context.applicationContext).use { store ->
             val imported = CatalogImports(context, store)

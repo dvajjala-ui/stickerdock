@@ -1,6 +1,10 @@
 package app.stickerdock.duo
 
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
+import android.widget.ImageView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -24,8 +28,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import java.nio.ByteBuffer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -175,16 +182,69 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Boolean, saveError: String?,
-    onPreview: suspend (CommunityCatalog.Listing) -> ByteArray?, onSave: () -> Unit, onDismiss: () -> Unit,
+    onLoadStickers: suspend (CommunityCatalog.Listing) -> List<CatalogStickerPreview.Item>,
+    onSave: () -> Unit, onDismiss: () -> Unit,
     onShare: (() -> Unit)? = null) {
+    val scope = rememberCoroutineScope()
+    var previews by remember(entry.id, entry.sha256) { mutableStateOf<List<CatalogStickerPreview.Item>?>(null) }
+    var loadingPreviews by remember(entry.id, entry.sha256) { mutableStateOf(false) }
+    var previewError by remember(entry.id, entry.sha256) { mutableStateOf<String?>(null) }
+    var selected by remember(entry.id, entry.sha256) { mutableStateOf<CatalogStickerPreview.Item?>(null) }
+    var page by remember(entry.id, entry.sha256) { mutableIntStateOf(0) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(entry.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("By ${entry.creator}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                CatalogArtwork(entry, onPreview)
-                Text("A preview of this pack. Saving adds its stickers to your offline library. You can then add the pack to WhatsApp.",
+                Text("Load the full sticker preview before saving. Animated stickers play when you tap them. Previewing never adds them to your library.",
                     style = MaterialTheme.typography.bodyMedium)
+                if (previews == null) {
+                    OutlinedButton(enabled = !loadingPreviews, onClick = {
+                        scope.launch {
+                            loadingPreviews = true; previewError = null
+                            try { previews = withContext(Dispatchers.IO) { onLoadStickers(entry) } }
+                            catch (error: CancellationException) { throw error }
+                            catch (error: Exception) { previewError = error.message ?: "Preview unavailable. Try again." }
+                            finally { loadingPreviews = false }
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (loadingPreviews) "Loading stickers…" else "Load sticker previews")
+                    }
+                }
+                if (previewError != null) Text(previewError!!, color = MaterialTheme.colorScheme.error)
+                previews?.let { items ->
+                    val start = page * 12
+                    Text("${start + 1}–${minOf(start + 12, items.size)} of ${items.size} stickers",
+                        style = MaterialTheme.typography.labelMedium)
+                    items.drop(start).take(12).chunked(3).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { item ->
+                                Surface(onClick = { selected = item }, modifier = Modifier.weight(1f),
+                                    shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                                    Column(Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        val poster = remember(item.sha256) {
+                                            BitmapFactory.decodeByteArray(item.bytes, 0, item.bytes.size,
+                                                BitmapFactory.Options().apply { inSampleSize = 4 })?.asImageBitmap()
+                                        }
+                                        if (poster != null) Box(Modifier.fillMaxWidth().height(92.dp)) {
+                                            Image(poster, item.label.ifBlank { "Sticker preview" }, Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Fit)
+                                            if (item.kind == StickerKind.ANIMATED) Text("▶", Modifier.align(Alignment.BottomEnd).padding(4.dp),
+                                                color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        Text(item.label.ifBlank { if (item.kind == StickerKind.ANIMATED) "Play" else "Preview" },
+                                            style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                                    }
+                                }
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                    if (items.size > 12) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(enabled = page > 0, onClick = { page-- }) { Text("Previous") }
+                        TextButton(enabled = start + 12 < items.size, onClick = { page++ }) { Text("Next") }
+                    }
+                }
                 if (saveError != null) Text(saveError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
             Button(enabled = !busy, onClick = onSave, modifier = Modifier.fillMaxWidth()) {
@@ -193,5 +253,32 @@ fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Bool
             if (onShare != null) OutlinedButton(enabled = !busy, onClick = onShare, modifier = Modifier.fillMaxWidth()) { Text("Share pack code") }
             TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Keep browsing") }
         }
+    }
+    selected?.let { item ->
+        AlertDialog(onDismissRequest = { selected = null }, title = { Text(if (item.kind == StickerKind.ANIMATED) "Animated sticker" else "Sticker") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CatalogMotionPreview(item)
+                    if (item.label.isNotBlank()) Text(item.label)
+                }
+            }, confirmButton = { TextButton(onClick = { selected = null }) { Text("Done") } })
+    }
+}
+
+@Composable
+private fun CatalogMotionPreview(item: CatalogStickerPreview.Item) {
+    val drawable by produceState<Drawable?>(null, item.sha256) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(item.bytes))) }.getOrNull()
+        }
+    }
+    AnimateWhileResumed(drawable as? AnimatedImageDrawable)
+    Surface(Modifier.fillMaxWidth().height(260.dp), shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        if (drawable != null) AndroidView(
+            factory = { context -> ImageView(context).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+            onRelease = { it.setImageDrawable(null) }, update = { it.setImageDrawable(drawable) },
+            modifier = Modifier.fillMaxSize().padding(12.dp))
+        else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Preview unavailable") }
     }
 }

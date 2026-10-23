@@ -11,6 +11,8 @@ class ReviewedAnimatedPackTest(unittest.TestCase):
     def test_moving_animal_moods(self):
         root = Path(__file__).resolve().parents[1] / "assets/reviewed/moving-animal-moods"
         data = (root / "pack.zip").read_bytes()
+        android_fixture = root.parents[2] / "app/src/test/resources/moving-animal-moods.zip"
+        self.assertEqual(android_fixture.read_bytes(), data)
         self.assertEqual(hashlib.sha256(data).hexdigest(),
                          "c22c5c63db1bc772c79aba05a68b57e343f2c21a952fa4f86cea4f33240351fc")
         manifest = validate_pack(data, public=True)

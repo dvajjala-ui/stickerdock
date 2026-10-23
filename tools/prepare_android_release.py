@@ -37,6 +37,7 @@ def prepare(apk, bundle, output, source, run_url):
         "- Share one video or GIF from another Android app into the animated creator; trim, caption and preview locally, then save explicitly.\n"
         "- Device-local sticker Favorites with artwork, search/type/topic filters, move preservation and Delete/Undo recovery; removing a shortcut keeps the sticker.\n"
         "- Pack-centered Library and Discover, larger artwork previews and search grouped by pack.\n"
+        "- In Discover, explicitly load every sticker in a reviewed pack and tap an animated sticker to play it before saving; loading the preview leaves the local library untouched.\n"
         "- Choose photos, name a new pack or select an existing one, then explicitly save; cancel leaves the library unchanged.\n"
         "- Simplified creation/settings and contextual WhatsApp or Business actions with an add-again recovery option.\n"
         "- Cutout edge brushes, saved drafts, public pack codes and explicit received-pack import with retry.\n"

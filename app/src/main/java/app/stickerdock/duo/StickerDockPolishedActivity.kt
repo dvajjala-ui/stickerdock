@@ -911,12 +911,10 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         previewingCatalogPack?.let { entry ->
             CatalogPackSheet(entry, entry.id in catalogImportedIds, busy, catalogSaveError,
-                onPreview = { listing ->
-                    val bytes = withContext(Dispatchers.IO) {
-                        CommunityCatalog(this@StickerDockPolishedActivity, backup).preview(listing, allowLegacyDownload = true)
+                onLoadStickers = { listing ->
+                    withContext(Dispatchers.IO) {
+                        CommunityCatalog(this@StickerDockPolishedActivity, backup).previewStickers(listing)
                     }
-                    if (bytes != null) catalogArtworkRevision++
-                    bytes
                 },
                 onSave = { catalogSaveError = null; importFactoryPack(entry) },
                 onDismiss = { if (!busy) previewingCatalogPack = null },
