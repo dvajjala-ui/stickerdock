@@ -89,7 +89,7 @@ class CommunityCatalog(
     }
 
     /** Explicit full preview verifies the catalog digest and never imports a sticker. */
-    fun previewStickers(item: Listing): List<CatalogStickerPreview.Item> {
+    internal fun previewStickers(item: Listing): List<CatalogStickerPreview.Item> {
         require(CatalogUrls.isAllowed(base, item.downloadUrl) && item.downloadUrl.startsWith(base + "packs/")) {
             "Invalid pack URL"
         }

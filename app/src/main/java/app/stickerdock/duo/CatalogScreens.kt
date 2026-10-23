@@ -181,7 +181,7 @@ private fun CatalogArtwork(entry: CommunityCatalog.Listing, load: suspend (Commu
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Boolean, saveError: String?,
+internal fun CatalogPackSheet(entry: CommunityCatalog.Listing, saved: Boolean, busy: Boolean, saveError: String?,
     onLoadStickers: suspend (CommunityCatalog.Listing) -> List<CatalogStickerPreview.Item>,
     onSave: () -> Unit, onDismiss: () -> Unit,
     onShare: (() -> Unit)? = null) {
