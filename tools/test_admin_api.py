@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import copy
 from datetime import datetime, timezone
 import io
@@ -9,6 +10,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import uuid
+import zipfile
+
+from PIL import Image
 
 from api import _admin as admin
 from api.admin import handler
@@ -110,6 +114,47 @@ class AdminApiTest(unittest.TestCase):
         for key, value in before.items():
             self.assertEqual(self.client.objects[key], value)
         self.assertEqual(self.client.objects[(PRIVATE_BUCKET, row["private_path"])], before[(PRIVATE_BUCKET, "generated/" + DAY + "/daily-complete.zip")])
+
+    def test_portable_animated_zip_import_is_private_idempotent_and_reviewable(self):
+        frames = [Image.new("RGBA", (512, 512), color) for color in ("red", "blue", "green")]
+        media = io.BytesIO()
+        frames[0].save(media, "WEBP", save_all=True, append_images=frames[1:], duration=125, loop=0)
+        asset = media.getvalue()
+        pack_id = str(uuid.uuid4())
+        stickers = [{"name": str(uuid.uuid4()) + ".webp", "sha256": hashlib.sha256(asset).hexdigest(),
+                     "label": label, "tags": "animal"} for label in ("First", "Second", "Third")]
+        manifest = {"schema": 5, "packs": [{"id": pack_id, "name": "Moving animals", "kind": "ANIMATED",
+                    "rating": "GENERAL", "category": "REACTIONS", "stickers": stickers}]}
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as archive:
+            archive.writestr("manifest.json", json.dumps(manifest))
+            for sticker in stickers:
+                archive.writestr("packs/" + pack_id + "/" + sticker["name"], asset)
+        rights = [{"media_credit": {"license": "CC0", "source_url": "https://commons.wikimedia.org/wiki/File:Example.webm"}}
+                  for _ in stickers]
+        payload = {"action": "pack_import", "archive": base64.b64encode(output.getvalue()).decode(),
+                   "references": rights, "creator": "StickerDock"}
+        first = admin.dispatch(payload, self.client)
+        self.assertTrue(first["imported"])
+        self.assertEqual((first["kind"], first["sticker_count"]), ("ANIMATED", 3))
+        row = self.client.find("admin_packs", "id", first["id"])
+        self.assertEqual(row["status"], "draft")
+        self.assertFalse(any(bucket == PUBLIC_BUCKET for bucket, _ in self.client.objects))
+        self.assertEqual(admin.dispatch(payload, self.client), {"id": first["id"], "imported": False})
+        self.assertEqual(len(self.client.list_rows("admin_packs")), 1)
+        self.assertEqual(admin.dispatch({"action": "pack_status", "id": first["id"],
+                                         "version": row["version"], "status": "reviewed"}, self.client), {"status": "reviewed"})
+
+    def test_portable_zip_rejects_bad_encoding_and_missing_rights_without_storage(self):
+        encoded = base64.b64encode(pack_bytes()).decode()
+        for archive, references in (("!" * 16, []), (encoded, []),
+                                    (encoded, [{"media_credit": {"license": "REFERENCE_ONLY"}}] * 3),
+                                    (encoded, [{"media_credit": {"license": "CC0", "source_url": "https://pinterest.com/pin/1"}}] * 3)):
+            with self.subTest(archive=archive[:12], references=references):
+                with self.assertRaises(ValueError):
+                    admin.dispatch({"action": "pack_import", "archive": archive,
+                                    "references": references}, self.client)
+        self.assertEqual(self.client.list_rows("admin_packs"), [])
 
     def test_review_publish_catalog_and_unpublish_flow(self):
         row = self.migrate()
@@ -374,8 +419,6 @@ class AdminApiTest(unittest.TestCase):
                 self.assertEqual(image.size, (512,512))
                 self.assertLessEqual(len(raw), 100_000)
 
-
-from PIL import Image
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,29 @@
+[
+  {
+    "media_credit": {
+      "title": "Howling Husky",
+      "credit": "Klaudya Teodora",
+      "license": "CC0",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Howling_Husky_Dog.webm",
+      "source_sha256": "0c8de12b3534f95f3a133018245dedcc24254865eb489cde239988467ae554f7"
+    }
+  },
+  {
+    "media_credit": {
+      "title": "Moomin2",
+      "credit": "Tet",
+      "license": "CC0",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Moomin2.webm",
+      "source_sha256": "3f6677d6732b6dc821753932068085fa828a9f4ce5c4a16da809734173ac63ef"
+    }
+  },
+  {
+    "media_credit": {
+      "title": "Miss Oreo",
+      "credit": "Fancibaer",
+      "license": "CC0",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Miss_Oreo_(O-Dog).webm",
+      "source_sha256": "75ffb8e963c5fa6b650f729a48621d79e7c64c28fd145c582588fe994fc5df32"
+    }
+  }
+]

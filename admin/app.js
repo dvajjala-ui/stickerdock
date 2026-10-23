@@ -163,7 +163,7 @@
   function renderPacks() {
     const packs=data.packs.filter(p=>(filter==="all"||p.status===filter)&&p.name.toLowerCase().includes(search.toLowerCase()));
     const factory=data.factory_packs;
-    return heading("Sticker packs","Organize drafts, review every sticker, and publish your best reactions.",button("＋ Create pack","create-pack","","primary"))+
+    return heading("Sticker packs","Organize drafts, review every sticker, and publish your best reactions.",button("＋ Create pack","create-pack","","primary")+button("Import ZIP","import-pack"))+
       `<div class="toolbar"><input id="pack-search" aria-label="Search packs" placeholder="Search your packs…" value="${esc(search)}"><select id="pack-filter" aria-label="Filter pack status">${["all","draft","reviewed","published","rejected","archived"].map(s=>`<option value="${s}" ${s===filter?"selected":""}>${s==="all"?"All statuses":s[0].toUpperCase()+s.slice(1)}</option>`).join("")}</select></div>`+
       (packs.length?`<div class="pack-grid">${packs.map(packCard).join("")}</div>`:empty("No matching packs","Try another search or create your first draft."))+
       `<div class="section-head migration-head"><h2>Existing Factory output</h2><small>Migrate into editable drafts</small></div>`+
@@ -333,6 +333,7 @@
         $("add-sources-dialog").showModal();return;
       }
       if(action==="create-pack")return showCreatePack();
+      if(action==="import-pack"){$("import-form").reset();$("import-dialog").showModal();return;}
       if(action==="create-pack-from-source")return showCreatePack(id);
       if(action==="open-pack")return openPack(id);
       if(action==="migrate") {const result=await command("migrate_factory",{id});await refresh();toast("Factory output migrated. Original archive preserved.");return openPack(result.id);}
@@ -369,6 +370,16 @@
     if(e.target.id==="settings-form") {e.preventDefault();task(async()=>{const form=new FormData(e.target),selected=form.getAll("content_categories"),rating=form.get("rating");if(!selected.length)throw new Error("Choose at least one content category.");if(selected.includes("ADULT_HUMOR")&&rating!=="MATURE")throw new Error("Adult humor requires Private mature.");await command("settings_save",{enabled:form.has("enabled"),discovery_enabled:form.has("discovery_enabled"),auto_migrate_completed:form.has("auto_migrate_completed"),daily_target:Number(form.get("daily_target")),batch_size:Number(form.get("batch_size")),rating,content_categories:selected,topics:String(form.get("topics")).split("\n").map(t=>t.trim()).filter(Boolean)});await refresh();toast("Settings saved for the next Factory run.");});}
   });
   $("create-form").addEventListener("submit",e=>{e.preventDefault();task(async()=>{const form=new FormData(e.target),sources=form.getAll("sources");if(!sources.length||sources.length>30)throw new Error("Choose 1–30 source images.");const result=await command("pack_create",{name:form.get("name"),creator:form.get("creator"),category:form.get("category"),sources});$("create-dialog").close();await refresh();await openPack(result.id);toast("Private draft created.");});});
+  $("import-form").addEventListener("submit",e=>{e.preventDefault();task(async()=>{
+    const form=new FormData(e.target),archive=form.get("archive"),sourceFile=form.get("references");
+    if(!(archive instanceof File)||archive.size>2_800_000||archive.size<12)throw new Error("Choose a pack ZIP under 2.8 MB.");
+    if(!(sourceFile instanceof File)||sourceFile.size>100_000)throw new Error("Choose a source-rights JSON under 100 KB.");
+    let references;try{references=JSON.parse(await sourceFile.text());}catch(_){throw new Error("Source-rights JSON is invalid.");}
+    const encoded=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",",2)[1]);reader.onerror=()=>reject(new Error("Cannot read pack ZIP"));reader.readAsDataURL(archive);});
+    const result=await command("pack_import",{archive:encoded,references,creator:form.get("creator")});
+    $("import-dialog").close();await refresh();await openPack(result.id);
+    toast(result.imported?"Private pack imported. Review every frame and source before publishing.":"Existing private pack reopened.");
+  });});
   $("add-sources-form").addEventListener("submit",e=>{e.preventDefault();task(async()=>{
     const form=new FormData(e.target),sources=form.getAll("sources");if(!sources.length||sources.length>30)throw new Error("Choose 1–30 images.");
     await command("pack_add_sources",{...appendPack,target_pack_id:form.get("target_pack_id"),sources});

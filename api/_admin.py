@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
@@ -192,6 +193,46 @@ def migrate_factory(client, payload):
     if not isinstance(refs, list) or len(refs) != count:
         raise ValueError("Factory provenance count mismatch")
     return store_draft(client, data, manifest, refs, source["name"], source["creator"], origin_id, target_id)
+
+
+def import_pack(client, payload):
+    """Import a bounded, provenance-backed portable ZIP as a private draft."""
+    encoded = payload.get("archive")
+    if not isinstance(encoded, str) or not 16 <= len(encoded) <= 3_800_000:
+        raise ValueError("Choose a portable pack ZIP smaller than 2.8 MB")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("Invalid pack ZIP encoding") from error
+    if len(data) > 2_800_000:
+        raise ValueError("Choose a portable pack ZIP smaller than 2.8 MB")
+    try:
+        manifest = validate_pack(data, public=False)
+    except (zipfile.BadZipFile, json.JSONDecodeError, OSError, KeyError, TypeError) as error:
+        raise ValueError("Invalid portable pack ZIP") from error
+    if len(manifest["packs"]) != 1:
+        raise ValueError("Import one pack per ZIP")
+    pack = manifest["packs"][0]
+    count = len(pack["stickers"])
+    references = payload.get("references")
+    if not isinstance(references, list):
+        raise ValueError("Choose a source-rights JSON file for this pack")
+    references = validate_references(json.dumps(references).encode(), count)
+    for reference in references:
+        credit = reference.get("media_credit")
+        if not isinstance(credit, dict) or credit.get("license") not in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}:
+            raise ValueError("Every imported sticker needs reusable source rights")
+        if credit["license"] != "USER_OWNED":
+            url = credit.get("source_url")
+            if not isinstance(url, str) or not url.startswith("https://") or "pinterest.com" in url.lower():
+                raise ValueError("Licensed sources need their original HTTPS credit page")
+    creator = text(payload.get("creator", "StickerDock"), "creator", 60)
+    digest = hashlib.sha256(data).hexdigest()
+    target_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "stickerdock-import:" + digest))
+    if client.find("admin_packs", "id", target_id):
+        return {"id": target_id, "imported": False}
+    stored = store_draft(client, data, manifest, references, pack["name"], creator, pack_id=target_id)
+    return {"id": stored["id"], "imported": True, "kind": pack["kind"], "sticker_count": count}
 
 
 def normalize_static(data):
@@ -581,7 +622,7 @@ def dispatch(payload, client=None):
                                                 payload.get("request_id"))
         audit(client, "request.queued", result["id"])
         return result
-    operations = {"migrate_factory": migrate_factory, "pack_create": create_pack,
+    operations = {"migrate_factory": migrate_factory, "pack_import": import_pack, "pack_create": create_pack,
                   "pack_save": save_pack, "pack_add_sources": add_pack_sources,
                   "pack_status": pack_status, "publish": publish_pack}
     if action == "unpublish":
