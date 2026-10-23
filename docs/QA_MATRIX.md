@@ -26,15 +26,17 @@ contract checks for grants, ownership, replay, global provider budget and
 abandoned upload cleanup; it has **not** been applied to production, and the
 AI flag remains off.
 
-The reviewed "Everyday Animal Reactions" pack exposed a separate production bucket issue:
+The two reviewed animal packs exposed a separate production bucket issue:
 the public Storage bucket accepts ZIP/JSON but rejects an optional WebP cover
 preview. The publisher now omits that preview if Storage rejects it, while
 retaining the validated downloadable pack and exact archive checksum. The
-October 23 live catalog readback showed two packs; an independent public ZIP
-download of the new pack was 198,723 bytes, SHA-256
-`b53b772af38d23ed4a0e7b9673f6df5fd448f28fecf3b725b24be482461ed16d`,
-and passed public manifest validation with the three reviewed captions. The
-pack is published; Android and iPhone Discover cards show a text cover until
+October 23 live catalog readback showed three packs; independent public ZIP
+downloads of "Everyday Animal Reactions" (198,723 bytes, SHA-256
+`b53b772af38d23ed4a0e7b9673f6df5fd448f28fecf3b725b24be482461ed16d`)
+and "Big Mood Animals" (141,826 bytes, SHA-256
+`3e4c40eb9036e4b5051c30c65c7ff6cebaa66735890124a42b802f971bdac65f`)
+passed public manifest validation with the six reviewed captions. Both packs
+are published; Android and iPhone Discover cards show a text cover until
 the additive WebP MIME migration is applied, while explicit pack preview
 loads the artwork from the ZIP. The additive migration is staged and passes a
 local PGlite idempotence/preservation check; it has **not** been applied to
