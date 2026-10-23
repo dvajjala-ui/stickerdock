@@ -6,15 +6,16 @@ import argparse
 import hashlib
 import io
 import json
+import logging
 import re
 import uuid
 import zipfile
 from PIL import Image, ImageOps
 
 try:
-    from .supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base, catalog_lease
+    from .supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseError, SupabaseFactory, public_catalog_base, catalog_lease
 except ImportError:
-    from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseFactory, public_catalog_base, catalog_lease
+    from supabase_factory import PRIVATE_BUCKET, PUBLIC_BUCKET, SupabaseError, SupabaseFactory, public_catalog_base, catalog_lease
 
 PUBLIC_MEDIA_LICENSES = {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
 MAX_PUBLIC_PACK_BYTES = 25_000_000  # Matches Android CommunityCatalog download limit.
@@ -152,9 +153,17 @@ def publish_preview(client, data, manifest):
         raise ValueError("Public preview exceeds size limit")
     digest = hashlib.sha256(asset).hexdigest()
     filename = digest + ".webp"
-    client.upload(PUBLIC_BUCKET, "catalog/previews/" + filename, asset, "image/webp")
-    return {"preview": {"file": filename, "sha256": digest},
-            "sticker_count": count, "kinds": sorted(kinds)}
+    result = {"sticker_count": count, "kinds": sorted(kinds)}
+    try:
+        client.upload(PUBLIC_BUCKET, "catalog/previews/" + filename, asset, "image/webp")
+    except SupabaseError:
+        # The existing production public bucket allows ZIP/JSON but can reject
+        # WebP until its additive MIME migration is applied. Both phone clients
+        # support a catalog entry without a thumbnail and load the exact ZIP on
+        # explicit pack preview. Do not block delivery of a reviewed pack.
+        logging.warning("Public preview unavailable; publishing without thumbnail")
+        return result
+    return {**result, "preview": {"file": filename, "sha256": digest}}
 
 
 def _publish_day(client, day):

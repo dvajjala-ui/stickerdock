@@ -5,10 +5,11 @@ suggestion for a selected static photo. It requires a StickerDock phone account,
 separate rights and online-processing consent, and an explicit Apply action;
 preview and Save remain local, separate steps. The server switch stays off until
 the private SQL migration and account isolation are verified in production.
-[Apple CI for the caption source](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788164695)
-passed an unsigned build and simulator tests before this version-number bump;
-the 0.10.3 versioned artifact needs its own passing run. No physical iPhone or
-WhatsApp acceptance is claimed.
+[Apple CI for 0.10.3](https://github.com/dvajjala-ui/stickerdock/actions/runs/39910376919)
+passed its unsigned device build, package-version check, simulator tests and
+artifact export. The version check now reads `project.yml` rather than a stale
+hard-coded version. This IPA is unsigned; physical iPhone installation and
+WhatsApp acceptance remain open.
 
 The prior tested candidate **0.10.2 (build 14)** adds PNG/JPEG photo ZIPs alongside WebP.
 The native converter preserves transparency, applies EXIF orientation and bounds

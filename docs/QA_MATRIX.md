@@ -13,15 +13,27 @@ that matches GitHub's asset digest, `release.json` and the passing
 from that SHA; later `main` commits change iPhone/SQL tests and website code,
 not this binary. Physical WhatsApp/Business acceptance is still open.
 
-[Apple CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788164695)
-passes unsigned device build plus simulator integration/navigation tests for
-the iPhone personal-caption source. There is no signed iPhone installation or
-physical WhatsApp result. [Current web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788619453)
-and [Android debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39788619993)
-pass at `b65752b`. The personal-caption SQL migration passed local PGlite
+[Apple CI for iPhone 0.10.3 build 15](https://github.com/dvajjala-ui/stickerdock/actions/runs/39910376919)
+passes an unsigned device build, package-version check, simulator tests and
+artifact export at `10a2bbf`. The preceding run failed only because CI still
+asserted the old 0.10.2/build 14 version after the new app had compiled; the
+check now derives its expectation from `ios/project.yml`. There is no signed
+iPhone installation or physical WhatsApp result.
+[Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39910939503)
+and [Android debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/39910939635)
+pass at `ac04f61`. The personal-caption SQL migration passed local PGlite
 contract checks for grants, ownership, replay, global provider budget and
 abandoned upload cleanup; it has **not** been applied to production, and the
 AI flag remains off.
+
+The first reviewed animal-meme pack exposed a separate production bucket issue:
+the public Storage bucket accepts ZIP/JSON but rejects an optional WebP cover
+preview. The publisher now omits that preview if Storage rejects it, while
+retaining the validated downloadable pack and exact archive checksum. A
+reviewed pack still needs live catalog and ZIP readback before public delivery
+is claimed. Until the bucket MIME configuration is updated and verified,
+Discover cards for newly published packs may show a text cover; opening a pack
+loads its artwork from the ZIP on explicit user action.
 
 The Admin draft editor permits visible caption changes on static photo stickers
 only when both saved provenance and current source metadata allow reuse. It

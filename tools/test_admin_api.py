@@ -142,6 +142,24 @@ class AdminApiTest(unittest.TestCase):
         self.assertEqual(self.client.find("admin_packs", "id", row["id"])["status"], "reviewed")
         self.assertFalse(any(bucket == PUBLIC_BUCKET for bucket, _ in self.client.objects))
 
+    def test_preview_storage_failure_keeps_pack_downloadable_without_thumbnail(self):
+        row = self.migrate()
+        admin.dispatch({"action": "pack_status", "id": row["id"], "status": "reviewed"}, self.client)
+        original_upload = self.client.upload
+
+        def upload(bucket, path, data, content_type="application/octet-stream"):
+            if path.startswith("catalog/previews/"):
+                raise admin.SupabaseError("Supabase HTTP 400; response body omitted")
+            return original_upload(bucket, path, data, content_type)
+
+        with patch.object(self.client, "upload", side_effect=upload):
+            result = admin.dispatch({"action": "publish", "id": row["id"]}, self.client)
+        self.assertEqual(result["status"], "published")
+        entry = json.loads(self.client.objects[(PUBLIC_BUCKET, "catalog/packs.json")])["packs"][0]
+        self.assertNotIn("preview", entry)
+        archive = self.client.objects[(PUBLIC_BUCKET, "catalog/packs/" + entry["file"])]
+        self.assertEqual(__import__("hashlib").sha256(archive).hexdigest(), entry["sha256"])
+
     def test_unreviewed_pack_cannot_publish(self):
         row = self.migrate()
         with self.assertRaisesRegex(ValueError, "Review"):
