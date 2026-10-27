@@ -28,7 +28,7 @@ def main():
     if conn is None:
         raise RuntimeError('Database unavailable. Configure SUPABASE_DB_HOST with the project Connect session-pooler hostname.')
     with conn:
-        for file in ('202610280001_media_intake.sql','202610280002_collection_control.sql','202610280003_daily_collection_plans.sql'):
+        for file in ('202610280001_media_intake.sql','202610280002_collection_control.sql','202610280003_daily_collection_plans.sql','202610280004_collection_sources.sql'):
             conn.execute((Path(__file__).resolve().parents[1]/'supabase'/'migrations'/file).read_text())
             print('Applied additive migration:',file)
     token=os.environ['HANDNAVIGATE_INGEST_TOKEN']
