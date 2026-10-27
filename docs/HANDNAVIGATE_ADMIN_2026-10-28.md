@@ -28,6 +28,8 @@ Provisioning passed at [initial migration](https://github.com/dvajjala-ui/sticke
 
 The real hosted Admin browser test saved a daily plan, edited a candidate, downloaded a file whose SHA-256 equaled the stored digest, archived/restored it, and checked desktop/mobile layout without page errors. The existing open shared Admin model is unchanged: possession of its URL permits workspace management. Private phone backups remain separately authenticated.
 
+HandNavigate's final functional revision `1028004` also passed [worker CI](https://github.com/dvajjala-ui/handNavigation/actions/runs/40581869552) and [Windows desktop, build and portable acceptance](https://github.com/dvajjala-ui/handNavigation/actions/runs/40581869494). The parameterized collection service remains a separate worker entry point; these checks do not imply that it was embedded into the portable EXE.
+
 ## What is still pending
 
 1. Move the worker to an always-on host if this PC cannot remain awake. A desktop and Windows Startup shortcut were installed on the current PC. No new server was bought or deployed. Docker/Linux and a new server's sign-in/session behavior still need live acceptance.
