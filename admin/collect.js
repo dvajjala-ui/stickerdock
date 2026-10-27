@@ -20,6 +20,7 @@ window.HandCollection = {create({command,esc,button,heading,empty,badge,toast,re
     if(action==='collect-refresh'){await load();render();return;}
     if(action==='collect-suggest'){
       const brief=getBriefs()?.[0],topics=(brief?.topic_plans||[]).map(t=>t.topic).filter(Boolean);
+      if(!topics.length)topics.push(...(brief?.items||[]).map(i=>i.sticker_angle||i.title).filter(Boolean));
       if(!topics.length)throw new Error('No planner topics are available yet. Enter a topic above or run the content planner.');
       document.querySelector('#collection-form textarea').value=[...new Set(topics)].slice(0,10).join('\n');return;
     }
