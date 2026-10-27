@@ -2,8 +2,10 @@
 from __future__ import annotations
 import hashlib
 import json
+import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from urllib.parse import urlencode
 from api._shared import StudioError, safe_text
 
@@ -65,8 +67,16 @@ def enqueue(client,payload):
     return {'job':job,'reused':not bool(result)}
 
 def enqueue_daily(client,day):
-    # UTC day matches the existing planner and Actions daily schedule.
-    datetime.strptime(day,'%Y-%m-%d')
+    # Scheduled collection budget follows the worker's India calendar day.
+    start=datetime.strptime(day,'%Y-%m-%d').replace(tzinfo=ZoneInfo('Asia/Kolkata'))
+    budget=int(os.environ.get('HANDNAVIGATE_DAILY_BUDGET','20'))
+    if not 1<=budget<=10000:
+        raise StudioError('Invalid scheduled image budget')
+    query=urlencode([('select','id'),('created_at','gte.'+start.isoformat()),
+        ('created_at','lt.'+(start+timedelta(days=1)).isoformat()),('limit',budget)])
+    stored=json.loads(client._request('GET','/rest/v1/media_intake_items?'+query) or b'[]')
+    if len(stored)>=budget:
+        return []  # A manual/qualification collection already fulfilled today's quota.
     plans=rows(client,'collection_plans',{'daily':'eq.true','archived':'eq.false'},limit=100)
     return [enqueue(client,{**p,'request_id':'daily:'+day+':'+p['id']+':'+hashlib.sha256(
         json.dumps(spec(p),sort_keys=True).encode()).hexdigest()[:16]}) for p in plans]

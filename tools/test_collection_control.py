@@ -7,6 +7,12 @@ from api import _media_intake as intake
 from test_media_intake import Storage
 
 class CollectionControlTest(unittest.TestCase):
+    def test_daily_schedule_does_not_redownload_an_already_satisfied_india_day(self):
+        client=Storage()
+        with patch.object(client,'_request',return_value=json.dumps([{'id':str(uuid.uuid4())} for _ in range(20)]).encode()) as request:
+            self.assertEqual(c.enqueue_daily(client,'2026-10-28'),[])
+        self.assertIn('created_at=gte.2026-10-28T00',request.call_args.args[1])
+        self.assertEqual(request.call_count,1)
     def test_invalid_topics_sources_and_limits_never_reach_the_database(self):
         base={'topics':['cats'],'sources':['reddit'],'image_limit':20}
         for change in ({'topics':[]},{'topics':[{}]},{'sources':['unknown']},{'sources':'reddit'},{'image_limit':True},{'image_limit':101}):
