@@ -18,7 +18,6 @@ MAX_REQUEST = 4_300_000  # Keep JSON/base64 below the hosted function request bo
 MAX_PROVIDER_RESPONSE = 8_000_000
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 CREATOR_SOURCE_RE = re.compile(r"inbox/[0-9a-f]{64}\.(?:png|jpe?g|webp)")
-CREATOR_MAX_OUTSTANDING = 25
 
 
 class StudioError(ValueError):
@@ -237,54 +236,40 @@ def normalize_request_id(value) -> str:
     return str(parsed)
 
 
-def creator_outstanding_count() -> int:
-    status_filter = urllib.parse.quote("in.(queued,running)")
-    path = ("/rest/v1/creator_requests?status=" + status_filter +
-            "&select=id&limit=" + str(CREATOR_MAX_OUTSTANDING + 1))
-    raw = supabase_request(path, limit=64_000)
-    rows = json.loads(raw or b"[]")
-    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
-        raise StudioError("Supabase returned an invalid Creator queue")
-    return len(rows)
-
-
 def queue_creator_request(prompt, source_path, request_id=None) -> dict:
     prompt_text = safe_text(prompt, "prompt", 500, required=True)
     if not isinstance(source_path, str) or not CREATOR_SOURCE_RE.fullmatch(source_path):
         raise StudioError("Invalid source image path")
-    supplied_id = request_id is not None
-    request_id = normalize_request_id(request_id) if supplied_id else str(uuid.uuid4())
-    if supplied_id:
-        try:
-            existing = creator_request_status(request_id)
-        except StudioError as error:
-            if str(error) != "Creator request was not found":
-                raise
-        else:
-            if existing["prompt"] != prompt_text or existing["source_path"] != source_path:
-                raise StudioError("Request id belongs to a different Creator job")
-            return {"id": request_id, "status": existing["status"]}
-    if creator_outstanding_count() >= CREATOR_MAX_OUTSTANDING:
-        raise StudioError("Creator queue is busy; try again after current requests finish")
-    payload = json.dumps([{
-        "id": request_id,
-        "source_path": source_path,
-        "prompt": prompt_text,
-        "status": "queued",
-    }], separators=(",", ":")).encode()
+    request_id = normalize_request_id(request_id) if request_id is not None else str(uuid.uuid4())
+    payload = json.dumps({"p_id": request_id, "p_source_path": source_path,
+        "p_prompt": prompt_text}, separators=(",", ":")).encode()
     try:
-        supabase_request("/rest/v1/creator_requests", method="POST", data=payload,
-                         content_type="application/json", limit=16_000)
+        raw = supabase_request("/rest/v1/rpc/admit_creator_request", method="POST", data=payload,
+                               content_type="application/json", limit=16_000)
     except StudioError as error:
-        if not supplied_id or "HTTP 409" not in str(error):
-            raise
-        # Concurrent submission with the same request id: only one INSERT can
-        # win the primary-key race. Return that exact job if its inputs match.
-        existing = creator_request_status(request_id)
-        if existing["prompt"] != prompt_text or existing["source_path"] != source_path:
-            raise StudioError("Request id belongs to a different Creator job") from None
-        return {"id": request_id, "status": existing["status"]}
-    return {"id": request_id, "status": "queued"}
+        if "HTTP 404" in str(error):
+            raise StudioError("Creator admission is not configured; apply the atomic admission migration") from None
+        raise
+    return {"id": request_id, "status": creator_admission_result(json.loads(raw or b"[]"))}
+
+
+def creator_admission_result(rows) -> str:
+    if (not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict)
+            or type(rows[0].get("accepted")) is not bool):
+        raise StudioError("Supabase returned an invalid Creator admission")
+    row = rows[0]
+    if not row["accepted"]:
+        if row.get("reason") == "full":
+            raise StudioError("Creator queue is busy; try again after current requests finish")
+        if row.get("reason") == "identity_conflict":
+            raise StudioError("Request id belongs to a different Creator job")
+        if row.get("reason") in {"changed", "not_found"}:
+            raise StudioError("Request changed or is running; refresh before continuing")
+        raise StudioError("Supabase returned an invalid Creator admission")
+    if (row.get("reason") not in {"created", "replay", "retried"} or
+            row.get("job_status") not in {"queued", "running", "complete", "failed", "cancelled"}):
+        raise StudioError("Supabase returned an invalid Creator admission")
+    return row["job_status"]
 
 
 def creator_request_status(request_id) -> dict:

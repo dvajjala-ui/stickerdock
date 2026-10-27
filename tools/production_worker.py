@@ -105,13 +105,9 @@ def batch_references(records):
             for record in records]
 
 
-def migrate_ready_batches(client, generated, day, batch_size):
-    """Create private review drafts as soon as rendered batches are committed."""
-    directory = generated / day
-    state_path = directory / "state.json"
-    if not state_path.exists():
-        return []
-    state = json.loads(state_path.read_text())
+def saved_batches(state, batch_size=5):
+    if not isinstance(state, dict) or not isinstance(state.get("records", []), list):
+        raise ValueError("Invalid saved Factory state")
     records = state.get("records", [])
     ranges = state.get("batches") or [
         {"start": start, "end": min(start + batch_size, len(records))}
@@ -124,15 +120,46 @@ def migrate_ready_batches(client, generated, day, batch_size):
         expected_start = end
     if expected_start != len(records):
         raise ValueError("Saved Factory batches do not cover all rendered stickers")
+    return ranges
+
+
+def batch_draft_id(day, item):
+    return str(uuid.uuid5(uuid.NAMESPACE_URL,
+        f"stickerdock-admin-batch:{day}:{item['start']}:{item['end']}"))
+
+
+def delivery_acknowledged(state, day):
+    ranges = saved_batches(state)
+    acknowledged = set(state.get("delivered_batches", []))
+    return (state.get("delivery_recovery", {}).get("status") != "blocked" and not state.get("pending") and
+            all(batch_draft_id(day, item) in acknowledged for item in ranges))
+
+
+def migrate_ready_batches(client, generated, day, batch_size):
+    """Create private review drafts as soon as rendered batches are committed."""
+    directory = generated / day
+    state_path = directory / "state.json"
+    if not state_path.exists():
+        return []
+    state = json.loads(state_path.read_text())
+    records = state.get("records", [])
+    ranges = saved_batches(state, batch_size)
+    # Persist explicit ranges for legacy states before any delivery attempt.
+    state["batches"] = ranges
+    acknowledged = set(state.get("delivered_batches", []))
+    def acknowledge(target_id):
+        acknowledged.add(target_id)
+        state["delivered_batches"] = sorted(acknowledged)
+        atomic_json(state_path, state)
     drafted = []
     for item in ranges:
         start, end = item["start"], item["end"]
         batch = records[start:end]
-        target_id = str(uuid.uuid5(uuid.NAMESPACE_URL,
-            f"stickerdock-admin-batch:{day}:{start}:{end}"))
+        target_id = batch_draft_id(day, item)
         # A reviewer may have renamed, edited, published or rejected the draft.
         # Replaying the worker must never overwrite that decision.
         if client.find("admin_packs", "id", target_id):
+            acknowledge(target_id)
             drafted.append(target_id)
             continue
         if any(not Path(record.get("file", "")).is_file() for record in batch):
@@ -157,8 +184,104 @@ def migrate_ready_batches(client, generated, day, batch_size):
             "rating": "MATURE" if any(pack["rating"] == "MATURE" for pack in manifest["packs"]) else "GENERAL",
             "status": "draft", "private_path": remote, "sha256": digest,
             "sticker_count": len(references), "references": references}], "id")
+        # The archive and draft row both exist before local pruning is allowed.
+        acknowledge(target_id)
         drafted.append(target_id)
     return drafted
+
+
+def recover_previous_batches(client, generated, today, batch_size, limit=3):
+    """Replay saved artwork only; never ask the provider to recreate old output."""
+    recovered, blocked, draft_ids = [], [], []
+    previous_rows = {row["day"]: row for row in client.list_rows("factory_runs", "day.desc", 100)
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(row.get("day", ""))) and row["day"] < today}
+    candidates = {directory.name for directory in generated.iterdir()
+        if directory.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", directory.name) and directory.name < today}
+    for day, row in previous_rows.items():
+        metrics = row.get("groq_metrics") or {}
+        if ((metrics.get("postprocess_complete") is False or metrics.get("draft_delivery_complete") is False)
+                and metrics.get("delivery_recovery", {}).get("status") != "blocked"):
+            candidates.add(day)
+    for day in sorted(candidates):
+        if len(recovered) + len(blocked) >= limit:
+            break
+        previous = previous_rows.get(day) or client.find("factory_runs", "day", day)
+        metrics = dict((previous or {}).get("groq_metrics") or {})
+        path = generated / day / "state.json"
+
+        def record_delivery(marker):
+            complete = marker["status"] == "recovered"
+            if previous:
+                client.update("factory_runs", {"groq_metrics": {**metrics,
+                    "postprocess_complete": complete, "draft_delivery_complete": complete,
+                    "delivery_recovery": marker},
+                    "last_result": ("Saved batches recovered as private review drafts." if complete else
+                        "Saved batch recovery needs operator attention: runtime media/state is missing or artwork was not rendered. No AI request was made.")},
+                    "day", day)
+
+        local_block = path.with_name("delivery-blocked.json")
+        if local_block.exists():
+            marker = json.loads(local_block.read_text())
+            if (previous and (metrics.get("delivery_recovery") != marker
+                    or metrics.get("postprocess_complete") is not False
+                    or metrics.get("draft_delivery_complete") is not False)):
+                record_delivery(marker)
+                blocked.append(day)
+            continue
+        if not path.exists():
+            if metrics.get("delivery_recovery", {}).get("status") == "blocked":
+                continue
+            reason = ("unreadable_runtime_state" if any(path.parent.glob("state.unreadable-*.json"))
+                      else "missing_runtime_state")
+            marker = {"status": "blocked", "reason": reason}
+            local_block.parent.mkdir(parents=True, exist_ok=True)
+            atomic_json(local_block, marker)  # Durable even if factory_runs was never written.
+            record_delivery(marker)
+            blocked.append(day)
+            continue
+        try:
+            state = json.loads(path.read_text())
+        except (OSError, ValueError):
+            if metrics.get("delivery_recovery", {}).get("status") == "blocked":
+                continue
+            marker = {"status": "blocked", "reason": "unreadable_runtime_state"}
+            atomic_json(local_block, marker)
+            record_delivery(marker)
+            blocked.append(day)
+            continue  # Preserve the original unreadable file for operator repair.
+        marker = state.get("delivery_recovery", {})
+        if marker.get("status") == "blocked":
+            if (metrics.get("delivery_recovery") != marker or metrics.get("postprocess_complete") is not False
+                    or metrics.get("draft_delivery_complete") is not False) and previous:
+                record_delivery(marker)
+                blocked.append(day)
+            continue
+        if int((previous or {}).get("generated") or 0) > len(state.get("records", [])):
+            marker = {"status": "blocked", "reason": "snapshot_lacks_recorded_output"}
+            state["delivery_recovery"] = marker
+            atomic_json(path, state)
+            record_delivery(marker)
+            blocked.append(day)
+            continue
+        if delivery_acknowledged(state, day):
+            if previous and (metrics.get("postprocess_complete") is False or metrics.get("draft_delivery_complete") is False):
+                record_delivery({"status": "recovered"})
+                recovered.append(day)
+            continue
+        if previous:
+            client.update("factory_runs", {"groq_metrics": {**metrics,
+                "postprocess_complete": False, "draft_delivery_complete": False}}, "day", day)
+        ids = migrate_ready_batches(client, generated, day, batch_size)
+        state = json.loads(path.read_text())
+        complete = delivery_acknowledged(state, day)
+        marker = {"status": "recovered" if complete else "blocked",
+            **({} if complete else {"reason": "missing_media_or_unrendered_batch"})}
+        state["delivery_recovery"] = marker
+        atomic_json(path, state)
+        record_delivery(marker)
+        (recovered if complete else blocked).append(day)
+        draft_ids.extend(ids)
+    return {"days": recovered, "blocked_days": blocked, "draft_ids": draft_ids}
 
 
 def safe_restore(data, destination):
@@ -195,6 +318,13 @@ def prune_old_days(generated, now, keep_days=8):
     today = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
     oldest = (datetime.fromtimestamp(now, timezone.utc).date() - timedelta(days=keep_days)).isoformat()
     for path in generated.iterdir() if generated.exists() else []:
+        if path.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", path.name) and path.name < today:
+            try:
+                state = json.loads((path / "state.json").read_text())
+                if not delivery_acknowledged(state, path.name):
+                    continue  # Undelivered artwork survives even beyond the history window.
+            except (OSError, ValueError, KeyError, TypeError):
+                continue  # Unreadable state is an operator issue, never permission to delete.
         if path.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", path.name) and path.name < oldest:
             shutil.rmtree(path)
         elif path.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", path.name) and path.name < today:
@@ -203,21 +333,33 @@ def prune_old_days(generated, now, keep_days=8):
                     asset.unlink()
 
 
-def relocate_state(runtime):
-    """Remote state resumes under a new temporary runner directory each time."""
+def relocate_state(runtime, today=None):
+    """Relocate saved paths; preserve unreadable history outside active readers."""
     generated = runtime / "generated-stickers"
     for state_path in generated.glob("*/state.json"):
-        state = json.loads(state_path.read_text())
-        for record in state.get("records", []):
-            record["file"] = str(state_path.parent / Path(record["file"]).name)
-            if record.get("image_path"):
-                record["image_path"] = str(runtime / "reference-images" / Path(record["image_path"]).name)
-        pending = state.get("pending")
-        if pending and pending.get("image_path"):
-            pending["image_path"] = str(runtime / "reference-images" / Path(pending["image_path"]).name)
-        if pending and pending.get("image_paths"):
-            pending["image_paths"] = [str(runtime / "reference-images" / Path(path).name)
-                                      for path in pending["image_paths"]]
+        try:
+            state = json.loads(state_path.read_text())
+            saved_batches(state)
+            for record in state.get("records", []):
+                record["file"] = str(state_path.parent / Path(record["file"]).name)
+                if record.get("image_path"):
+                    record["image_path"] = str(runtime / "reference-images" / Path(record["image_path"]).name)
+            pending = state.get("pending")
+            if pending and pending.get("image_path"):
+                pending["image_path"] = str(runtime / "reference-images" / Path(pending["image_path"]).name)
+            if pending and pending.get("image_paths"):
+                pending["image_paths"] = [str(runtime / "reference-images" / Path(path).name)
+                                          for path in pending["image_paths"]]
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            if (today and re.fullmatch(r"\d{4}-\d{2}-\d{2}", state_path.parent.name)
+                    and state_path.parent.name < today):
+                # Keep exact original bytes, but exclude this old state from
+                # duplicate-history and reference-cache readers. Today's invalid
+                # state always fails closed instead of resetting its AI budget.
+                digest = hashlib.sha256(state_path.read_bytes()).hexdigest()[:16]
+                state_path.replace(state_path.with_name("state.unreadable-" + digest + ".json"))
+                continue
+            raise
         atomic_json(state_path, state)
 
 
@@ -518,6 +660,8 @@ def close_previous_runs(client, today, now):
         metrics["closed_at"] = datetime.fromtimestamp(now, timezone.utc).isoformat()
         result = (f"UTC day ended with {count}/{target} stickers. Saved media and review drafts are retained."
                   if count else "UTC day ended without a saved sticker. Check provider and worker activity.")
+        if metrics.get("delivery_recovery", {}).get("status") == "blocked":
+            result += " Batch delivery needs operator attention; missing artwork was not regenerated."
         client.update("factory_runs", {"status": "failed", "last_result": result,
                                        "groq_metrics": metrics}, "day", day)
         closed.append(day)
@@ -587,8 +731,9 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             config["topics"] = controls["topics"]
     runtime.mkdir(parents=True, exist_ok=True)
     safe_restore(client.download(PRIVATE_BUCKET, STATE_OBJECT, missing_ok=True), runtime)
-    relocate_state(runtime)
+    relocate_state(runtime, datetime.fromtimestamp(now, timezone.utc).date().isoformat())
     deferred = []
+    current_day_started = False
     if controls:
         # Audience changes wait until tomorrow once any ideas/artwork exist.
         controls = dict(controls)
@@ -610,7 +755,15 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
     try:
         generated = runtime / "generated-stickers"
         generated.mkdir(exist_ok=True)
+        historical_delivery = {"days": [], "blocked_days": [], "draft_ids": []}
+        if controls and controls.get("auto_migrate_completed") is True:
+            historical_delivery = recover_previous_batches(client, generated,
+                datetime.fromtimestamp(now, timezone.utc).date().isoformat(), config.get("batch_size", 5))
         prune_old_days(generated, now)
+        if historical_delivery["days"] or historical_delivery["blocked_days"]:
+            return {"status": "recovered" if historical_delivery["days"] else "attention_required",
+                "historical_delivery": historical_delivery,
+                "result": "Previous-day delivery checked without a new AI request. Blocked media needs operator review."}
         # Close stale UTC rows even when today's provider call later fails or
         # enters cooldown. This only changes reporting; saved media is retained.
         closed_previous_days = []
@@ -628,11 +781,13 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             configured["rating"] = controls.get("rating", configured["rating"])
             configured, brief = ensure_content_brief(client, configured, controls, now)
         mirror_licensed_inputs(client, runtime)
+        current_day_started = True
         result = generator(configured, generated,
                            default_font(), now)
         summary = persist_run(client, generated, configured, now, result)
         summary["inbox_added"] = inbox_added
         summary["closed_previous_days"] = closed_previous_days
+        summary["historical_delivery"] = historical_delivery
         if controls:
             summary["content_source"] = brief["source_mode"]
             summary["warnings"] = deferred
@@ -649,12 +804,16 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
                 "day": summary["day"], "status": summary["status"], "target": configured["daily_target"],
                 "generated": summary["generated"], "attempts": int(state.get("requests", 0)),
                 "last_result": result[:500],
-                "groq_metrics": {**run_metrics(state), "postprocess_complete": True}}], "day")
+                "groq_metrics": {**run_metrics(state), "postprocess_complete": True,
+                    "draft_delivery_complete": delivery_acknowledged(state, summary["day"])}}], "day")
         if deferred:
             summary.setdefault("warnings", []).extend(
                 warning for warning in deferred if warning not in summary.get("warnings", []))
         return summary
     except Exception as error:
+        if not current_day_started:
+            # A previous-day delivery failure must not zero today's saved counters.
+            raise
         recovery = None
         try:
             recovery = persist_failure(client, locals().get("configured", config), now, error,

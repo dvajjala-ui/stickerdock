@@ -1,5 +1,11 @@
 # Product audit and implementation backlog — October 22, 2026
 
+> This is the October 22 evidence snapshot. For subsequent fixes use the
+> [execution tracker](PRODUCT_EXECUTION_2026-10-22.md), [October 23 direction](PRODUCT_DIRECTION_2026-10-23.md)
+> and [October 27 EGM core increment](EGM_CORE_HARDENING_2026-10-27.md).
+> Requirements retain their identities in the ledger; historical defects below
+> are not all current defects. Exact artifacts and release gates belong to [QA](QA_MATRIX.md).
+
 ## Scope and evidence
 
 This answers the request to list the bugs, missing implementation, product gaps,

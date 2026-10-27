@@ -583,14 +583,16 @@ class StickerDockPolishedActivity : ComponentActivity() {
             selectedStickerIds = emptySet()
             refresh()
         }
-        LaunchedEffect(searchText, cloudFingerprint) {
+        LaunchedEffect(searchText, cloudFingerprint, packFilter, categoryFilter) {
             val requested = searchText
             stickerMatches = emptyList()
             matchedStickerPackIds = emptySet()
             if (requested.isNotBlank()) {
                 delay(250)
                 val (ids, matches) = withContext(Dispatchers.IO) {
-                    store.searchStickerPackIds(requested) to store.searchStickers(requested)
+                    store.searchStickerPackIds(requested) to store.searchStickers(requested,
+                        kind = StickerKind.entries.firstOrNull { it.name.equals(packFilter, ignoreCase = true) },
+                        category = categoryFilter)
                 }
                 if (searchText == requested) {
                     matchedStickerPackIds = ids

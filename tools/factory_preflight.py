@@ -19,10 +19,19 @@ def due(client, target=40, budget=16, now=None):
             return False, "Paused by owner"
         target = settings["daily_target"]
     day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+    if settings and settings.get("auto_migrate_completed") is True:
+        for previous in client.list_rows("factory_runs", "day.desc", 100):
+            metrics = previous.get("groq_metrics") or {}
+            if (previous.get("day", "") < day
+                    and (metrics.get("postprocess_complete") is False or metrics.get("draft_delivery_complete") is False)
+                    and metrics.get("delivery_recovery", {}).get("status") != "blocked"):
+                return True, "Recover previous-day batch delivery without a new AI request"
     run = client.find("factory_runs", "day", day)
     if not run:
         return True, "First batch of this UTC day is due"
     metrics = run.get("groq_metrics") or {}
+    if settings and settings.get("auto_migrate_completed") is True and metrics.get("draft_delivery_complete") is False:
+        return True, "Deliver saved batches to private review without a new AI request"
     if metrics.get("postprocess_complete") is False:
         return True, "Resume saved batch delivery without a new AI request"
     if metrics.get("pending_render"):

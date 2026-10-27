@@ -1,5 +1,20 @@
 # StickerDock requirements ledger
 
+## EGM core hardening — October 27, 2026
+
+User request: “push code and astrt wirking on the gaps and oedning stugff to
+strength th rcore as per the egm review”, followed by “continue”.
+
+| ID | Requirement | Status | Implementation and remaining work |
+| --- | --- | --- | --- |
+| R51 | Push compatible core fixes from the EGM review, test failure cases and retain a truthful remaining-work list | In progress / source increment | [Core hardening](EGM_CORE_HARDENING_2026-10-27.md) covers filtered search, stable accessibility, acknowledged overnight recovery, transactional Creator admission and checksum-keyed covers. Admission migration, hosted checks, signed release and physical devices remain separate. Aggregate budgets and private-AI lifecycle repairs stay open; do not enable AI or claim broad completion. |
+
+Current routing: this ledger preserves requirements; the dated audits preserve
+historical findings; [the execution tracker](PRODUCT_EXECUTION_2026-10-22.md)
+and [latest direction](PRODUCT_DIRECTION_2026-10-23.md) explain product progress;
+[core hardening](EGM_CORE_HARDENING_2026-10-27.md) records the new source increment;
+[QA](QA_MATRIX.md) records artifact-bound acceptance.
+
 ## Fast reactions and broader product direction — October 23, 2026
 
 The user's [latest request transcription](USER_PRODUCT_INPUT_2026-10-23.md)

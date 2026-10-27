@@ -92,7 +92,8 @@ fun LibraryScreen(
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LibrarySearch(searchText, { onSelectSearch(it) }, "monday mood, thanks, lol…", Modifier.weight(1f))
+                    LibrarySearch(searchText, { onSelectSearch(it) }, "monday mood, thanks, lol…", Modifier.weight(1f),
+                        accessibilityLabel = "Search library")
                     TextButton(onClick = onOpenFilters) { Text(if (activeFilterCount == 0) "Filters" else "Filters ($activeFilterCount)") }
                 }
             }

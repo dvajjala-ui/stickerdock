@@ -25,6 +25,16 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -45,3 +55,7 @@ jobs:
           cd tools/sqlcheck
           npm ci --ignore-scripts
           npm test
+      - name: Verify Creator admission with concurrent PostgreSQL sessions
+        env:
+          POSTGRES_TEST_CONTAINER: ${{ job.services.postgres.id }}
+        run: python tools/check_creator_admission.py --docker-container "$POSTGRES_TEST_CONTAINER"

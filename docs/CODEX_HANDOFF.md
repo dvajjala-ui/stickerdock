@@ -1,4 +1,12 @@
-# StickerDock development handoff — updated October 22, 2026
+# StickerDock development handoff — updated October 27, 2026
+
+## October 27 EGM continuation
+
+Start with [core hardening](EGM_CORE_HARDENING_2026-10-27.md) and ledger R51.
+It identifies the compatible source changes, mandatory admission-RPC migration
+before web deployment, verification contracts and still-open production/device
+gates. The dated findings below remain historical context rather than the next
+implementation list. Keep private AI disabled until its cleanup/budget gates pass.
 
 ## Product audit and next implementation — October 22, 2026
 

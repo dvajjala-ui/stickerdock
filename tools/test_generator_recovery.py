@@ -127,6 +127,22 @@ class GeneratorRecoveryTest(unittest.TestCase):
         client.rows[("factory_settings", "default")] = {"enabled": False}
         self.assertFalse(factory_preflight.due(client, now=NOW)[0])
 
+    def test_preflight_recovers_yesterday_even_when_today_is_complete(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {"enabled": True, "daily_target": 40,
+            "auto_migrate_completed": True}
+        client.rows[("factory_runs", DAY)] = {"day": DAY, "generated": 40, "status": "complete"}
+        previous = {"day": "2026-10-11", "generated": 5, "groq_metrics": {
+            "postprocess_complete": False}}
+        client.rows[("factory_runs", previous["day"])] = previous
+        self.assertIn("previous-day", factory_preflight.due(client, now=NOW)[1])
+        previous["groq_metrics"]["delivery_recovery"] = {"status": "blocked"}
+        self.assertFalse(factory_preflight.due(client, now=NOW)[0])
+        previous["groq_metrics"] = {"postprocess_complete": True, "draft_delivery_complete": False}
+        self.assertTrue(factory_preflight.due(client, now=NOW)[0])
+        client.rows[("factory_settings", "default")]["enabled"] = False
+        self.assertFalse(factory_preflight.due(client, now=NOW)[0])
+
     def test_fresh_runners_recover_then_finish_forty_with_normal_intervals(self):
         client = FakeSupabase()
         config = {"daily_target": 40, "batch_size": 5, "modes": ["illustration"], "interval_seconds": 10800}
