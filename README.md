@@ -1,5 +1,7 @@
 # StickerDock — private sticker creator and library
 
+October 28: the [HandNavigate intake implementation and deployment plan](docs/HANDNAVIGATE_INTEGRATION_2026-10-28.md) adds a parameterized daily caller, authenticated source-intake API and additive private metadata schema. HandNavigate's own worker has downloaded 20 Pinterest and four Reddit images live. A cross-repo local check verifies 20 stored candidates; production intake deployment, source-rights admission and daily activation remain pending.
+
 | Get StickerDock | Link |
 | --- | --- |
 | Latest signed Android APK | [Download StickerDock.apk](https://github.com/dvajjala-ui/stickerdock/releases/latest/download/StickerDock.apk) |

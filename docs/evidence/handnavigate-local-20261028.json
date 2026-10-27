@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-28",
+  "scope": "Local source qualification and integration; production intake not activated",
+  "backend_tests": {"passed": 274, "failed": 0},
+  "sql_checks": {"media_intake_migration": "passed in PGlite", "idempotent": true, "private_grants_rls": true, "review_constraint": true},
+  "handnavigate": {"core_tests": 34, "desktop_checks": 38, "worker_tests": 5},
+  "live_local_images": {"pinterest": 20, "reddit": 4, "independently_decoded_and_hashed": 24},
+  "cross_repository_fixture": {"images": 20, "database_rows": 20, "read_back_verified": true, "caller": "StickerDock Python client", "downloader": "HandNavigate service/Runner", "destination": "StickerDock intake handler with disposable SQLite/blob fixture"},
+  "new_hosted_ci_qualified": false,
+  "new_supabase_migration_applied": false,
+  "production_candidate_uploads": 0,
+  "daily_intake_enabled": false,
+  "ai_provider_calls_by_this_test": 0
+}

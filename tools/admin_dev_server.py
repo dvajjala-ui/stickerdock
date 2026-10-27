@@ -12,6 +12,7 @@ from api.library import handler as Library
 from api.upload import handler as Upload
 from api.captions import handler as Captions
 from api.pinterest_callback import handler as PinterestCallback
+from api.ingest import handler as Ingest
 
 
 class Preview(SimpleHTTPRequestHandler):
@@ -33,7 +34,7 @@ class Preview(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
-        endpoint = {"/api/admin": Admin, "/api/library": Library, "/api/upload": Upload, "/api/captions": Captions}.get(urlsplit(self.path).path)
+        endpoint = {"/api/ingest": Ingest, "/api/admin": Admin, "/api/library": Library, "/api/upload": Upload, "/api/captions": Captions}.get(urlsplit(self.path).path)
         if endpoint:
             endpoint.do_POST(self)
         else:

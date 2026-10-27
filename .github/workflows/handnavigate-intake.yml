@@ -1,0 +1,40 @@
+name: HandNavigate daily media intake
+on:
+  schedule:
+    - cron: '23 4 * * *' # about 09:53 Asia/Kolkata; Actions timing can be delayed
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: Optional topic; blank reads today's existing planner brief
+        required: false
+        type: string
+concurrency:
+  group: handnavigate-daily-intake
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  collect:
+    if: vars.HANDNAVIGATE_INTAKE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HANDNAVIGATE_URL: ${{ vars.HANDNAVIGATE_URL }}
+      HANDNAVIGATE_API_TOKEN: ${{ secrets.HANDNAVIGATE_API_TOKEN }}
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REQUESTED_TOPIC: ${{ inputs.topic }}
+      SOURCES: ${{ vars.HANDNAVIGATE_SOURCES || 'pinterest,reddit' }}
+      IMAGE_LIMIT: ${{ vars.HANDNAVIGATE_IMAGE_LIMIT || '20' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Submit the daily parameters to HandNavigate
+        run: |
+          if [ -n "$REQUESTED_TOPIC" ]; then
+            python -m tools.handnavigate_client --topic "$REQUESTED_TOPIC" --sources "$SOURCES" --limit "$IMAGE_LIMIT" --wait
+          else
+            python -m tools.handnavigate_client --latest-brief --sources "$SOURCES" --limit "$IMAGE_LIMIT" --wait
+          fi
