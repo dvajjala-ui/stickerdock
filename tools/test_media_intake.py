@@ -70,6 +70,15 @@ class MediaIntakeTest(unittest.TestCase):
         self.assertTrue(second["reused"])
         self.assertEqual(client.writes, 1)
 
+    def test_gallery_thumbnail_keeps_provenance_and_original_download_digest(self):
+        client=Storage();row=intake.dispatch(payload(),client)['item']
+        thumbnail=intake.dispatch({'action':'thumbnail','id':row['id']},client)
+        with Image.open(io.BytesIO(base64.b64decode(thumbnail['image'].split(',')[1]))) as image:
+            image.load();self.assertLessEqual(max(image.size),360)
+        original=intake.dispatch({'action':'get','id':row['id']},client)
+        self.assertEqual(hashlib.sha256(base64.b64decode(original['image'].split(',')[1])).hexdigest(),row['stored_sha256'])
+        self.assertEqual(thumbnail['item']['source_url'],row['source_url'])
+
     def test_changed_provenance_cannot_overwrite_existing_identity(self):
         client, spec = Storage(), payload()
         intake.dispatch(spec, client)

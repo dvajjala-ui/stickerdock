@@ -1,15 +1,18 @@
 """Shared Admin collection controls and leased outbound HandNavigate work."""
 from __future__ import annotations
-import hashlib
 import json
 import os
 import uuid
-from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 from api._shared import StudioError, safe_text
 
-SOURCES = ('pinterest', 'reddit')
+SOURCE_OPTIONS = [
+    {'id':'pinterest','name':'Pinterest','description':'Search Pins using the worker’s saved browser session.'},
+    {'id':'reddit','name':'Reddit','description':'Search image posts; a human check may require attention.'},
+    {'id':'imgflip','name':'Imgflip meme templates','description':'Name matches in the free popular-template catalog; finite, no full-catalog paid search.'},
+]
+SOURCES = tuple(s['id'] for s in SOURCE_OPTIONS)
 TERMINAL = {'VERIFIED_STORAGE','PARTIAL','AUTH_REQUIRED','DELIVERY_FAILED','FAILED','CANCELLED','INTERRUPTED'}
 
 def now():
@@ -22,7 +25,7 @@ def spec(payload):
         raise StudioError('Choose 1–10 topics')
     topics = list(dict.fromkeys(safe_text(t,'topic',240,required=True) for t in topics))
     if not isinstance(sources,list) or not 1 <= len(sources) <= 10 or any(not isinstance(s,str) or s not in SOURCES for s in sources):
-        raise StudioError('Choose Pinterest or Reddit')
+        raise StudioError('Choose a configured image source')
     limit = payload.get('image_limit',20)
     if isinstance(limit,bool) or not isinstance(limit,int) or not 1 <= limit <= 100:
         raise StudioError('Image count must be 1–100 total')
@@ -37,8 +40,8 @@ def rows(client,table,filters=None,limit=50,offset=0):
 
 def write(client,table,values,row_id=None,version=None):
     query = '?id=eq.'+str(uuid.UUID(str(row_id))) if row_id else ''
-    if row_id and version is not None:
-        if isinstance(version,bool) or not isinstance(version,int) or version<1:
+    if row_id:
+        if isinstance(version,bool) or not isinstance(version,int) or not 1<=version<2147483647:
             raise StudioError('Refresh this item before editing')
         query+='&version=eq.'+str(version)
         values={**values,'version':version+1,'updated_at':now()}
@@ -67,19 +70,25 @@ def enqueue(client,payload):
     return {'job':job,'reused':not bool(result)}
 
 def enqueue_daily(client,day):
-    # Scheduled collection budget follows the worker's India calendar day.
-    start=datetime.strptime(day,'%Y-%m-%d').replace(tzinfo=ZoneInfo('Asia/Kolkata'))
+    # SQL owns quota reservation and daily identity; retries cannot multiply jobs.
+    datetime.strptime(day,'%Y-%m-%d')
     budget=int(os.environ.get('HANDNAVIGATE_DAILY_BUDGET','20'))
     if not 1<=budget<=10000:
         raise StudioError('Invalid scheduled image budget')
-    query=urlencode([('select','id'),('created_at','gte.'+start.isoformat()),
-        ('created_at','lt.'+(start+timedelta(days=1)).isoformat()),('limit',budget)])
-    stored=json.loads(client._request('GET','/rest/v1/media_intake_items?'+query) or b'[]')
-    if len(stored)>=budget:
-        return []  # A manual/qualification collection already fulfilled today's quota.
     plans=rows(client,'collection_plans',{'daily':'eq.true','archived':'eq.false'},limit=100)
-    return [enqueue(client,{**p,'request_id':'daily:'+day+':'+p['id']+':'+hashlib.sha256(
-        json.dumps(spec(p),sort_keys=True).encode()).hexdigest()[:16]}) for p in plans]
+    brief=None;loaded=False;result=[]
+    for plan in plans:
+        values=spec(plan);origin='saved'
+        if plan.get('use_planner') is True:
+            if not loaded:
+                brief=client.find('content_briefs','day',datetime.now(timezone.utc).date().isoformat());loaded=True
+            from tools.handnavigate_client import brief_topics
+            topics=brief_topics(brief or {})
+            if topics:values['topics']=topics;origin='planner'
+            else:origin='fallback'
+        result.extend(client.rpc('enqueue_daily_collection',{'p_plan_id':plan['id'],'p_day':day,
+            'p_topics':values['topics'],'p_topic_origin':origin,'p_budget':budget}))
+    return result
 
 def worker_dispatch(client,payload):
     worker=str(uuid.UUID(str(payload.get('worker_id',''))))
@@ -121,13 +130,14 @@ def admin_dispatch(client,payload):
         online=bool(seen and (datetime.now(timezone.utc)-datetime.fromisoformat(seen.replace('Z','+00:00'))).total_seconds()<90)
         return {'items':items,'next_offset':offset+25 if len(items)==25 else None,
             'plans':rows(client,'collection_plans',limit=100),'jobs':rows(client,'collection_jobs',limit=30),
-            'sources':list(SOURCES),'daily_schedule':'09:53 Asia/Kolkata (GitHub Actions; timing may be delayed)',
+            'sources':list(SOURCES),'source_options':SOURCE_OPTIONS,'capabilities':{'candidate_thumbnail':True},
+            'daily_schedule':'09:53 Asia/Kolkata (GitHub Actions; timing may be delayed)',
             'worker_required':True,'worker_online':online,'worker_last_seen':seen}
     if action=='collection_create':
         return enqueue(client,payload)
     if action=='collection_plan_save':
         values={**spec(payload),'name':safe_text(payload.get('name'),'plan name',100,required=True),
-            'daily':payload.get('daily') is True,'archived':payload.get('archived') is True}
+            'daily':payload.get('daily') is True,'use_planner':payload.get('use_planner') is True,'archived':payload.get('archived') is True}
         return {'plan':write(client,'collection_plans',values,payload.get('id'),payload.get('version'))}
     if action=='collection_plan_archive':
         return {'plan':write(client,'collection_plans',{'archived':payload.get('archived') is not False},payload.get('id'),payload.get('version'))}
@@ -166,7 +176,7 @@ def admin_dispatch(client,payload):
         return {'item':write(client,'media_intake_items',values,payload.get('id'),payload.get('version'))}
     if action=='intake_archive':
         return {'item':write(client,'media_intake_items',{'archived':payload.get('archived') is not False},payload.get('id'),payload.get('version'))}
-    if action=='intake_preview':
+    if action in ('intake_preview','intake_thumbnail'):
         from api._media_intake import dispatch
-        return dispatch({'action':'get','id':payload.get('id')},client)
+        return dispatch({'action':'thumbnail' if action=='intake_thumbnail' else 'get','id':payload.get('id')},client)
     raise StudioError('Unknown collection control')

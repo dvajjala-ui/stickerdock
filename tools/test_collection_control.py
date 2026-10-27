@@ -7,12 +7,17 @@ from api import _media_intake as intake
 from test_media_intake import Storage
 
 class CollectionControlTest(unittest.TestCase):
-    def test_daily_schedule_does_not_redownload_an_already_satisfied_india_day(self):
-        client=Storage()
-        with patch.object(client,'_request',return_value=json.dumps([{'id':str(uuid.uuid4())} for _ in range(20)]).encode()) as request:
+    def test_daily_schedule_uses_atomic_budget_rpc_and_existing_planner_with_saved_fallback(self):
+        client=Storage();plan={'id':str(uuid.uuid4()),'topics':['saved cats'],'sources':['reddit'],'image_limit':20,'use_planner':True}
+        with patch.object(c,'rows',return_value=[plan]),patch.object(client,'find',return_value={'topic_plans':[{'topic':'fresh dogs'}]}),patch.object(client,'rpc',create=True,return_value=[]) as rpc:
             self.assertEqual(c.enqueue_daily(client,'2026-10-28'),[])
-        self.assertIn('created_at=gte.2026-10-28T00',request.call_args.args[1])
-        self.assertEqual(request.call_count,1)
+            self.assertEqual(rpc.call_args.args[1]['p_topics'],['fresh dogs'])
+            self.assertEqual(rpc.call_args.args[1]['p_topic_origin'],'planner')
+            self.assertEqual(rpc.call_args.args[1]['p_budget'],20)
+        with patch.object(c,'rows',return_value=[plan]),patch.object(client,'find',return_value=None),patch.object(client,'rpc',create=True,return_value=[]) as rpc:
+            c.enqueue_daily(client,'2026-10-28')
+            self.assertEqual(rpc.call_args.args[1]['p_topics'],['saved cats'])
+            self.assertEqual(rpc.call_args.args[1]['p_topic_origin'],'fallback')
     def test_invalid_topics_sources_and_limits_never_reach_the_database(self):
         base={'topics':['cats'],'sources':['reddit'],'image_limit':20}
         for change in ({'topics':[]},{'topics':[{}]},{'sources':['unknown']},{'sources':'reddit'},{'image_limit':True},{'image_limit':101}):
@@ -39,6 +44,13 @@ class CollectionControlTest(unittest.TestCase):
         with patch.object(client,'_request',return_value=b'[]'):
             with self.assertRaisesRegex(ValueError,'another session'):
                 c.write(client,'collection_plans',{'name':'cats'},str(uuid.uuid4()),2)
+
+    def test_existing_items_require_a_valid_version_before_any_database_write(self):
+        client=Storage()
+        with patch.object(client,'_request') as request:
+            for version in (None,True,0,2147483647):
+                with self.assertRaises(ValueError):c.write(client,'collection_plans',{'name':'cats'},str(uuid.uuid4()),version)
+            request.assert_not_called()
 
     def test_worker_cannot_claim_completion_without_verified_image_count(self):
         client=Storage()

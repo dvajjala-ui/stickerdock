@@ -7,6 +7,8 @@ import json
 import os
 import re
 import uuid
+import io
+from PIL import Image
 from urllib.parse import urlsplit
 from api._shared import StudioError, decode_image, normalize_upload_image, safe_text
 from tools.supabase_factory import PRIVATE_BUCKET, SupabaseFactory
@@ -47,7 +49,7 @@ def dispatch(payload, client=None):
     if action == "status":
         client.find("media_intake_items", "id", str(uuid.UUID(int=0)))
         return {"configured": True, "table": "media_intake_items", "generation_eligible": False}
-    if action == "get":
+    if action in ('get','thumbnail'):
         item_id = str(uuid.UUID(str(payload.get("id", ""))))
         row = client.find("media_intake_items", "id", item_id)
         if not row:
@@ -55,6 +57,9 @@ def dispatch(payload, client=None):
         raw = client.download(PRIVATE_BUCKET, row["storage_path"])
         if hashlib.sha256(raw).hexdigest() != row["stored_sha256"]:
             raise StudioError("Stored candidate checksum mismatch")
+        if action=='thumbnail':
+            with Image.open(io.BytesIO(raw)) as image:
+                image.thumbnail((360,360));output=io.BytesIO();image.save(output,'WEBP',quality=76,method=4);raw=output.getvalue()
         return {"item": row, "image": "data:image/webp;base64," + base64.b64encode(raw).decode()}
     if action != "store":
         raise StudioError("Unknown media intake action")
