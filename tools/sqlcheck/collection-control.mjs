@@ -5,7 +5,7 @@ const db=new PGlite();
 try{
   await db.exec('create role anon;create role authenticated;create role service_role;');
   for(let n=0;n<2;n++)for(const file of ['202610280001_media_intake.sql','202610280002_collection_control.sql'])await db.exec(readFileSync(new URL('../../supabase/migrations/'+file,import.meta.url),'utf8'));
-  for(const role of ['anon','authenticated'])for(const table of ['collection_jobs','collection_plans']){
+  for(const role of ['anon','authenticated'])for(const table of ['collection_jobs','collection_plans','collection_workers']){
     assert.equal((await db.query('select has_table_privilege($1,$2,$3) allowed',[role,table,'SELECT'])).rows[0].allowed,false);
   }
   const id='12345678-1234-1234-1234-123456789012',worker='12345678-1234-1234-1234-123456789013';
