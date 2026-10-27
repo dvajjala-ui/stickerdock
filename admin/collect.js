@@ -1,0 +1,63 @@
+/* Collection workspace: browser automation is performed by HandNavigate. */
+window.HandCollection = {create({command,esc,button,heading,empty,badge,toast,render,getBriefs}) {
+  let data={items:[],plans:[],jobs:[]}, offset=0, archived=false, platform='', topic='', editing=null, pending=null;
+  let generation=0,observer=null; const previews=new Map();
+  const active=new Set(['QUEUED','RUNNING','WAITING_FOR_LOGIN']);
+  async function load(){data=await command('collection_dashboard',{offset,archived,platform,topic});}
+  function formValues(form){const f=new FormData(form);return {name:String(f.get('name')||''),topics:String(f.get('topics')||'').split('\n').map(t=>t.trim()).filter(Boolean),sources:f.getAll('sources'),image_limit:Number(f.get('image_limit')),daily:f.has('daily')};}
+  function view(){const p=editing||{name:'',topics:[],sources:['pinterest','reddit'],image_limit:20,daily:false};
+    return heading('Collect images','Choose a topic. HandNavigate searches, downloads unique images and verifies their delivery to this library.',button('Refresh','collect-refresh'))+
+    `<div class="notice">HandNavigate must be running on your computer or server. A login or human check may pause a source. Each request has one total image count across all topics and sites.</div>`+
+    `<div class="collect-columns"><section class="panel"><h2>${editing?'Edit saved plan':'New collection'}</h2><form id="collection-form"><label>Plan name<input name="name" maxlength="100" value="${esc(p.name)}" placeholder="e.g. Cat reactions"></label><label>Topics · one per line<textarea name="topics" rows="3" required maxlength="2400" placeholder="funny cat reaction">${esc(p.topics.join('\n'))}</textarea></label><div class="toolbar">${button('Use planner topics','collect-suggest')}</div><fieldset><legend>Search sites</legend>${['pinterest','reddit'].map(s=>`<label class="collect-check"><input name="sources" type="checkbox" value="${s}" ${p.sources.includes(s)?'checked':''}>${s==='reddit'?'Reddit':'Pinterest'}</label>`).join('')}</fieldset><label>Images in total<input type="number" name="image_limit" min="1" max="100" required value="${p.image_limit}"></label><label class="collect-check"><input name="daily" type="checkbox" ${p.daily?'checked':''}>Run saved plan daily</label><p class="hint">Daily plans queue around 09:53 India time. The worker's daily budget is shared across every plan; default 20 images. Saving a plan does not run it immediately.</p><div class="toolbar"><button class="primary" type="submit" name="operation" value="run">Collect now</button><button class="secondary" type="submit" name="operation" value="save">Save plan</button>${editing?button('Cancel edit','collect-reset'):''}</div></form></section>`+
+    `<section class="panel"><h2>Saved topic plans</h2>${data.plans.length?data.plans.map(p=>`<article class="collect-plan"><strong>${esc(p.name)}</strong>${badge(p.archived?'archived':p.daily?'daily':'manual')}<p>${esc(p.topics.join(' · '))}</p><small>${esc(p.sources.join(' + '))} · ${p.image_limit} images</small><div class="toolbar">${!p.archived?button('Run','collect-plan-run',p.id)+button('Edit','collect-plan-edit',p.id):''}${button(p.archived?'Restore':'Archive','collect-plan-archive',p.id)}</div></article>`).join(''):empty('No saved plans','Save a topic and sites to reuse them or collect daily.')}</section></div>`+
+    `<section class="panel"><h2>Recent collections</h2><p class="hint">Queued means the worker has not claimed the request. A running job updates about every 20 seconds. Refresh to see progress.</p>${data.jobs.length?`<div class="table-wrap"><table><thead><tr><th>Topics / sites</th><th>Result</th><th>Saved to database</th><th>Action</th></tr></thead><tbody>${data.jobs.map(j=>`<tr><td><strong>${esc(j.topics.join(' · '))}</strong><small>${esc(j.sources.join(' + '))} · ${esc(new Date(j.created_at).toLocaleString())}</small></td><td>${badge(j.status.toLowerCase())}<small>${esc(j.error||'')}${j.lease_until&&active.has(j.status)&&Date.parse(j.lease_until)<Date.now()?' Worker heartbeat expired; waiting for reconnection.':''}</small>${Object.entries(j.source_status||{}).map(([s,v])=>`<small>${esc(s)}: ${esc(v.status)} ${esc(v.lastError||'')}</small>`).join('')}</td><td>${j.delivered}/${j.image_limit}<small>${j.saved} downloaded locally</small></td><td>${active.has(j.status)?(j.cancel_requested?'Stopping…':button('Stop','collect-job-stop',j.id)):j.status==='VERIFIED_STORAGE'?'Verified':button('Resume','collect-job-retry',j.id)}</td></tr>`).join('')}</tbody></table></div>`:empty('No collections yet','Enter a topic and choose Collect now.')}</section>`+
+    `<section class="panel"><h2>Downloaded image library</h2><p class="hint">These images are stored in the database and private image storage. Source links are retained. Review does not publish images or send unverified source rights to the sticker generator.</p><form id="collection-filter" class="collect-filters"><label>Site<select name="platform"><option value="">All sites</option>${['pinterest','reddit'].map(s=>`<option ${platform===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Exact topic<input name="topic" value="${esc(topic)}" placeholder="All topics"></label><label class="collect-check"><input type="checkbox" name="archived" ${archived?'checked':''}>Archived</label><button class="secondary" type="submit">Filter</button></form><div class="collect-gallery">${data.items.map(i=>`<article class="collect-image"><button class="collect-preview" data-action="collect-preview" data-id="${esc(i.id)}" aria-label="Preview ${esc(i.title||i.topic)}"><img data-candidate="${esc(i.id)}" alt="${esc(i.title||i.topic)}" loading="lazy"><span>Open image</span></button><div class="collect-image-body"><strong>${esc(i.title||i.topic)}</strong><small>${esc(i.platform)} · ${esc(i.topic)}</small>${badge(i.rights_status.toLowerCase())}<div class="toolbar">${button('Edit','collect-edit',i.id)}${button('Download','collect-download',i.id)}${button(i.archived?'Restore':'Archive','collect-archive',i.id)}</div><a href="${esc(i.source_url)}" target="_blank" rel="noopener noreferrer">Original post ↗</a></div></article>`).join('')||empty('No images on this page','Run a collection, adjust the filters or check archived images.')}</div><div class="toolbar">${offset?button('Previous 25','collect-prev'):''}${data.next_offset!==null?button('Next 25','collect-next'):''}</div></section>`;
+  }
+  async function preview(id){if(!previews.has(id))previews.set(id,(await command('intake_preview',{id})).image);return previews.get(id);}
+  function hydrate(){const version=++generation;observer?.disconnect();observer=new IntersectionObserver(entries=>{for(const e of entries)if(e.isIntersecting){observer.unobserve(e.target);preview(e.target.dataset.candidate).then(image=>{if(version===generation&&e.target.isConnected)e.target.src=image;}).catch(()=>{if(e.target.isConnected)e.target.alt='Preview unavailable. Use Refresh to retry.';});}},{rootMargin:'200px'});document.querySelectorAll('[data-candidate]').forEach(img=>observer.observe(img));}
+  function dispose(){generation++;observer?.disconnect();}
+  async function click(action,id){
+    if(action==='collect-refresh'){await load();render();return;}
+    if(action==='collect-suggest'){
+      const brief=getBriefs()?.[0],topics=(brief?.topic_plans||[]).map(t=>t.topic).filter(Boolean);
+      if(!topics.length)throw new Error('No planner topics are available yet. Enter a topic above or run the content planner.');
+      document.querySelector('#collection-form textarea').value=[...new Set(topics)].slice(0,10).join('\n');return;
+    }
+    if(action==='collect-reset'){editing=null;render();return;}
+    if(action==='collect-plan-edit'){editing=data.plans.find(p=>p.id===id);render();document.querySelector('#collection-form input').focus();return;}
+    if(action==='collect-plan-run'){const p=data.plans.find(p=>p.id===id);await command('collection_create',{...p,request_id:crypto.randomUUID()});await load();render();toast('Collection queued for HandNavigate.');return;}
+    if(action==='collect-plan-archive'){const p=data.plans.find(p=>p.id===id);await command('collection_plan_archive',{id,version:p.version,archived:!p.archived});if(editing?.id===id)editing=null;await load();render();return;}
+    if(action==='collect-job-stop'||action==='collect-job-retry'){await command(action==='collect-job-stop'?'collection_cancel':'collection_retry',{id});await load();render();return;}
+    if(action==='collect-next'||action==='collect-prev'){offset=action==='collect-next'?data.next_offset:Math.max(0,offset-25);await load();render();return;}
+    const item=data.items.find(i=>i.id===id);
+    if(action==='collect-archive'){await command('intake_archive',{id,version:item.version,archived:!item.archived});await load();render();return;}
+    if(action==='collect-preview'||action==='collect-download'||action==='collect-edit'){
+      const image=await preview(id);
+      if(action==='collect-download'){const a=document.createElement('a');a.href=image;a.download=(item.title||item.topic).replace(/[^a-zA-Z0-9_-]/g,'-').slice(0,60)+'-'+id.slice(0,8)+'.webp';a.click();return;}
+      const dialog=document.getElementById('collection-dialog');dialog.querySelector('img').src=image;
+      dialog.querySelector('[data-collection-fields]').innerHTML=action==='collect-edit'?`<form id="collection-edit-form" data-id="${esc(id)}"><label>Title<input name="title" maxlength="160" value="${esc(item.title)}"></label><label>Topic<input name="topic" maxlength="240" required value="${esc(item.topic)}"></label><label>Tags · separated by commas<input name="tags" value="${esc((item.tags||[]).join(', '))}"></label><label>Rights review<select name="rights_status">${['UNREVIEWED','APPROVED','REJECTED'].map(s=>`<option ${item.rights_status===s?'selected':''}>${s}</option>`).join('')}</select></label><p class="hint">Approve only after checking the original source and your reuse permission. This remains a private candidate; approval does not publish or enable generation.</p><button class="primary" type="submit">Save image details</button></form>`:`<p>${esc(item.title||item.topic)}</p><a href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">View original post ↗</a>`;
+      if(!dialog.open)dialog.showModal();
+    }
+  }
+  async function submit(form,submitter){
+    if(form.id==='collection-form'){
+      const values=formValues(form);
+      if(submitter?.value==='save'){
+        if(!values.name.trim())throw new Error('Enter a name to save this plan.');
+        await command('collection_plan_save',{...values,...(editing?{id:editing.id,version:editing.version}:{})});editing=null;toast('Topic plan saved.');
+      }else{
+        const signature=JSON.stringify(values);
+        if(pending?.signature!==signature)pending={signature,id:crypto.randomUUID()};
+        await command('collection_create',{...values,request_id:pending.id});pending=null;toast('Collection queued for HandNavigate.');
+      }
+    }else if(form.id==='collection-filter'){
+      const f=new FormData(form);platform=String(f.get('platform'));topic=String(f.get('topic')).trim();archived=f.has('archived');offset=0;
+    }else if(form.id==='collection-edit-form'){
+      const item=data.items.find(i=>i.id===form.dataset.id),f=new FormData(form);
+      await command('intake_update',{id:item.id,version:item.version,title:String(f.get('title')),topic:String(f.get('topic')),tags:String(f.get('tags')).split(',').map(t=>t.trim()).filter(Boolean),rights_status:String(f.get('rights_status'))});
+      document.getElementById('collection-dialog').close();toast('Image details saved.');
+    }
+    await load();render();
+  }
+  return {load,view,hydrate,dispose,click,submit};
+}};

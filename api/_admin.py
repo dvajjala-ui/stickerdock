@@ -585,6 +585,10 @@ def dispatch(payload, client=None):
         return readiness(client)
     client = client or SupabaseFactory()
     action = payload.get("action")
+    if action in {'collection_dashboard','collection_create','collection_plan_save','collection_plan_archive',
+                  'collection_cancel','collection_retry','intake_update','intake_archive','intake_preview'}:
+        from api._collection_control import admin_dispatch
+        return admin_dispatch(client,payload)
     if action in {"community_list", "community_detail", "community_draft", "community_reject", "report_resolve"}:
         from api._cloud_admin import dispatch as community_dispatch
         return community_dispatch(client, payload)

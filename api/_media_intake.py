@@ -15,7 +15,18 @@ from tools.supabase_factory import PRIVATE_BUCKET, SupabaseFactory
 def authorized(headers):
     token = os.environ.get("HANDNAVIGATE_INGEST_TOKEN", "")
     value = headers.get("Authorization", "")
-    return len(token) >= 32 and not headers.get("Origin") and hmac.compare_digest(value, "Bearer " + token)
+    if headers.get("Origin") or not value.startswith('Bearer ') or not 32 <= len(value[7:]) <= 256:
+        return False
+    if len(token) >= 32:
+        return hmac.compare_digest(value, "Bearer " + token)
+    # Deployment fallback: only a hash is stored in the existing private bucket.
+    # The plaintext credential stays in GitHub's secret store and the worker.
+    try:
+        raw = SupabaseFactory().download(PRIVATE_BUCKET, 'integrations/handnavigate-worker.json', missing_ok=True)
+        expected = json.loads(raw or b'{}').get('token_sha256', '')
+        return len(expected) == 64 and hmac.compare_digest(hashlib.sha256(value[7:].encode()).hexdigest(), expected)
+    except (ValueError, RuntimeError, OSError):
+        return False
 
 
 def public_url(value):
@@ -30,6 +41,9 @@ def public_url(value):
 def dispatch(payload, client=None):
     client = client or SupabaseFactory()
     action = payload.get("action")
+    if action in ('claim', 'report'):
+        from api._collection_control import worker_dispatch
+        return worker_dispatch(client, payload)
     if action == "status":
         client.find("media_intake_items", "id", str(uuid.UUID(int=0)))
         return {"configured": True, "table": "media_intake_items", "generation_eligible": False}

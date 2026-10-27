@@ -25,6 +25,8 @@
   titles.pinterest = "Pinterest connection";
   titles.community = "User submissions";
   let community = {submissions:[],reports:[]};
+  titles.collect='Collect images';
+  const collectionUI=window.HandCollection.create({command,esc,button,heading,empty,badge,toast,render,getBriefs:()=>data?.briefs});
   function renderCommunity() {
     return heading("User submissions", "Only opted-in snapshots appear here. Private synced libraries are not listed.", button("Refresh","community-refresh"))+
       `<div class="notice">Review every image, general-audience suitability, personal data, and redistribution rights. Creating a draft does not approve or publish it. The user can withdraw consent.</div>`+
@@ -94,6 +96,7 @@
     if(!nextReadiness||page==="health"||nextReadiness.admin_ready===false)nextReadiness=await api("/api/admin",{action:"health"});
     const nextData=nextReadiness.admin_ready===false?emptyLiveData():await api("/api/admin",{action:"overview"});
     if(page==="pinterest")pinterest=await command("pinterest_status");
+    if(page==="collect")await collectionUI.load();
     if(background&&(version!==interactionVersion||!canBackgroundRefresh()))return;
     data=nextData;readiness=nextReadiness;loaded=true;connectionError="";lastRefreshAt=Date.now();
     if(readiness.admin_ready===false)page="health";
@@ -101,7 +104,7 @@
   }
   function canBackgroundRefresh() {
     return loaded&&!connectionError&&!document.hidden&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open)
-      &&!["settings","generate","pinterest"].includes(page)&&!document.activeElement?.matches("input, textarea, select");
+      &&!["settings","generate","pinterest","collect"].includes(page)&&!document.activeElement?.matches("input, textarea, select");
   }
   async function backgroundRefresh() {
     if(backgroundRefreshing||!canBackgroundRefresh()||Date.now()-lastRefreshAt<25000)return;
@@ -217,11 +220,13 @@
   function renderSettings() {const s=data.settings||{enabled:true,daily_target:40,batch_size:5,topics:[],content_categories:["EVERYDAY"],rating:"GENERAL"};return heading("Factory settings","Tune daily discovery and generation without exposing a secret.")+`<section class="panel"><form id="settings-form"><div class="settings-row"><input id="factory-enabled" name="enabled" type="checkbox" ${s.enabled?"checked":""}><label for="factory-enabled">Enable scheduled Factory generation</label></div><div class="settings-row"><input id="discovery-enabled" name="discovery_enabled" type="checkbox" ${s.discovery_enabled!==false?"checked":""}><label for="discovery-enabled">Research a fresh content brief once per UTC day</label></div><div class="settings-row"><input id="auto-migrate" name="auto_migrate_completed" type="checkbox" ${s.auto_migrate_completed!==false?"checked":""}><label for="auto-migrate">Place each completed batch in Admin as a private draft</label></div><div class="form-grid"><label>Daily sticker target<input name="daily_target" type="number" min="3" max="100" value="${s.daily_target}" required></label><label>Stickers per request<input name="batch_size" type="number" min="3" max="10" value="${s.batch_size}" required></label></div><label>Audience for generated packs<select name="rating"><option value="GENERAL" ${s.rating!=="MATURE"?"selected":""}>General audience</option><option value="MATURE" ${s.rating==="MATURE"?"selected":""}>Private mature</option></select></label><fieldset class="category-picker"><legend>Daily content categories</legend>${contentCategories.map(c=>`<label><input type="checkbox" name="content_categories" value="${c}" ${(s.content_categories||[]).includes(c)?"checked":""}>${esc(c.replaceAll("_"," ").toLowerCase())}</label>`).join("")}</fieldset><label>Custom topic rotation · one per line<textarea name="topics" maxlength="5000">${esc((s.topics||[]).join("\n"))}</textarea></label><p class="hint">Optional format: CATEGORY | topic, for example INDIA | cricket group-chat reactions. ADULT_HUMOR requires Private mature. Use batches of 3–10; eight batches run per day. Audience changes apply next UTC day if today's generation has started. Cooldowns and request limits remain active.</p><button class="primary" type="submit">Save Factory settings</button></form></section><section class="panel"><h3>Deployment & access</h3><p>This is a shared dashboard with no password or account gate. Anyone with the website URL can view and manage this workspace. Phone-account backups remain authenticated and isolated.</p><p>Database and provider credentials stay on the server. Worker secrets: GROQ_API_KEY for captions and GROQ_TRENDS_API_KEY for daily browser search. Keys never appear here or in the APK.</p><a class="text-button" href="/studio/index.html" target="_blank" rel="noopener">Open existing Creator Studio ↗</a></section>`;}
   function renderActivity() {return heading("Activity log","A record of pack edits, review decisions, publication, and Factory changes.")+(data.events.length?`<div class="table-wrap"><table><thead><tr><th>Time</th><th>Action</th><th>Entity</th></tr></thead><tbody>${data.events.map(e=>`<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td><strong>${esc(e.action)}</strong></td><td>${esc(e.entity_id||"Factory settings")}</td></tr>`).join("")}</tbody></table></div>`:empty("No activity yet","Changes in this workspace will appear here."));}
   const pages={community:renderCommunity,overview:renderOverview,packs:renderPacks,media:renderMedia,generate:renderGenerate,content:renderContent,factory:renderFactory,catalog:renderCatalog,settings:renderSettings,activity:renderActivity,health:renderHealth,pinterest:renderPinterest};
+  pages.collect=()=>collectionUI.view();
   function render() {
     $("content").innerHTML=loaded?pages[page]():heading(connectionError?"Workspace unavailable":"Loading your workspace",connectionError||"Reading your existing packs, Factory activity and settings…",connectionError?button("Try again","workspace-retry","","primary"):"");
     $("breadcrumb").textContent=titles[page];
     document.querySelectorAll("nav button[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));connectionUi();
     if(loaded&&page==="media")hydrateMedia();else mediaObserver?.disconnect();
+    if(loaded&&page==="collect")collectionUI.hydrate();else collectionUI.dispose();
     if(loaded&&["overview","packs"].includes(page))hydratePackCovers();else packCoverObserver?.disconnect();
     if(loaded&&page==="generate"){
       const saved=readPendingCreatorJob(),form=$("generate-form");
@@ -246,7 +251,7 @@
     $("create-sources").innerHTML=library.map((s,index)=>{const preview=mediaDetails.get(s.path)?.preview||s.preview;return `<label class="source-choice"><input type="checkbox" name="sources" value="${esc(s.path)}" ${s.path===selectedPath?"checked":""}>${preview?`<img src="${esc(preview)}" alt="">`:""}<span>${esc(mediaName(s,index))}</span></label>`;}).join("")||'<p class="hint">Upload an image in Media library first.</p>';
     $("create-dialog").showModal();
   }
-  async function navigate(next) {if(!pages[next])return;if(readiness?.admin_ready===false)next="health";page=next;$("sidebar").classList.remove("open");if(["media","generate"].includes(next))await loadLibrary();if(next==="community")community=await command("community_list");if(next==="pinterest")pinterest=await command("pinterest_status");render();}
+  async function navigate(next) {if(!pages[next])return;if(readiness?.admin_ready===false)next="health";page=next;$("sidebar").classList.remove("open");if(["media","generate"].includes(next))await loadLibrary();if(next==="community")community=await command("community_list");if(next==="pinterest")pinterest=await command("pinterest_status");if(next==="collect")await collectionUI.load();render();}
   function stickerSource(reference) {
     const media=reference?.media_credit||{};
     const title=media.title||media.file||reference?.source_path||"Source not recorded";
@@ -295,6 +300,7 @@
       return;
     }
     await task(async()=>{
+      if(action.startsWith('collect-'))return collectionUI.click(action,id);
       if(action==="navigate")return navigate(id);
       if(action==="workspace-retry"){await refresh();return;}
       if(action.startsWith("community-")) {
@@ -358,6 +364,7 @@
     });
   });
   document.addEventListener("submit",(e)=>{
+    if(['collection-form','collection-filter','collection-edit-form'].includes(e.target.id)){e.preventDefault();task(()=>collectionUI.submit(e.target,e.submitter));return;}
     if(e.target.id==="pack-form") {e.preventDefault();task(async()=>{const form=new FormData(e.target),stickers=Array.from(document.querySelectorAll(".sticker-edit")).map(row=>({name:row.dataset.sticker,...(row.querySelector('[data-field=label]')?{label:row.querySelector('[data-field=label]').value}:{}),...(row.querySelector('[data-field=caption]')?{caption:row.querySelector('[data-field=caption]').value}:{}),tags:row.querySelector('[data-field=tags]').value,remove:row.querySelector('[data-field=remove]').checked}));await command("pack_save",{id:detail.pack.id,version:detail.pack.version,name:form.get("name"),creator:form.get("creator"),category:$("pack-category").value||undefined,stickers});$("pack-dialog").close();await refresh();toast("Pack saved as a private draft.");});}
     if(e.target.id==="generate-form") {e.preventDefault();task(async()=>{
       const form=new FormData(e.target),source=String(form.get("source_path")||""),prompt=String(form.get("prompt")||"").trim();

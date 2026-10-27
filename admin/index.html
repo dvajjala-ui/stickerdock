@@ -5,6 +5,7 @@
   <title>StickerDock — Factory Admin</title>
   <meta name="description" content="StickerDock Factory dashboard, pack review and publication.">
   <link rel="stylesheet" href="/admin/styles.css">
+  <script src="/admin/collect.js" defer></script>
   <script src="/admin/app.js" defer></script>
 </head>
 <body>
@@ -15,6 +16,7 @@
       <button data-page="overview" class="active"><span>◫</span> Overview</button>
       <button data-page="packs"><span>▧</span> Sticker packs <b id="pack-count">0</b></button>
       <button data-page="media"><span>▨</span> Media library</button>
+      <button data-page="collect"><span>↓</span> Collect images</button>
       <button data-page="generate"><span>✦</span> AI workbench</button>
       <button data-page="content"><span>◎</span> Content planner</button>
       <p class="nav-label">OPERATIONS</p>
@@ -33,6 +35,7 @@
     <main id="content" tabindex="-1"></main>
     <footer>StickerDock Factory <span>Shared workspace · Reviewed publishing</span></footer>
   </div>
+  <dialog id="collection-dialog"><div class="dialog-heading"><h2>Collected image</h2><button class="icon-button" data-close aria-label="Close image">×</button></div><img alt="Collected source image"><div data-collection-fields></div></dialog>
   <dialog id="pack-dialog"><div id="pack-editor"></div></dialog>
   <dialog id="sticker-preview-dialog" aria-labelledby="sticker-preview-title"><div class="dialog-heading"><h2 id="sticker-preview-title">Sticker artwork</h2><button type="button" class="icon-button" data-close aria-label="Close artwork preview">×</button></div><img id="sticker-preview-image" alt=""><p id="sticker-preview-label"></p></dialog>
   <dialog id="create-dialog"><form id="create-form"><div class="dialog-heading"><h2>Create a sticker pack</h2><button type="button" class="icon-button" data-close aria-label="Close">×</button></div><p>Choose source images from the private library. Static images become 512 × 512 WebP stickers.</p><div class="form-grid"><label>Pack name<input name="name" maxlength="60" required placeholder="e.g. Everyday reactions"></label><label>Creator<input name="creator" maxlength="60" required value="StickerDock"></label></div><label>Category<select name="category" id="create-category"></select></label><div id="create-sources" class="source-choices"></div><p class="hint">Keep 3–30 unique stickers for WhatsApp publication. Source rights travel with the pack.</p><div class="dialog-actions"><button type="button" class="secondary" data-close>Cancel</button><button class="primary" type="submit">Create private draft</button></div></form></dialog>
