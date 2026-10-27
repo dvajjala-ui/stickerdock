@@ -1,11 +1,11 @@
 /* Collection workspace: browser automation is performed by HandNavigate. */
 window.HandCollection = {create({command,esc,button,heading,empty,badge,toast,render,getBriefs}) {
   let data={items:[],plans:[],jobs:[]}, offset=0, archived=false, platform='', topic='', editing=null, pending=null;
-  let generation=0,observer=null; const previews=new Map();
+  let generation=0,observer=null,draft=null; const previews=new Map();
   const active=new Set(['QUEUED','RUNNING','WAITING_FOR_LOGIN']);
-  async function load(){data=await command('collection_dashboard',{offset,archived,platform,topic});}
+  async function load(){const form=document.getElementById('collection-form');if(form)draft=formValues(form);data=await command('collection_dashboard',{offset,archived,platform,topic});}
   function formValues(form){const f=new FormData(form);return {name:String(f.get('name')||''),topics:String(f.get('topics')||'').split('\n').map(t=>t.trim()).filter(Boolean),sources:f.getAll('sources'),image_limit:Number(f.get('image_limit')),daily:f.has('daily')};}
-  function view(){const p=editing||{name:'',topics:[],sources:['pinterest','reddit'],image_limit:20,daily:false};
+  function view(){const p=editing||draft||{name:'',topics:[],sources:['pinterest','reddit'],image_limit:20,daily:false};
     return heading('Collect images','Choose a topic. HandNavigate searches, downloads unique images and verifies their delivery to this library.',button('Refresh','collect-refresh'))+
     `<div class="notice">HandNavigate must be running on your computer or server. A login or human check may pause a source. Each request has one total image count across all topics and sites.</div>`+
     `<div class="collect-columns"><section class="panel"><h2>${editing?'Edit saved plan':'New collection'}</h2><form id="collection-form"><label>Plan name<input name="name" maxlength="100" value="${esc(p.name)}" placeholder="e.g. Cat reactions"></label><label>Topics · one per line<textarea name="topics" rows="3" required maxlength="2400" placeholder="funny cat reaction">${esc(p.topics.join('\n'))}</textarea></label><div class="toolbar">${button('Use planner topics','collect-suggest')}</div><fieldset><legend>Search sites</legend>${['pinterest','reddit'].map(s=>`<label class="collect-check"><input name="sources" type="checkbox" value="${s}" ${p.sources.includes(s)?'checked':''}>${s==='reddit'?'Reddit':'Pinterest'}</label>`).join('')}</fieldset><label>Images in total<input type="number" name="image_limit" min="1" max="100" required value="${p.image_limit}"></label><label class="collect-check"><input name="daily" type="checkbox" ${p.daily?'checked':''}>Run saved plan daily</label><p class="hint">Daily plans queue around 09:53 India time. The worker's daily budget is shared across every plan; default 20 images. Saving a plan does not run it immediately.</p><div class="toolbar"><button class="primary" type="submit" name="operation" value="run">Collect now</button><button class="secondary" type="submit" name="operation" value="save">Save plan</button>${editing?button('Cancel edit','collect-reset'):''}</div></form></section>`+
@@ -24,7 +24,7 @@ window.HandCollection = {create({command,esc,button,heading,empty,badge,toast,re
       if(!topics.length)throw new Error('No planner topics are available yet. Enter a topic above or run the content planner.');
       document.querySelector('#collection-form textarea').value=[...new Set(topics)].slice(0,10).join('\n');return;
     }
-    if(action==='collect-reset'){editing=null;render();return;}
+    if(action==='collect-reset'){editing=null;draft=null;render();return;}
     if(action==='collect-plan-edit'){editing=data.plans.find(p=>p.id===id);render();document.querySelector('#collection-form input').focus();return;}
     if(action==='collect-plan-run'){const p=data.plans.find(p=>p.id===id);await command('collection_create',{...p,request_id:crypto.randomUUID()});await load();render();toast('Collection queued for HandNavigate.');return;}
     if(action==='collect-plan-archive'){const p=data.plans.find(p=>p.id===id);await command('collection_plan_archive',{id,version:p.version,archived:!p.archived});if(editing?.id===id)editing=null;await load();render();return;}

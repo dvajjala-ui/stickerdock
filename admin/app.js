@@ -104,7 +104,7 @@
   }
   function canBackgroundRefresh() {
     return loaded&&!connectionError&&!document.hidden&&!working&&!Array.from(document.querySelectorAll("dialog")).some(d=>d.open)
-      &&!["settings","generate","pinterest","collect"].includes(page)&&!document.activeElement?.matches("input, textarea, select");
+      &&!["settings","generate","pinterest"].includes(page)&&!document.activeElement?.matches("input, textarea, select");
   }
   async function backgroundRefresh() {
     if(backgroundRefreshing||!canBackgroundRefresh()||Date.now()-lastRefreshAt<25000)return;
