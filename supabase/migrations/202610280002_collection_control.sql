@@ -23,6 +23,12 @@ create table if not exists public.collection_jobs (
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(), finished_at timestamptz
 );
 create index if not exists collection_jobs_queue on public.collection_jobs(status,created_at);
+create table if not exists public.collection_workers (
+ id uuid primary key, created_at timestamptz not null default now(), last_seen timestamptz not null default now()
+);
+alter table public.collection_workers enable row level security;
+revoke all on public.collection_workers from public,anon,authenticated;
+grant select,insert,update on public.collection_workers to service_role;
 alter table public.collection_plans enable row level security;
 alter table public.collection_jobs enable row level security;
 revoke all on public.collection_plans,public.collection_jobs from public,anon,authenticated;
@@ -32,6 +38,7 @@ create or replace function public.claim_collection_job(p_worker_id uuid) returns
 language plpgsql security definer set search_path=public,pg_temp as $$
 declare chosen uuid;
 begin
+ insert into collection_workers(id) values(p_worker_id) on conflict(id) do update set last_seen=now();
  update collection_jobs set status='CANCELLED',lease_until=null,finished_at=now(),updated_at=now()
  where cancel_requested and status in ('RUNNING','WAITING_FOR_LOGIN') and lease_until<now();
  -- Reclaim only an expired lease. Workers heartbeat while the browser is active.
@@ -50,6 +57,7 @@ create or replace function public.report_collection_job(p_id uuid,p_worker_id uu
 returns setof public.collection_jobs language plpgsql security definer set search_path=public,pg_temp as $$
 declare next_status text;
 begin
+ insert into collection_workers(id) values(p_worker_id) on conflict(id) do update set last_seen=now();
  next_status=p_report->>'status';
  if next_status not in ('RUNNING','WAITING_FOR_LOGIN','VERIFIED_STORAGE','PARTIAL','AUTH_REQUIRED','DELIVERY_FAILED','FAILED','CANCELLED','INTERRUPTED') then raise exception 'Invalid collection status'; end if;
  return query update collection_jobs set status=next_status,

@@ -106,10 +106,13 @@ def admin_dispatch(client,payload):
             # Exact topic filter avoids injecting PostgREST filter syntax.
             filters['topic']='eq.'+safe_text(payload['topic'],'topic',240,required=True)
         items=rows(client,'media_intake_items',filters,25,offset)
+        workers=rows(client,'collection_workers',limit=100)
+        seen=max((w['last_seen'] for w in workers),default=None)
+        online=bool(seen and (datetime.now(timezone.utc)-datetime.fromisoformat(seen.replace('Z','+00:00'))).total_seconds()<90)
         return {'items':items,'next_offset':offset+25 if len(items)==25 else None,
             'plans':rows(client,'collection_plans',limit=100),'jobs':rows(client,'collection_jobs',limit=30),
             'sources':list(SOURCES),'daily_schedule':'09:53 Asia/Kolkata (GitHub Actions; timing may be delayed)',
-            'worker_required':True}
+            'worker_required':True,'worker_online':online,'worker_last_seen':seen}
     if action=='collection_create':
         return enqueue(client,payload)
     if action=='collection_plan_save':
