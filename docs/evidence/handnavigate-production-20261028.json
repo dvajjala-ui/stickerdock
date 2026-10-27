@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-27T20:45:47.513Z",
+  "scope": "Live hosted StickerDock queue -> HandNavigate browser/Runner -> production Supabase rows and private image blobs",
+  "images": 24,
+  "platforms": {
+    "pinterest": 20,
+    "reddit": 4
+  },
+  "allReadBackVerified": true,
+  "allGenerationIneligible": true,
+  "jobs": [
+    {
+      "id": "70843e7f-cac6-44d2-8be2-ef9a6ff7eb16",
+      "localId": "0918a72f-82cc-4dda-8762-b4d6ffd827ba",
+      "status": "VERIFIED_STORAGE",
+      "saved": 20,
+      "delivered": 20,
+      "sourceStatus": {
+        "reddit": {
+          "status": "HALTED",
+          "lastError": "This image comes from https://external-preview.redd.it. Add it to the reviewed image websites first."
+        },
+        "pinterest": {
+          "status": "VERIFIED",
+          "lastError": null
+        }
+      }
+    },
+    {
+      "id": "233e3178-e832-405d-8d15-c5d1f402a925",
+      "localId": "7786b7ac-cd86-4912-adaa-7054c6582982",
+      "status": "VERIFIED_STORAGE",
+      "saved": 4,
+      "delivered": 4,
+      "sourceStatus": {
+        "reddit": {
+          "status": "VERIFIED",
+          "lastError": null
+        }
+      }
+    }
+  ],
+  "aiCalls": 0,
+  "publications": 0
+}

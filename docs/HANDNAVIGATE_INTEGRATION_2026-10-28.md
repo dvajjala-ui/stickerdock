@@ -1,5 +1,7 @@
 # HandNavigate daily source intake — implementation and deployment plan
 
+**This is the earlier pre-activation plan. See [the delivered Admin workspace and production verification](HANDNAVIGATE_ADMIN_2026-10-28.md) for current status.** Supabase deployment, Admin management and daily plan activation are now complete; generation admission and always-on server qualification remain separate.
+
 Owner request, 28 October 2026: StickerDock's own planner should request changing topics from HandNavigate daily. HandNavigate must search Pinterest, Reddit and later configured platforms, save about 20 potential source images total, and deliver them to storage for topic-based sticker creation. Downloading must be application automation, not actions performed by ChatGPT's browser. News can inform topics; Commons/news/blog pictures must not substitute for these requested sources.
 
 ## Existing product flow inspected live

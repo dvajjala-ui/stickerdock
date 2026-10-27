@@ -1,6 +1,6 @@
 # StickerDock — private sticker creator and library
 
-October 28: the [HandNavigate intake implementation and deployment plan](docs/HANDNAVIGATE_INTEGRATION_2026-10-28.md) adds a parameterized daily caller, authenticated source-intake API and additive private metadata schema. HandNavigate's own worker has downloaded 20 Pinterest and four Reddit images live. A cross-repo local check verifies 20 stored candidates; production intake deployment, source-rights admission and daily activation remain pending.
+October 28: [HandNavigate collection controls are live](docs/HANDNAVIGATE_ADMIN_2026-10-28.md). Its own worker downloaded and verified **20 Pinterest + 4 Reddit images in production Supabase**. Admin now has topic plans, a daily queue, worker status and image preview/edit/download/archive/restore. A 20-image daily plan is enabled; this PC's worker must remain awake. Rights/quality admission into sticker generation remains a separate pending step.
 
 | Get StickerDock | Link |
 | --- | --- |
