@@ -58,4 +58,13 @@ def save(client,folder):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['restore','save']);parser.add_argument('--folder',required=True)
     args=parser.parse_args();(restore if args.action=='restore' else save)(SupabaseFactory(),args.folder)
+    if args.action=='restore':
+        from api._collection_control import rows
+        client=SupabaseFactory();history=[]
+        for offset in range(0,20000,100):
+            page=rows(client,'media_intake_items',limit=100,offset=offset)
+            history.extend({'sha256':r['original_sha256'],'source':r['source_url']} for r in page)
+            if len(page)<100:break
+        root=Path(args.folder);root.mkdir(parents=True,exist_ok=True)
+        (root/'cloud-history.json').write_text(json.dumps(history),encoding='utf-8')
     print('Private hosted checkpoint '+args.action+' complete; no profile, credential or image output logged.')

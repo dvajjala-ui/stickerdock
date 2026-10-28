@@ -38,7 +38,7 @@ def main():
     if args.qualification:
         from api._collection_control import enqueue
         jobs=[enqueue(client,{'request_id':'hosted-qualification-'+uuid.uuid4().hex,
-            'topics':['funny cat reaction'],'sources':['pinterest','reddit'],'image_limit':2})]
+            'topics':['cat'],'sources':['pinterest','reddit','imgflip'],'image_limit':2})]
     else:
         jobs=enqueue_daily(client,datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d'))
     print(json.dumps({'queued':sum(not r['reused'] for r in jobs),'note':'No new jobs when today\'s stored-image budget is already satisfied or no daily plans are enabled.',

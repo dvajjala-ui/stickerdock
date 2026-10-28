@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: dvajjala-ui/handNavigation
-          ref: cbc76b05c24fc78bc2e1bec4869ee3faae73af62
+          ref: b3c83aa3fb2ed431cf49621d02ac0b2ac4d6134c
           path: work/handnavigate-source
           persist-credentials: false
       - uses: actions/setup-node@v4

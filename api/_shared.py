@@ -231,7 +231,7 @@ def source_metadata(source_path):
         current=approved_credit(client,client.find('media_intake_items','id',metadata['intake_id']))
         if current.get('stored_sha256') != digest or current.get('candidate_version') != metadata.get('candidate_version'):
             raise StudioError('Source approval changed; select this image again')
-    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title", "purpose")
+    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title", "purpose", "intake_id", "platform", "original_sha256", "stored_sha256", "admission_verified")
             if key in metadata}
 
 

@@ -9,7 +9,7 @@ import uuid
 import zipfile
 from pathlib import PurePosixPath
 from PIL import Image
-from api._collection_control import write
+from api._collection_control import rows, write
 from api._media_intake import dispatch
 from tools.supabase_factory import PRIVATE_BUCKET, SupabaseFactory
 
@@ -70,6 +70,19 @@ def maintain(client, cleanup=False):
         if result['reused']:summary['existing']+=1
         else:
             row=result['item'];write(client,'media_intake_items',{'title':str(meta.get('title') or 'Earlier source image')[:160]},row['id'],row['version']);summary['indexed']+=1
+    summary['broken_candidates']=0
+    for offset in range(0,10000,100):
+        page=rows(client,'media_intake_items',limit=100,offset=offset)
+        for row in page:
+            data=client.download(PRIVATE_BUCKET,row['storage_path'])
+            try:
+                if hashlib.sha256(data).hexdigest()!=row['stored_sha256']:raise ValueError('Checksum mismatch')
+                with Image.open(io.BytesIO(data)) as image:image.verify()
+            except (OSError,ValueError,Image.DecompressionBombError):
+                summary['broken_candidates']+=1
+                if cleanup and not row.get('archived'):
+                    write(client,'media_intake_items',{'archived':True,'generation_eligible':False},row['id'],row['version'])
+        if len(page)<100:break
     return summary
 
 
