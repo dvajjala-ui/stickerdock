@@ -8,8 +8,10 @@ import os
 import re
 import uuid
 import io
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from PIL import Image
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 from api._shared import StudioError, decode_image, normalize_upload_image, safe_text
 from tools.supabase_factory import PRIVATE_BUCKET, SupabaseFactory
 
@@ -46,9 +48,23 @@ def dispatch(payload, client=None):
     if action in ('claim', 'report'):
         from api._collection_control import worker_dispatch
         return worker_dispatch(client, payload)
+    if action == 'enqueue_daily':
+        from api._collection_control import enqueue_daily
+        jobs=enqueue_daily(client,datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d'))
+        return {'jobs':[{'id':r['job']['id'],'reused':r['reused']} for r in jobs]}
     if action == "status":
         client.find("media_intake_items", "id", str(uuid.UUID(int=0)))
         return {"configured": True, "table": "media_intake_items", "generation_eligible": False}
+    if action == "history":
+        offset = payload.get('offset', 0)
+        if isinstance(offset, bool) or not isinstance(offset, int) or not 0 <= offset <= 20000:
+            raise StudioError('Invalid duplicate-history page')
+        query = urlencode({'select':'original_sha256,source_url','order':'id.asc','limit':200,'offset':offset})
+        page = json.loads(client._request('GET', '/rest/v1/media_intake_items?'+query) or b'[]')
+        if not isinstance(page, list) or len(page) > 200:
+            raise StudioError('Invalid duplicate-history response')
+        return {'items':[{'sha256':row['original_sha256'],'source':row['source_url']} for row in page],
+                'next_offset':offset+200 if len(page)==200 else None}
     if action in ('get','thumbnail'):
         item_id = str(uuid.UUID(str(payload.get("id", ""))))
         row = client.find("media_intake_items", "id", item_id)

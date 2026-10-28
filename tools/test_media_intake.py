@@ -39,6 +39,35 @@ def payload():
 
 
 class MediaIntakeTest(unittest.TestCase):
+    def test_worker_daily_enqueue_uses_server_day_and_saved_plans(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        client=Storage()
+        with patch('api._collection_control.enqueue_daily',return_value=[]) as enqueue:
+            self.assertEqual(intake.dispatch({'action':'enqueue_daily','topics':['ignored'],'image_limit':10000},client),{'jobs':[]})
+        enqueue.assert_called_once_with(client,datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d'))
+
+    def test_history_pages_expose_only_duplicate_identity_and_provenance(self):
+        from unittest.mock import Mock
+        from urllib.parse import parse_qs, urlsplit
+        client=Mock()
+        client._request.return_value=json.dumps([{'original_sha256':'a'*64,'source_url':'https://example.com/source',
+                                                 'storage_path':'private/path','rights_status':'UNREVIEWED'}]).encode()
+        result=intake.dispatch({'action':'history','offset':200},client)
+        self.assertEqual(result,{'items':[{'sha256':'a'*64,'source':'https://example.com/source'}],'next_offset':None})
+        method,url=client._request.call_args.args
+        self.assertEqual(method,'GET')
+        query=parse_qs(urlsplit(url).query)
+        self.assertEqual(query['select'],['original_sha256,source_url'])
+        self.assertEqual(query['limit'],['200']);self.assertEqual(query['offset'],['200'])
+
+    def test_history_rejects_invalid_offsets_before_database_access(self):
+        from unittest.mock import Mock
+        for offset in (True,-1,20001,'0',0.5):
+            client=Mock()
+            with self.assertRaises(ValueError):intake.dispatch({'action':'history','offset':offset},client)
+            client._request.assert_not_called()
+
     def test_server_token_is_required_and_browser_origins_are_rejected(self):
         with patch.dict(os.environ, {"HANDNAVIGATE_INGEST_TOKEN": "a" * 40}):
             self.assertFalse(intake.authorized({}))
