@@ -18,6 +18,31 @@ container checks pass in HandNavigate PR #2/run 40682685422. Check the current
 before creating resources. No Oracle VM has been created yet, and exact-host
 source access remains unverified.
 
+### Oracle capacity and Railway preparation
+
+Oracle Mumbai rejected the approved 1 OCPU / 6 GB A1 VM as out of capacity. Only
+the free network/subnet/gateway were created; no account upgrade or VM creation
+succeeded. A separate private Railway project now has a 1 vCPU / 2 GB collector,
+a 5 GB persistent volume, no public application domain and restart policy NEVER.
+The daily schedule is unset and daily enqueue is off during qualification.
+
+HandNavigate PR #3 merged as `038cfd1`; [AMD64/ARM64 browser and cron exit checks](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690215987),
+[36 unit / 24 worker tests](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690216051)
+and [Windows desktop/package acceptance](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690216084)
+pass for the checked deployment revision. StickerDock PR #32 merged as `d5108c5`
+after [Web/API checks](https://github.com/dvajjala-ui/stickerdock/actions/runs/40689597507);
+[Android debug CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40689597378) also passes.
+The production intake credential and minimal duplicate-history endpoint were
+verified live (151 history identities). Only the worker credential was provisioned
+to Railway, using an encrypted one-day bootstrap artifact; no database admin key.
+
+The owner explicitly approved Railway deployment, but its connector twice
+rejected the final apply action as not approved. The source change remains staged;
+no deployment exists yet. A request is pending for the owner to apply the staged
+changes in Railway's dashboard. Then inspect the actual host's three separate
+two-image source jobs, storage receipts and process exit before enabling daily
+cron or changing the old GitHub worker. See [the exact hosting record](HANDNAVIGATE_RAILWAY_2026-10-28.md).
+
 ## October 28 merge and architecture review
 
 The [recovery and quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md)

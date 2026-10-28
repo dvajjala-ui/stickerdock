@@ -8,9 +8,11 @@ by Factory photo generation. The scheduled hosted worker stored two Imgflip
 images, but Pinterest/Reddit blocked guest access from GitHub's network.
 The [acceptance record](docs/ADMIN_SOURCES_AND_HOSTED_COLLECTION_2026-10-28.md)
 and [researched hosting options](docs/HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
-explain the remaining exact-host setup. Oracle Free is now the first target;
-the owner's Railway Hobby account is the $5–$10/month fallback. Native ARM and
-AMD64 browser-container checks pass; an always-on worker has not been activated.
+explain the remaining exact-host setup. Oracle's Mumbai A1 attempt was blocked by
+capacity. A [bounded Railway collector](docs/HANDNAVIGATE_RAILWAY_2026-10-28.md)
+is prepared within the owner's $5–$10/month budget; deployment confirmation and
+exact-host source qualification remain pending. Native ARM and AMD64 container,
+worker API, Windows package and StickerDock Web/API checks pass.
 
 October 28: **Android 0.11.6 (build 21)** is
 [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.6)
