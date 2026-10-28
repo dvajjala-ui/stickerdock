@@ -11,9 +11,14 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tempfile
+import sys
 import uuid
 import zipfile
 from PIL import Image
+
+# This entry point is also executed as `python tools/production_worker.py`.
+# Make the shared API admission contract importable in that invocation.
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 from daily_stickers import atomic_json, export_zip, run as run_generator, ProviderError, ProviderResponseError
 from sticker_fonts import default_font

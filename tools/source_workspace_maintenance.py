@@ -54,6 +54,8 @@ def maintain(client, cleanup=False):
         try:meta=json.loads(meta_raw or b'{}')
         except ValueError:meta={}
         if meta.get('intake_id'):continue
+        if client.find('media_intake_items','id',str(uuid.uuid5(uuid.NAMESPACE_URL,'handnavigate:'+digest))):
+            summary['existing']+=1;continue
         original_source=str(meta.get('source',''))
         platform='licensed' if original_source=='licensed-library' else 'upload' if original_source in {'creator-studio','manual-upload'} else 'legacy'
         link=meta.get('source_url','');download=meta.get('download_url','')
