@@ -14,7 +14,10 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import sys
 import uuid
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 from daily_stickers import groq_ideas, render
 from sticker_fonts import default_font
@@ -61,6 +64,11 @@ def creator_source_metadata(client, digest, source_path):
         raise ValueError("Invalid creator source metadata") from error
     if not isinstance(metadata, dict) or metadata.get("license") not in SOURCE_LICENSES:
         raise ValueError("Invalid creator source metadata")
+    if metadata.get('intake_id'):
+        from api._sources import approved_credit
+        current=approved_credit(client,client.find('media_intake_items','id',metadata['intake_id']))
+        if current['stored_sha256'] != digest or current['candidate_version'] != metadata.get('candidate_version'):
+            raise ValueError('Creator source approval changed before generation')
     result = {
         key: metadata[key]
         for key in ("source", "source_url", "download_url", "license", "credit")
@@ -69,6 +77,9 @@ def creator_source_metadata(client, digest, source_path):
     result.setdefault("source", "creator-request-source")
     result.setdefault("source_url", "supabase://" + source_path)
     result.setdefault("download_url", "supabase://" + source_path)
+    if metadata.get('intake_id'):
+        result.update(source_intake_id=metadata['intake_id'],source_candidate_version=metadata['candidate_version'],
+                      original_sha256=metadata['original_sha256'],platform=metadata.get('platform'))
     return result
 
 
@@ -115,6 +126,7 @@ def process_one(client, worker_id="github-actions", key=None, model=None,
             "derived_from": source_path,
             "creator_request_id": request_id,
             "title": prompt[:240],
+            "purpose": "RESULT",
         }
         client.upload(PRIVATE_BUCKET, result_path, sticker, "image/webp")
         client.upload(

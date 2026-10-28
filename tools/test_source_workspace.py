@@ -50,6 +50,7 @@ class SourceWorkspaceTest(unittest.TestCase):
         self.assertTrue(any(p.startswith('quarantine/broken-sources/') for p in store.objects))
 
     def test_approval_enters_factory_and_creator_with_exact_provenance_then_revocation_removes_cached_input(self):
+        from tools.creator_request_worker import creator_source_metadata
         store=Store();row=sources.upload(store,{'image':image(),'title':'My cat reaction','rights':'REFERENCE_ONLY'})['item']
         self.assertFalse(row['generation_eligible'])
         with self.assertRaises(ValueError):sources.creator_source(store,{'id':row['id']})
@@ -61,10 +62,12 @@ class SourceWorkspaceTest(unittest.TestCase):
             self.assertEqual(manifest['assets'][0]['original_sha256'],row['original_sha256'])
             self.assertTrue(manifest['assets'][0]['admission_verified'])
             selected=sources.creator_source(store,{'id':row['id']});self.assertTrue(selected['path'].startswith('inbox/'))
+            self.assertEqual(creator_source_metadata(store,row['stored_sha256'],selected['path'])['source_intake_id'],row['id'])
             sources.dispatch(store,{'action':'source_revoke','id':row['id'],'version':row['version']})
             self.assertEqual(sources.sync_factory_sources(store,Path(temp)),0)
             self.assertEqual(json.loads((Path(temp)/'reference-images/library.json').read_text())['assets'],[])
             with self.assertRaises(ValueError):sources.creator_source(store,{'id':row['id']})
+            with self.assertRaises(ValueError):creator_source_metadata(store,row['stored_sha256'],selected['path'])
 
     def test_approval_requires_evidence_quality_and_fresh_version_and_rejects_tampered_pixels(self):
         store=Store();row=sources.upload(store,{'image':image(),'title':'Cat','rights':'REFERENCE_ONLY'})['item']
