@@ -5,14 +5,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 val WhatsAppGreen = Color(0xFF087F5B)
@@ -42,9 +47,12 @@ fun CreationCard(action: String, title: String, description: String, icon: Strin
 
 @Composable
 fun LibrarySearch(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
-                  accessibilityLabel: String = label) {
+                  accessibilityLabel: String = label, onSubmit: (String) -> Unit = {}) {
+    val focusManager = LocalFocusManager.current
     TextField(value = value, onValueChange = onChange, singleLine = true,
-        placeholder = { Text(label) },
+        placeholder = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSubmit(value); focusManager.clearFocus() }),
         leadingIcon = { StickerDockNavIcon("Search") },
         trailingIcon = { if (value.isNotEmpty()) IconButton(onClick = { onChange("") },
             modifier = Modifier.semantics { contentDescription = "Clear search" }) { StickerDockNavIcon("Close") } },

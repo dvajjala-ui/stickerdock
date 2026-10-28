@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -48,6 +49,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LibraryScreen(
     packs: List<StickerPack>, counts: Map<String, Int>, previewItems: Map<String, List<StickerItem>>,
@@ -69,14 +71,14 @@ fun LibraryScreen(
     val visibleStickers = remember(stickerMatches, visiblePackIds) { stickerMatches.filter { it.pack.id in visiblePackIds } }
     var resultsView by remember(searchText.isNotBlank()) { mutableStateOf("Stickers") }
     var isGridView by rememberSaveable { mutableStateOf(false) }
-    var recentSearches by rememberSaveable { mutableStateOf(listOf("monday mood", "thanks", "lol")) }
+    val context = LocalContext.current
+    val searchHistory = remember(context.applicationContext) { StickerSearchHistory(context.applicationContext) }
+    var recentSearches by remember { mutableStateOf(searchHistory.snapshot()) }
     val quickSuggestions = listOf("monday mood", "thanks", "lol", "not today", "okay", "work done", "send help", "love this")
 
     fun onSelectSearch(term: String) {
         val cleaned = term.trim()
-        if (cleaned.isNotBlank()) {
-            recentSearches = (listOf(cleaned) + (recentSearches - cleaned)).take(6)
-        }
+        if (cleaned.isNotBlank()) recentSearches = searchHistory.record(cleaned)
         onSearchChange(term)
     }
 
@@ -92,68 +94,53 @@ fun LibraryScreen(
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    LibrarySearch(searchText, { onSelectSearch(it) }, "monday mood, thanks, lol…", Modifier.weight(1f),
-                        accessibilityLabel = "Search library")
+                    LibrarySearch(searchText, onSearchChange, "monday mood, thanks, lol…", Modifier.weight(1f),
+                        accessibilityLabel = "Search library", onSubmit = { recentSearches = searchHistory.record(it) })
                     TextButton(onClick = onOpenFilters) { Text(if (activeFilterCount == 0) "Filters" else "Filters ($activeFilterCount)") }
                 }
             }
             if (searchText.isBlank() && !favoritesOnly && packs.isNotEmpty()) {
-                if (recentSearches.isNotEmpty()) item {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("Recent:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(6.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(recentSearches) { term ->
-                                SuggestionChip(
-                                    onClick = { onSelectSearch(term) },
-                                    label = { Text(term, style = MaterialTheme.typography.labelSmall) }
-                                )
-                            }
-                        }
-                    }
-                }
                 item {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                        items(quickSuggestions) { suggestion ->
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        item { Text(if (recentSearches.isEmpty()) "Try:" else "Recent:",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        items(recentSearches.ifEmpty { quickSuggestions }) { suggestion ->
                             SuggestionChip(
                                 onClick = { onSelectSearch(suggestion) },
                                 label = { Text(suggestion, style = MaterialTheme.typography.labelMedium) }
                             )
                         }
+                        if (recentSearches.isNotEmpty()) item {
+                            TextButton(onClick = { searchHistory.clear(); recentSearches = emptyList() },
+                                modifier = Modifier.semantics { contentDescription = "Clear recent searches" }) { Text("Clear") }
+                        }
                     }
                 }
             }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                    item {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = !favoritesOnly && packFilter == "All",
                             onClick = { onFavoritesOnlyChange(false); onPackFilterChange("All") },
                             label = { Text("All packs") }
                         )
-                    }
-                    item {
-                        FilterChip(
-                            selected = !favoritesOnly && packFilter == "Animated",
-                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("Animated") },
-                            label = { Text("Animated ✦") }
-                        )
-                    }
-                    item {
-                        FilterChip(
-                            selected = !favoritesOnly && packFilter == "Static",
-                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("Static") },
-                            label = { Text("Static") }
-                        )
-                    }
-                    item {
                         FilterChip(
                             selected = favoritesOnly,
                             onClick = { onFavoritesOnlyChange(true) },
                             label = { Text("Favorites ($favoriteCount)") },
                             leadingIcon = { StickerDockNavIcon("Favorite") }
                         )
-                    }
+                        FilterChip(
+                            selected = !favoritesOnly && packFilter == "Animated",
+                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("Animated") },
+                            label = { Text("Animated ✦") }
+                        )
+                        FilterChip(
+                            selected = !favoritesOnly && packFilter == "Static",
+                            onClick = { onFavoritesOnlyChange(false); onPackFilterChange("Static") },
+                            label = { Text("Static") }
+                        )
                 }
             }
             if (drafts.isNotEmpty() && searchText.isBlank() && !favoritesOnly) item {
