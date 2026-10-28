@@ -335,6 +335,48 @@ class DailyStickersTest(unittest.TestCase):
             bottom_path = root / "bottom_meme.png"
             bottom_meme.save(bottom_path)
             self.assertTrue(generator.likely_has_meme_text(bottom_path))
+            # Normalized PNG files often have an alpha channel despite being opaque.
+            opaque_alpha = root / "opaque-alpha.png"
+            bottom_meme.convert("RGBA").save(opaque_alpha)
+            self.assertTrue(generator.likely_has_meme_text(opaque_alpha))
+
+    def test_source_text_screening_happens_before_caption_request_or_budget_reservation(self):
+        import source_text_screening
+        with tempfile.TemporaryDirectory() as temporary, patch.dict('os.environ', {'GROQ_API_KEY':'test-only'}):
+            root=Path(temporary);inputs=root/'inputs';inputs.mkdir()
+            for index,color in enumerate(('red','green','blue')):
+                Image.new('RGB',(500,500),color).save(inputs/f'{index}.png')
+            config={'modes':['photo'],'image_directory':str(inputs),'vision_model':'test-vision',
+                    'require_source_text_screening':True,'min_distinct_source_images':3}
+            with patch.object(source_text_screening,'screen_sources',return_value=[inputs/'0.png']), \
+                    patch.object(generator,'groq_ideas') as captions:
+                self.assertIn('Waiting for 3',generator.run(config,root/'outputs',FONT,NOW))
+                captions.assert_not_called()
+                self.assertFalse((root/'outputs/2026-10-12/state.json').exists())
+            with patch.object(source_text_screening,'screen_sources',side_effect=ValueError('OCR unavailable')), \
+                    patch.object(generator,'groq_ideas') as captions:
+                with self.assertRaisesRegex(ValueError,'OCR unavailable'):
+                    generator.run(config,root/'outputs',FONT,NOW)
+                captions.assert_not_called()
+
+    def test_saved_photo_batch_cannot_bypass_new_source_text_screening(self):
+        import source_text_screening
+        with tempfile.TemporaryDirectory() as temporary, patch.dict('os.environ', {'GROQ_API_KEY':'test-only'}):
+            root=Path(temporary);inputs=root/'inputs';inputs.mkdir()
+            path=inputs/'photo.png';Image.new('RGB',(500,500),'blue').save(path)
+            config={'modes':['photo'],'image_directory':str(inputs),'vision_model':'test-vision'}
+            with patch.object(generator,'groq_ideas',return_value=ideas(5)), \
+                    patch.object(generator,'render',side_effect=OSError('interrupted render')):
+                with self.assertRaises(OSError):
+                    generator.run(config,root/'outputs',FONT,NOW)
+            state_path=root/'outputs/2026-10-12/state.json'
+            before=json.loads(state_path.read_text())
+            with patch.object(source_text_screening,'screen_sources',return_value=[path]), \
+                    patch.object(generator,'groq_ideas') as captions,patch.object(generator,'render') as render:
+                with self.assertRaisesRegex(ValueError,'preserved for manual review'):
+                    generator.run({**config,'require_source_text_screening':True},root/'outputs',FONT,NOW+60)
+                captions.assert_not_called();render.assert_not_called()
+            self.assertEqual(json.loads(state_path.read_text()),before)
 
     def test_photo_batches_prefer_recently_unused_sources(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict("os.environ", {"GROQ_API_KEY": "test-only"}):

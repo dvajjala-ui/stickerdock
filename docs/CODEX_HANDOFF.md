@@ -2,12 +2,17 @@
 
 ## October 28 merge and architecture review
 
+The [recovery and quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md)
+records actual historical delivery recovery, inspected/rejected private drafts,
+the source-text repair and the Library accessibility follow-up. PR #27 merged
+as `5130e24`; signed run `40644511402` supersedes failed run `40641756805`.
+
 Latest HandNavigate work through `fed2e98` is included. PR #26 merged as
 `04a687e` after source-bound Android/Web CI passed and the Creator admission
 migration plus private grants were verified in production. See the
 [architecture review](ARCHITECTURE_REVIEW_2026-10-28.md) for evidence, the source
-capability follow-up and the ordered remaining acceptance work. Signed release
-run `40641756805` must finish before updating Android download claims.
+capability follow-up and the ordered remaining acceptance work. Verify the latest
+signed release before updating Android download claims.
 
 ## October 27 EGM continuation
 

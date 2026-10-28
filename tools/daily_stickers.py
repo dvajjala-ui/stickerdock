@@ -247,9 +247,10 @@ def likely_has_meme_text(path):
     try:
         with Image.open(path) as original:
             upright = ImageOps.exif_transpose(original)
-            if "A" in upright.getbands() or "transparency" in upright.info:
-                return False  # transparent-background art never carries a meme strip
-            sample = upright.convert("L").resize((64, 64), Image.Resampling.BILINEAR)
+            rgba = upright.convert("RGBA")
+            background = Image.new("RGBA", rgba.size, "white")
+            background.alpha_composite(rgba)
+            sample = background.convert("L").resize((64, 64), Image.Resampling.BILINEAR)
     except Exception:
         return False
 
@@ -695,6 +696,10 @@ def run(config, root, font_path, now=None):
                 # double-text stickers. These need manual review; not a hard error.
                 if mode == "photo":
                     meme_text_sources = [p for p in images if likely_has_meme_text(p)]
+                    if config.get("require_source_text_screening"):
+                        from source_text_screening import screen_sources
+                        remaining_sources = [p for p in images if p not in meme_text_sources]
+                        meme_text_sources += screen_sources(remaining_sources, input_dir / "text-screening.json")
                     if meme_text_sources:
                         print(f"[WARN] {len(meme_text_sources)} source(s) likely have embedded text – "
                               f"excluded from auto-captioning: "
@@ -782,6 +787,11 @@ def run(config, root, font_path, now=None):
             atomic_json(state_path, state)
         # Saved ideas survive crashes without another chargeable API request.
         pending = state["pending"]
+        if pending["mode"] == "photo" and config.get("require_source_text_screening"):
+            from source_text_screening import screen_sources
+            pending_sources = [Path(path) for path in (pending.get("image_paths") or [pending["image_path"]])]
+            if screen_sources(pending_sources, Path(config.get("image_directory", "reference-images")) / "text-screening.json"):
+                raise ValueError("Saved photo batch contains source text; captions are preserved for manual review")
         start = len(state["records"])
         records = []
         clip_input = None
