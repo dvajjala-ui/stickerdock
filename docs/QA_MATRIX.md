@@ -14,6 +14,12 @@ existing PGlite migrations and JS/Python static checks. Fresh-runner regressions
 cover midnight delivery, interrupted remote status, acknowledged stale snapshots,
 corrupt-history quarantine and orphan blocking without starving current work.
 
+## October 28 HandNavigate collection workspace
+
+Real hosted Admin/Supabase checks now cover 20 Pinterest and four Reddit images downloaded by HandNavigate itself, unique stored candidates, blob/row read-back and image checksum verification. The hosted Admin passed daily topic-plan save, title edit, an exact downloaded-file digest, archive/restore, decoded library previews and desktop/mobile layout. [Evidence and remaining boundaries](HANDNAVIGATE_ADMIN_2026-10-28.md).
+
+The final functional [Web/API revision passed CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40581384063), and [daily queue execution passed](https://github.com/dvajjala-ui/stickerdock/actions/runs/40580811653) without creating extra work after the day's stored-image quota was met. These checks do not qualify new Android/iPhone releases, a separate server installation, unattended source access across multiple days, source-rights admission, caption quality or automatic publication.
+
 ## October 23 original-art pack and current native source
 
 The [Workday Reactions pack](../assets/drafts/workday-reactions/README.md)

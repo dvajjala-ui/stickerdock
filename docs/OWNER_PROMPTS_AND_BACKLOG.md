@@ -117,6 +117,7 @@ Done:
 - [ ] P7 — Android: FTS5 virtual table for >10k sticker search
 
 ### Admin / backend
+- [ ] A7 — HandNavigate daily topic-driven Pinterest/Reddit intake: worker/caller/schema implemented and locally tested; deploy endpoint/worker and finish rights/quality admission before enabling. See [October 28 integration plan](HANDNAVIGATE_INTEGRATION_2026-10-28.md).
 - [ ] A1 — Admin: source-candidate queue with license/scene tracking
 - [ ] A2 — Admin: OCR/duplicate warning flags in media review
 - [ ] A3 — Admin: bulk pack publish in one flow

@@ -47,6 +47,7 @@ jobs:
       - name: Validate web scripts and API
         run: |
           node --check admin/app.js
+          node --check admin/collect.js
           node --check studio/app.js
           python -m ruff check api tools --select F821,F822,F823
           python -m unittest discover -s tools -p 'test_*.py' -q

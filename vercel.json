@@ -23,6 +23,7 @@
     {"source": "/download", "destination": "https://github.com/dvajjala-ui/stickerdock/releases/latest/download/StickerDock.apk", "permanent": false}
   ],
   "functions": {
+    "api/ingest.py": {"includeFiles": "tools/**"},
     "api/account.py": {"includeFiles": "tools/**"},
     "api/cloud.py": {"includeFiles": "tools/**"},
     "api/personal_ai.py": {"includeFiles": "tools/**"},

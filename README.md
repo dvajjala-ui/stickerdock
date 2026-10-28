@@ -1,5 +1,7 @@
 # StickerDock — private sticker creator and library
 
+October 28: [HandNavigate collection controls are live](docs/HANDNAVIGATE_ADMIN_2026-10-28.md). Its own worker downloaded and verified **20 Pinterest + 4 Reddit images in production Supabase**. Admin now has topic plans, a daily queue, worker status and image preview/edit/download/archive/restore. A 20-image daily plan is enabled; this PC's worker must remain awake. Rights/quality admission into sticker generation remains a separate pending step.
+
 | Get StickerDock | Link |
 | --- | --- |
 | Latest signed Android APK | [Download StickerDock.apk](https://github.com/dvajjala-ui/stickerdock/releases/latest/download/StickerDock.apk) |
