@@ -3,8 +3,10 @@
 ## Recommendation
 
 Current account outcome: Oracle Mumbai rejected the A1 request as out of capacity.
-A separate Railway collector is prepared, with the owner's deployment approval;
-the final connector action was rejected and awaits dashboard apply. See
+A separate Railway collector is now deployed and scheduled at 10:00 India time.
+It verified Imgflip storage, while Pinterest and Reddit returned guest-access
+blocks from Railway's IP and a 20-image Imgflip run produced only one new unique
+candidate. See
 [the measured budget, passing checks and activation state](HANDNAVIGATE_RAILWAY_2026-10-28.md).
 
 The owner now has an Oracle Free account and an existing Railway Hobby account.
@@ -59,20 +61,19 @@ not prove a provider's site access, guest permissions or continuous operation.
 
 ## Activation acceptance
 
-1. Use the owner's signed-in Oracle Free account first; verify Always Free
-   allocations and estimate. Existing Railway Hobby is the budget fallback.
-2. Create the Ubuntu VM, attach SSH public key, configure its firewall and deploy
-   the reviewed container with existing ingest credentials kept server-side.
-3. Test Pinterest, Reddit and Imgflip independently on that exact host. Record
-   guest/challenge behavior, actual image counts, provenance and Supabase digests.
-4. If a source permits an interactive check or free signed-in session, complete
-   it through the private console and rerun. Otherwise leave the source disabled
-   or attention-required. Stop the short pilot if required sources cannot work.
-5. Prove restart/resume and 20 total images before moving the active worker.
-   Switch the GitHub daily job to enqueue-only for the persistent VM. Preserve
-   old worker data until the new host is accepted.
-6. Observe normal daily runs. No host can guarantee a third-party site will never
-   change, block an IP or require a later human check.
+1. Oracle Free was tried first and failed only on Mumbai A1 capacity; the account
+   was not upgraded and no paid VM was created.
+2. Railway is the active fallback. Its first build, mounted state, bounded exit,
+   Imgflip delivery and checksum read-back passed on the exact host.
+3. Pinterest and Reddit remain attention-required after independent 0/2 tests.
+   Do not bypass their blocks or present them as an unattended source.
+4. The active daily plan uses Imgflip. Its full 20-image request was only 1/20
+   after duplicate/topic filtering, so add qualified sources or broader topics
+   before promising 20 unique items/day.
+5. The old GitHub browser schedule is disabled; Railway enqueues saved plans using
+   the server's India day and SQL quota/idempotency.
+6. Retry Oracle A1 only when free capacity appears. If an interactive session is
+   permitted, use the private SSH-tunneled console and repeat exact-host tests.
 
 ## Primary sources checked
 

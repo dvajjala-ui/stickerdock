@@ -70,6 +70,41 @@ Library accessibility/search-history fix after native CI passed. Factory recover
 and the remaining source-text quality repair are recorded in the
 [quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md).
 
+### Prompt 6 — October 28, 2026 (evening session — hosting + bridge + Admin redesign)
+
+> review HandNavigate and StickerDock together. what are the gaps, issues. i want to deploy
+> handnavigation somewhere so i dont have to run it locally — it daily downloads and automatically
+> stores images in db. pinterest and reddit should work as guest access, no API needed, just
+> download public stuff. make sure new stickers also use handnavigation images. consolidate image
+> pages into one Sources page with filters (platform, status, etc), allow paste custom images.
+> dedicated Stickers & packs page. move AI run history to dedicated page. approved all suggestions
+> as product owner.
+
+**Decoded intent:**
+- [x] Review bridge code and GitHub repo for gaps
+- [x] Fix browser redirect bug (worker followed redirect to unapproved origin)
+- [x] Fix source-capability mismatch (Imgflip not claimed correctly)
+- [x] Host HandNavigate away from owner's PC
+- [x] Try Oracle Free first ($0), Railway Hobby fallback ($5–$10/month)
+- [x] Pinterest/Reddit: guest access only, no API account bypass needed
+- [x] Approved sources must feed sticker generation (not auto-publish)
+- [x] Consolidate Admin: one Sources page with filters + upload/paste/drag-drop
+- [x] One dedicated Stickers & packs page with filters
+- [x] Move AI run history to Runs & automation page
+- [x] Remove unavailable integrations from active view → Connections/roadmap
+- [x] Legacy image audit (123 images checked, 0 deleted)
+
+**Result:**
+- Oracle A1 Mumbai: out of capacity — no VM created, account not upgraded
+- Railway: deployed daily-collector in Singapore at 10:00 IST (`30 4 * * *` UTC)
+- Imgflip: `VERIFIED_STORAGE` 2/2 ✅, 20-image acceptance `PARTIAL` 1/20 (needs broader topics)
+- Pinterest: `AUTH_REQUIRED` 0/2 from Railway IP — needs interactive host
+- Reddit: `AUTH_REQUIRED` 0/2 from Railway IP — needs interactive host
+- Admin redesign: Sources, Stickers & packs, Runs & automation, Connections/roadmap pages merged (PR #32)
+- Factory quality: OCR screening (PR #28), 3 drafts rejected on visual quality
+- Android 0.11.6 released and signed (PR #27)
+- See [full deployment handoff](HANDNAVIGATE_DEPLOYMENT_HANDOFF_2026-10-28.md) and [future roadmap](FUTURE_IMPLEMENTATION_ROADMAP_2026-10-28.md)
+
 ## Master feature backlog
 
 ### Search & discovery
@@ -144,12 +179,16 @@ and the remaining source-text quality repair are recorded in the
 
 ---
 
-## Next work — reviewed October 28
+## Next work — reviewed October 28 (evening, post-Railway deployment)
 
-1. Upgrade the installed HandNavigate worker to advertise its configured sources and verify a real Imgflip collection.
-2. Complete rights/quality admission from collected candidates into Factory, followed by short, relevant, user-reviewed reactions and better motion content.
-3. Extend review for scripts/frames OCR cannot qualify and inspect a normal next batch under the new gate. Android 0.11.6 publication and the read-only OCR audit are complete; see the dated quality report.
-4. Qualify multiple days of source delivery/generation, shared provider/storage budgets and the owner-requested open Admin access model before wider use. Physical Android/WhatsApp and signed iPhone remain separate acceptance work.
+1. **Observe first natural 10:00 IST Railway run** and record: deployment ID, job ID, unique candidate count, exit status, Railway usage cost. Verify Supabase `media_intake_items` count increased.
+2. **Review existing Imgflip candidates** for rights and visual quality. Approve only with confirmed reuse rights. Do not bulk-approve.
+3. **Broaden Imgflip topic plans** — add work reactions, Hinglish expressions, festival moods.
+4. **Prove end-to-end once:** one candidate → approved → Factory → sticker → WhatsApp send.
+5. **Add Openverse as a source** (CC/PD, no login required, Railway-compatible).
+6. **Retry Oracle A1 Mumbai** when capacity becomes available; use SSH-tunneled console for Pinterest/Reddit interactive session.
+7. **7-day Railway observation** before calling daily operation dependable.
+8. See [FUTURE_IMPLEMENTATION_ROADMAP_2026-10-28.md](FUTURE_IMPLEMENTATION_ROADMAP_2026-10-28.md) for full phased plan.
 
 ---
 

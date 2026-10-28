@@ -31,18 +31,19 @@ Admin navigation around product work.
 
 ## Hosted daily operation
 
-The existing `handnavigate-intake.yml` schedule now starts a pinned HandNavigate
-worker on a GitHub-hosted Linux runner, enqueues saved/planner topics and waits
-for verified Supabase delivery. It shuts down cleanly and read-back verifies a
-private checkpoint of journal/dedup state and unfinished originals. Browser
-profiles and credentials are excluded. No collection images go in public CI
-artifacts or caches. Vercel continues serving Admin/API; Supabase keeps images
-and metadata. No new hosting subscription is required by this implementation.
+Railway now starts the pinned HandNavigate collector at 10:00 Asia/Kolkata,
+enqueues saved/planner topics and waits for verified Supabase delivery. It shuts
+down after 90 idle seconds or 25 active minutes; an independent 28-minute timeout,
+Tini and restart policy `NEVER` bound failures and billing. A private 5 GB volume
+keeps journal/dedup state and unfinished originals. Vercel continues serving
+Admin/API; Supabase keeps images and metadata. The old GitHub browser schedule is
+disabled after exact-host qualification to prevent competing claims.
 
-This is scheduled execution, not a continuously online server. Admin requests
-queued between runs wait for the next hosted invocation unless another worker
-is active. GitHub may delay scheduled starts. A true always-on VM remains an
-optional later deployment if immediate dispatch becomes necessary.
+This remains scheduled execution, not a continuously online interactive server.
+Admin requests queued between runs wait for the next hosted invocation or a
+manual Railway run. The Railway cron image has no graphical console. The prepared
+Oracle/private-VM deployment remains the route for a permitted human check or
+saved session if free A1 capacity later becomes available.
 
 The worker tries guest browsing. Optional login controls alongside usable public
 images do not force sign-in. An actual challenge or source restriction remains
@@ -107,6 +108,10 @@ record prices, account requirements and the exact-host acceptance sequence.
   Windows desktop/build/portable acceptance for the VM follow-up also passed:
   https://github.com/dvajjala-ui/handNavigation/actions/runs/40656090424.
 
-No provider VM/account has been purchased or deployed. The scheduled GitHub
-worker remains available, with only Imgflip access qualified from that network;
-the configured Pinterest/Reddit daily plan still needs exact-host acceptance.
+The Railway fallback is deployed within the approved budget. Exact-host jobs
+proved Imgflip 2/2 storage, while Pinterest and Reddit each returned
+`AUTH_REQUIRED`, 0/2. A separate 20-image Imgflip acceptance request produced one
+new deduplicated candidate and finished `PARTIAL`, so the infrastructure is live
+but 20 fresh images/day is not guaranteed. The active daily plan uses Imgflip;
+all candidates remain unreviewed until explicit rights and quality approval. See
+the [complete deployment handoff](HANDNAVIGATE_DEPLOYMENT_HANDOFF_2026-10-28.md).

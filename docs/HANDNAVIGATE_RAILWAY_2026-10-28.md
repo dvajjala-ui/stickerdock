@@ -44,13 +44,15 @@ service, so that shared setting is not changed by this deployment.
 ## Current activation state
 
 The [private Railway project](https://railway.com/project/ce45c8b7-2f41-4228-9a99-987c1c5d403f)
-contains `daily-collector` and `handnavigate-state` in Singapore. Its source is
-staged and pinned to checked HandNavigate revision
-`1b2c9f92bf0e14491cc05e95f61ca4223a017634`. The owner explicitly approved deployment;
-the connector nevertheless rejected the final commit twice with “the user did
-not approve this action.” The owner was asked to apply the prepared staged
-changes in Railway's dashboard. No deployment exists yet. Cron is unset and
-`HANDNAVIGATE_ENQUEUE_DAILY=0`. The existing GitHub automation is preserved.
+contains live `daily-collector` and `handnavigate-state` resources in Singapore.
+Its source is pinned to checked HandNavigate revision
+`1b2c9f92bf0e14491cc05e95f61ca4223a017634`. After the connector rejected the
+final apply twice, the owner applied the reviewed non-destructive patch in the
+Railway dashboard. First deployment `0d242734-1c1b-4e76-b420-e41bf3e479aa`
+completed `SUCCESS`. One daily cron is active at `30 4 * * *` UTC, or 10:00
+Asia/Kolkata, with `HANDNAVIGATE_ENQUEUE_DAILY=1`. The old GitHub browser schedule
+is disabled so it cannot compete for the same work; SQL daily identity/quota is
+still the second safety layer.
 
 [Native AMD64/ARM64 container checks](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690215987)
 pass, including a real headful browser and a mounted-state cron that exits.
@@ -67,13 +69,22 @@ succeeded. Actual production checks verified the existing worker credential and
 151 minimal cloud duplicate identities. The bootstrap artifact contained only
 encrypted bytes; no plaintext credential was committed or displayed in chat.
 
-Three separate two-image requests are queued for Pinterest, Reddit and Imgflip.
-After dashboard deployment, correlate those requests with this host's logs and
-worker identity, inspect actual stored image receipts and verify process exit.
-Container/unit tests do not establish Pinterest or Reddit guest access. Only
-after acceptance, set one daily cron, enable the host's daily enqueue and disable
-the competing GitHub browser worker. Set the Admin schedule label to the actual
-chosen time and record the first full daily result.
+Exact-host qualification is complete for worker
+`99e899ac-7dba-464b-9f86-b9f51379065b`. Pinterest job
+`0010994b-78e2-401d-bb61-74c8d2a95f5c` and Reddit job
+`a071066a-4aad-4110-8a82-1adb03524d44` both finished `AUTH_REQUIRED`, 0/2:
+ordinary guest browsing is blocked from this Railway datacenter IP. Imgflip job
+`84a62ad7-b199-4c91-ac7a-948163cb1bfe` reached `VERIFIED_STORAGE`, 2/2. Both
+private WebPs were fetched independently and their digests matched database
+receipts; they remain unreviewed and generation-ineligible.
+
+The server correctly skipped an extra daily job after the India-day image quota
+was already consumed. A separate idempotent 20-image acceptance job,
+`4cf0729d-a629-42da-840c-1a5848e1530e`, then finished `PARTIAL`, 1/20: the current
+Imgflip popular-template catalog and animal topics exposed only one new eligible
+deduplicated image. Its private WebP read-back and SHA-256 passed. The host is
+operational, but 20 new images/day is not yet a verified content outcome. See the
+[complete deployment handoff](HANDNAVIGATE_DEPLOYMENT_HANDOFF_2026-10-28.md).
 
 ## Useful Oracle Always Free resources
 
