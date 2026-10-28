@@ -43,7 +43,7 @@ These are the minimum actions needed to verify the deployed infrastructure works
 - [ ] Open Admin → Sources → filter by platform: Imgflip
 - [ ] For each stored candidate:
   - Check image visually: reaction quality, no obvious text overlay, no watermark
-  - Check source: Imgflip popular meme templates are CC-licensed for meme creation
+  - Record image-specific ownership or permission evidence. Catalog availability does not establish a Creative Commons license; [Imgflip's terms](https://imgflip.com/terms) require permission or another lawful basis for using accessed content.
   - If acceptable: approve + set `generation_eligible=true`
   - If not: archive/trash
 - [ ] **Do not bulk-approve** without reviewing each image
@@ -55,7 +55,7 @@ These are the minimum actions needed to verify the deployed infrastructure works
   - "Desi/Hinglish expressions" (Indian-context reactions)
   - "Festival and celebration moods" (Diwali, weekend, Friday vibes)
   - "Friendship and relationship reactions" (sending to friends on WhatsApp)
-- [ ] Each plan: 20 images, Imgflip source, separate topic slots
+- [ ] Each plan: Imgflip source and separate topic slots, within the shared 20-image daily budget across all plans. The free popular-template catalog is finite; broader topics do not guarantee twenty new images every day.
 - [ ] **Pass criterion:** At least 3 new plans saved and enabled
 
 ---
