@@ -7,6 +7,13 @@ from api import _media_intake as intake
 from test_media_intake import Storage
 
 class CollectionControlTest(unittest.TestCase):
+    def test_flickr_cannot_be_queued_to_an_older_worker(self):
+        client=Storage();payload={'topics':['cat'],'sources':['flickr'],'image_limit':20,'request_id':'flickr-capability-check'}
+        with patch.object(client,'find',return_value=None),patch.object(c,'rows',return_value=[{'supported_sources':['pinterest','reddit','imgflip']}]),patch.object(client,'_request') as request:
+            with self.assertRaisesRegex(ValueError,'No configured HandNavigate worker'):c.enqueue(client,payload)
+            request.assert_not_called()
+        with patch.object(client,'find',return_value=None),patch.object(c,'rows',return_value=[{'supported_sources':['flickr']}]),patch.object(client,'_request',return_value=b'[{"id":"accepted","topics":["cat"],"sources":["flickr"],"image_limit":20}]'):
+            self.assertEqual(c.enqueue(client,payload)['job']['id'],'accepted')
     def test_capable_worker_uses_compatible_claim_while_legacy_contract_stays_supported(self):
         client=Storage();worker=str(uuid.uuid4())
         capabilities=[{'id':'pinterest','name':'Pinterest'},

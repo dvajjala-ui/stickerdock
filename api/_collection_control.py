@@ -12,6 +12,7 @@ SOURCE_OPTIONS = [
     {'id':'pinterest','name':'Pinterest','description':'Search Pins using the worker’s saved browser session.'},
     {'id':'reddit','name':'Reddit','description':'Search image posts; a human check may require attention.'},
     {'id':'imgflip','name':'Imgflip meme templates','description':'Name matches in the free popular-template catalog. Requires an updated worker advertising Imgflip support.'},
+    {'id':'flickr','name':'Flickr public tag feed','description':'Recent public photos matching comma-separated tags (all tags must match), using provider-advertised photo URLs. Requires an updated worker; reuse rights are reviewed per image.'},
 ]
 SOURCES = tuple(s['id'] for s in SOURCE_OPTIONS)
 LEGACY_SOURCES = frozenset({'pinterest', 'reddit'})
