@@ -20,7 +20,7 @@ class Store:
         return self.objects[path]
     def find(self,table,column,value):return copy.deepcopy(self.rows.get(value))
     def _request(self,method,path,data=None,headers=None):
-        if method=='GET':return json.dumps([r for r in self.rows.values() if r.get('generation_eligible') and not r.get('archived')]).encode()
+        if method=='GET':return json.dumps([r for r in self.rows.values() if 'generation_eligible=eq.true' not in path or r.get('generation_eligible') and not r.get('archived')]).encode()
         body=json.loads(data)
         if method=='POST':
             row=body[0];row.update(version=1,title='',tags=[],archived=False);self.rows.setdefault(row['id'],row);return json.dumps([row]).encode()
@@ -36,6 +36,19 @@ def image():
 
 
 class SourceWorkspaceTest(unittest.TestCase):
+    def test_corrupt_cleanup_verifies_quarantine_and_preserves_referenced_sources(self):
+        from tools.source_workspace_maintenance import maintain
+        class AuditStore(Store):
+            def list_rows(self,table):return [{'source_path':'inbox/protected.png'}] if table=='admin_packs' else []
+            def list_objects(self,bucket,prefix,limit,offset=0):return [{'name':'broken.png','metadata':{'size':3}},{'name':'protected.png','metadata':{'size':3}}] if offset==0 else []
+            def remove(self,bucket,paths):
+                for p in paths:del self.objects[p]
+        store=AuditStore();store.objects={'inbox/broken.png':b'bad','inbox/protected.png':b'bad'}
+        result=maintain(store,True)
+        self.assertEqual(result['removed'],1);self.assertEqual(result['protected'],1)
+        self.assertNotIn('inbox/broken.png',store.objects);self.assertIn('inbox/protected.png',store.objects)
+        self.assertTrue(any(p.startswith('quarantine/broken-sources/') for p in store.objects))
+
     def test_approval_enters_factory_and_creator_with_exact_provenance_then_revocation_removes_cached_input(self):
         store=Store();row=sources.upload(store,{'image':image(),'title':'My cat reaction','rights':'REFERENCE_ONLY'})['item']
         self.assertFalse(row['generation_eligible'])

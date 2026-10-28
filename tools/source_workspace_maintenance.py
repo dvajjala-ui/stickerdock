@@ -17,6 +17,11 @@ from tools.supabase_factory import PRIVATE_BUCKET, SupabaseFactory
 def maintain(client, cleanup=False):
     protected=json.dumps(client.list_rows('admin_packs'),sort_keys=True)+json.dumps(client.list_rows('creator_requests'),sort_keys=True)
     summary={'indexed':0,'existing':0,'corrupt':0,'removed':0,'protected':0,'oversized':0}
+    known=set()
+    for offset in range(0,10000,100):
+        page=rows(client,'media_intake_items',limit=100,offset=offset)
+        known.update(r['original_sha256'] for r in page)
+        if len(page)<100:break
     def objects():
         for offset in range(0,10000,100):
             page=client.list_objects(PRIVATE_BUCKET,'inbox',100,offset=offset)
@@ -31,6 +36,10 @@ def maintain(client, cleanup=False):
             summary['oversized']+=1;continue
         raw=client.download(PRIVATE_BUCKET,path)
         digest=hashlib.sha256(raw).hexdigest()
+        if digest in known:
+            summary['existing']+=1
+            if summary['existing']%25==0:print(json.dumps({'source_audit_progress':summary}),flush=True)
+            continue
         try:
             with Image.open(io.BytesIO(raw)) as image:
                 if image.width*image.height>20000000:raise ValueError('Pixel bound exceeded')
@@ -70,6 +79,8 @@ def maintain(client, cleanup=False):
         if result['reused']:summary['existing']+=1
         else:
             row=result['item'];write(client,'media_intake_items',{'title':str(meta.get('title') or 'Earlier source image')[:160]},row['id'],row['version']);summary['indexed']+=1
+            known.add(digest)
+            if summary['indexed']%10==0:print(json.dumps({'source_audit_progress':summary}),flush=True)
     summary['broken_candidates']=0
     for offset in range(0,10000,100):
         page=rows(client,'media_intake_items',limit=100,offset=offset)
