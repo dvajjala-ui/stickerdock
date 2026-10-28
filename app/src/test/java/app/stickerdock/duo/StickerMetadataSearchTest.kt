@@ -92,6 +92,25 @@ class StickerMetadataSearchTest {
     }
 
     @Test
+    fun kindAndCategoryFilterBeforeTheResultLimit() {
+        val newer = store.createPack("New", category = PackCategory.GENERAL)
+        repeat(110) { index ->
+            assertTrue(store.addSticker(StickerItem("new-$index", newer.id, "$index.webp", "hash-$index",
+                1000L + index, label = "work")))
+        }
+        val animated = store.createPack("Older", kind = StickerKind.ANIMATED, category = PackCategory.WORK)
+        assertTrue(store.addSticker(StickerItem("older", animated.id, "old.webp", "old-hash", 1, label = "work")))
+
+        assertEquals(100, store.searchStickers("work").size)
+        assertEquals(listOf("older"), store.searchStickers("work", kind = StickerKind.ANIMATED).map { it.item.id })
+        assertEquals(listOf("older"), store.searchStickers("work", category = PackCategory.WORK).map { it.item.id })
+        assertEquals(listOf("older"), store.searchStickers("work", kind = StickerKind.ANIMATED,
+            category = PackCategory.WORK).map { it.item.id })
+        assertTrue(store.searchStickers("work", kind = StickerKind.STATIC, category = PackCategory.WORK).isEmpty())
+        assertEquals(setOf(newer.id, animated.id), store.searchStickerPackIds("work"))
+    }
+
+    @Test
     fun indexedCountsAndHashesStayScopedToPack() {
         val first = store.createPack("First")
         val second = store.createPack("Second")

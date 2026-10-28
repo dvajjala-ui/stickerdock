@@ -1,4 +1,4 @@
-"""Apply only reviewed additive intake migrations using protected Actions secrets."""
+"""Apply reviewed additive service migrations using protected Actions secrets."""
 import hashlib
 import json
 import os
@@ -9,6 +9,9 @@ from tools.supabase_factory import PRIVATE_BUCKET, SupabaseFactory
 def main():
     project='qqicsllktmcmvmzplsxl'
     password=os.environ['SUPABASE_DB_PASSWORD']
+    token=os.environ['HANDNAVIGATE_INGEST_TOKEN']
+    if len(token)<32:
+        raise ValueError('Worker credential missing')
     # Prefer an explicitly configured connection; probe only Supabase's documented
     # shared pooler hosts for this project, never arbitrary credential destinations.
     hosts=[os.environ['SUPABASE_DB_HOST']] if os.environ.get('SUPABASE_DB_HOST') else [
@@ -28,12 +31,21 @@ def main():
     if conn is None:
         raise RuntimeError('Database unavailable. Configure SUPABASE_DB_HOST with the project Connect session-pooler hostname.')
     with conn:
-        for file in ('202610280001_media_intake.sql','202610280002_collection_control.sql','202610280003_daily_collection_plans.sql','202610280004_collection_sources.sql'):
+        for file in ('202610270001_creator_atomic_admission.sql',
+                     '202610280001_media_intake.sql','202610280002_collection_control.sql',
+                     '202610280003_daily_collection_plans.sql','202610280004_collection_sources.sql'):
             conn.execute((Path(__file__).resolve().parents[1]/'supabase'/'migrations'/file).read_text())
             print('Applied additive migration:',file)
-    token=os.environ['HANDNAVIGATE_INGEST_TOKEN']
-    if len(token)<32:
-        raise ValueError('Worker credential missing')
+        access=conn.execute('''select
+            has_function_privilege('service_role',
+                'public.admit_creator_request(uuid,text,text,boolean)', 'EXECUTE'),
+            has_function_privilege('anon',
+                'public.admit_creator_request(uuid,text,text,boolean)', 'EXECUTE'),
+            has_function_privilege('authenticated',
+                'public.admit_creator_request(uuid,text,text,boolean)', 'EXECUTE')''').fetchone()
+        if access != (True, False, False):
+            raise RuntimeError('Creator admission RPC grants failed verification')
+        print('Creator admission RPC and private grants verified.')
     client=SupabaseFactory()
     client.upload(PRIVATE_BUCKET,'integrations/handnavigate-worker.json',json.dumps({
         'token_sha256':hashlib.sha256(token.encode()).hexdigest()}).encode(),'application/json')

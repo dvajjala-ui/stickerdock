@@ -242,13 +242,18 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
         return result
     }
 
-    fun searchStickers(query: String, limit: Int = 100): List<StickerSearchResult> {
+    fun searchStickers(query: String, limit: Int = 100, kind: StickerKind? = null,
+                       category: PackCategory? = null): List<StickerSearchResult> {
         val terms = StickerMetadata.searchTerms(query)
         if (terms.isEmpty()) return emptyList()
         val phrase = StickerMetadata.cleanLabel(query)
         val safeLimit = limit.coerceIn(1, 200)
         val fields = listOf("s.label", "s.tags", "s.file_name", "p.name", "p.category")
-        val where = terms.joinToString(" AND ") { fields.joinToString(" OR ", "(", ")") { field -> "instr(lower($field), lower(?)) > 0" } }
+        val predicates = terms.map { fields.joinToString(" OR ", "(", ")") { field -> "instr(lower($field), lower(?)) > 0" } }.toMutableList()
+        val filterArguments = mutableListOf<String>()
+        kind?.let { predicates += "p.kind=?"; filterArguments += it.name }
+        category?.let { predicates += "p.category=?"; filterArguments += it.name }
+        val where = predicates.joinToString(" AND ")
         val sql = """
             SELECT s.id,s.pack_id,s.file_name,s.sha256,s.created_at,s.label,s.tags,
                    p.id,p.name,p.version,p.created_at,p.kind,p.rating,p.category
@@ -267,7 +272,7 @@ class StickerStore(context: Context) : SQLiteOpenHelper(context, "stickerdock.db
             LIMIT $safeLimit
         """.trimIndent()
         val result = mutableListOf<StickerSearchResult>()
-        val arguments = terms.flatMap { term -> List(fields.size) { term } } + List(6) { phrase }
+        val arguments = terms.flatMap { term -> List(fields.size) { term } } + filterArguments + List(6) { phrase }
         readableDatabase.rawQuery(sql, arguments.toTypedArray()).use { cursor ->
             while (cursor.moveToNext()) {
                 result += StickerSearchResult(readSticker(cursor, 0), readPack(cursor, 7))

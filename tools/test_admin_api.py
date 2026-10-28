@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import patch
 import uuid
 import zipfile
@@ -59,6 +60,22 @@ class AdminStore(FakeSupabase):
 
 
 class AdminApiTest(unittest.TestCase):
+    def test_retry_uses_same_atomic_admission_as_new_jobs(self):
+        request_id = str(uuid.uuid4())
+        client = AdminStore()
+        with patch.object(client, "rpc", return_value=[{
+                "accepted": True, "reason": "retried", "job_status": "queued"}]) as rpc:
+            result = admin.queue_action(client, {"id": request_id, "operation": "retry"})
+        self.assertEqual(result, {"status": "queued"})
+        rpc.assert_called_once_with("admit_creator_request", {"p_id": request_id, "p_retry": True})
+
+    def test_retry_rejects_full_queue_or_changed_worker_claim(self):
+        for reason, message in (("full", "queue is busy"), ("changed", "Request changed")):
+            with self.subTest(reason=reason), patch.object(self.client, "rpc", return_value=[{
+                    "accepted": False, "reason": reason, "job_status": None}]):
+                with self.assertRaisesRegex(ValueError, message):
+                    admin.queue_action(self.client, {"id": str(uuid.uuid4()), "operation": "retry"})
+
     def setUp(self):
         self.client = AdminStore()
         self.origin = str(uuid.uuid4())
@@ -251,13 +268,58 @@ class AdminApiTest(unittest.TestCase):
         with Image.open(io.BytesIO(data)) as cover:
             self.assertEqual(cover.size, (240, 240))
             self.assertNotEqual(cover.convert("RGB").getpixel((60, 60)), (0, 0, 0))
-        self.assertEqual(self.client.objects, before)
+        for key, value in before.items():
+            self.assertEqual(self.client.objects[key], value)
+        self.assertEqual(set(self.client.objects) - set(before), {
+            (PRIVATE_BUCKET, "admin/covers/v1/" + row["sha256"] + ".webp")})
 
     def test_mature_pack_cover_is_not_available_to_shared_dashboard(self):
         row = self.migrate()
         self.client.rows[("admin_packs", row["id"])]["rating"] = "MATURE"
         with self.assertRaisesRegex(ValueError, "Mature pack covers"):
             admin.pack_cover(self.client, {"id": row["id"]})
+
+    def test_cover_cache_avoids_archive_download_and_checks_rating_before_cache(self):
+        row = self.migrate()
+        first = admin.pack_cover(self.client, {"id": row["id"]})
+        with patch.object(admin, "pack_archive", side_effect=AssertionError("Do not fetch the archive again")):
+            self.assertEqual(admin.pack_cover(self.client, {"id": row["id"]}), first)
+            self.client.rows[("admin_packs", row["id"])]["rating"] = "MATURE"
+            with self.assertRaisesRegex(ValueError, "Mature pack covers"):
+                admin.pack_cover(self.client, {"id": row["id"]})
+
+    def test_cover_checksum_change_invalidates_cache_and_bad_cache_is_rebuilt(self):
+        row = self.migrate()
+        key = (PRIVATE_BUCKET, "admin/covers/v1/" + row["sha256"] + ".webp")
+        self.client.objects[key] = b"invalid cache"
+        first = admin.pack_cover(self.client, {"id": row["id"]})
+        self.assertNotEqual(self.client.objects[key], b"invalid cache")
+        raw = self.client.objects[(PRIVATE_BUCKET, row["private_path"])]
+        # A byte-different but valid immutable ZIP produces another digest/key.
+        raw += b"\x00"
+        new_hash = hashlib.sha256(raw).hexdigest()
+        self.client.rows[("admin_packs", row["id"])]["sha256"] = new_hash
+        self.client.objects[(PRIVATE_BUCKET, row["private_path"])] = raw
+        with patch.object(admin, "pack_archive", wraps=admin.pack_archive) as archive:
+            second = admin.pack_cover(self.client, {"id": row["id"]})
+        archive.assert_called_once()
+        self.assertNotEqual(first["sha256"], second["sha256"])
+        self.assertIn((PRIVATE_BUCKET, "admin/covers/v1/" + new_hash + ".webp"), self.client.objects)
+
+    def test_optional_cache_transport_failures_do_not_hide_valid_artwork(self):
+        row = self.migrate()
+        original_download = self.client.download
+        def unavailable_cache(bucket, path, missing_ok=False):
+            if path.startswith("admin/covers/"):
+                raise urllib.error.URLError("cache network unavailable")
+            return original_download(bucket, path, missing_ok)
+        for error in (admin.SupabaseError("HTTP 503"), urllib.error.URLError("network"), TimeoutError()):
+            with self.subTest(error=type(error).__name__), \
+                    patch.object(self.client, "download", side_effect=unavailable_cache), \
+                    patch.object(self.client, "upload", side_effect=error):
+                result = admin.pack_cover(self.client, {"id": row["id"]})
+                with Image.open(io.BytesIO(base64.b64decode(result["preview"].split(",", 1)[1]))) as cover:
+                    self.assertEqual(cover.size, (240, 240))
 
     def test_pack_edits_preserve_bytes_and_reset_review(self):
         row = self.migrate()

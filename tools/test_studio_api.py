@@ -193,80 +193,68 @@ class StudioApiTest(unittest.TestCase):
         with self.assertRaises(studio.StudioError):
             studio.storage_path("../secret")
 
-    def test_creator_request_queue_is_private_and_bounded(self):
+    def test_creator_request_uses_one_atomic_admission_rpc(self):
         source = "inbox/" + "b" * 64 + ".webp"
         calls = []
 
         def capture(path, **kwargs):
             calls.append((path, kwargs))
-            if kwargs.get("method", "GET") == "GET":
-                return b"[]"
-            return b""
+            return b'[{"accepted":true,"reason":"created","job_status":"queued"}]'
 
         with patch.object(studio, "supabase_request", side_effect=capture):
             result = studio.queue_creator_request("  make   it funny  ", source)
         self.assertEqual(result["status"], "queued")
         uuid.UUID(result["id"])
-        self.assertEqual(len(calls), 2)
-        self.assertIn("status=in.%28queued%2Crunning%29", calls[0][0])
-        self.assertEqual(calls[1][0], "/rest/v1/creator_requests")
-        payload = json.loads(calls[1][1]["data"])
-        self.assertEqual(payload[0]["source_path"], source)
-        self.assertEqual(payload[0]["prompt"], "make it funny")
-        self.assertEqual(payload[0]["status"], "queued")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0], "/rest/v1/rpc/admit_creator_request")
+        payload = json.loads(calls[0][1]["data"])
+        self.assertEqual(payload["p_source_path"], source)
+        self.assertEqual(payload["p_prompt"], "make it funny")
+        self.assertEqual(payload["p_id"], result["id"])
 
     def test_creator_request_queue_rejects_when_backlog_is_full(self):
         source = "inbox/" + "b" * 64 + ".webp"
-        backlog = [{"id": str(uuid.uuid4())} for _ in range(studio.CREATOR_MAX_OUTSTANDING)]
-        with patch.object(studio, "supabase_request", return_value=json.dumps(backlog).encode()) as request:
+        with patch.object(studio, "supabase_request", return_value=b'[{"accepted":false,"reason":"full","job_status":null}]') as request:
             with self.assertRaisesRegex(studio.StudioError, "queue is busy"):
                 studio.queue_creator_request("make it funny", source)
         request.assert_called_once()
-        self.assertIn("status=in.%28queued%2Crunning%29", request.call_args.args[0])
+        self.assertEqual(request.call_args.args[0], "/rest/v1/rpc/admit_creator_request")
 
     def test_creator_request_key_replay_reuses_one_job_and_rejects_other_input(self):
         source = "inbox/" + "b" * 64 + ".webp"
         request_id = str(uuid.uuid4())
-        stored = None
-        inserts = []
-        def database(path, **kwargs):
-            nonlocal stored
-            if "id=eq." in path:
-                return json.dumps([stored] if stored else []).encode()
-            if "status=in." in path:
-                return b"[]"
-            stored = json.loads(kwargs["data"])[0]
-            inserts.append(stored)
-            return b""
-        with patch.object(studio, "supabase_request", side_effect=database):
+        with patch.object(studio, "supabase_request", side_effect=[
+            b'[{"accepted":true,"reason":"created","job_status":"queued"}]',
+            b'[{"accepted":true,"reason":"replay","job_status":"queued"}]',
+            b'[{"accepted":false,"reason":"identity_conflict","job_status":"queued"}]'
+        ]) as request:
             first = studio.queue_creator_request("Make a reaction", source, request_id)
             second = studio.queue_creator_request("Make a reaction", source, request_id)
             self.assertEqual(first, second)
-            self.assertEqual(len(inserts), 1)
+            self.assertEqual(json.loads(request.call_args.kwargs["data"])["p_id"], request_id)
             with self.assertRaisesRegex(studio.StudioError, "different Creator job"):
                 studio.queue_creator_request("Different prompt", source, request_id)
 
-    def test_creator_request_key_recovers_primary_key_race(self):
-        source = "inbox/" + "b" * 64 + ".webp"
+    def test_creator_replay_can_return_completed_job_without_requeueing(self):
         request_id = str(uuid.uuid4())
-        stored = None
-        def database(path, **kwargs):
-            nonlocal stored
-            if "id=eq." in path:
-                return json.dumps([stored] if stored else []).encode()
-            if "status=in." in path:
-                return b"[]"
-            stored = json.loads(kwargs["data"])[0]
-            raise studio.StudioError("Provider returned HTTP 409")
-        with patch.object(studio, "supabase_request", side_effect=database):
-            self.assertEqual(studio.queue_creator_request("Make a reaction", source, request_id),
-                             {"id": request_id, "status": "queued"})
+        with patch.object(studio, "supabase_request", return_value=b'[{"accepted":true,"reason":"replay","job_status":"complete"}]') as request:
+            self.assertEqual(studio.queue_creator_request("Make a reaction", "inbox/" + "b" * 64 + ".webp", request_id),
+                             {"id": request_id, "status": "complete"})
+        request.assert_called_once()
 
-    def test_creator_request_queue_rejects_invalid_backlog_response(self):
+    def test_creator_request_queue_rejects_invalid_admission_response(self):
         source = "inbox/" + "b" * 64 + ".webp"
-        with patch.object(studio, "supabase_request", return_value=b"{}"):
-            with self.assertRaisesRegex(studio.StudioError, "invalid Creator queue"):
-                studio.queue_creator_request("make it funny", source)
+        for value in (b"{}", b"[]", b'[{"accepted":"true"}]',
+                      b'[{"accepted":true,"reason":"created","job_status":"invented"}]'):
+            with self.subTest(value=value), patch.object(studio, "supabase_request", return_value=value):
+                with self.assertRaisesRegex(studio.StudioError, "invalid Creator admission"):
+                    studio.queue_creator_request("make it funny", source)
+
+    def test_creator_missing_rpc_fails_closed_with_migration_guidance(self):
+        with patch.object(studio, "supabase_request", side_effect=studio.StudioError("Provider returned HTTP 404")) as request:
+            with self.assertRaisesRegex(studio.StudioError, "atomic admission migration"):
+                studio.queue_creator_request("make it funny", "inbox/" + "b" * 64 + ".webp")
+        request.assert_called_once()  # Never fall back to non-atomic direct INSERT.
 
     def test_creator_request_rejects_bad_input_before_supabase(self):
         with patch.object(studio, "supabase_request") as request:

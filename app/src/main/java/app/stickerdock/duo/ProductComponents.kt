@@ -41,7 +41,8 @@ fun CreationCard(action: String, title: String, description: String, icon: Strin
 }
 
 @Composable
-fun LibrarySearch(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+fun LibrarySearch(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
+                  accessibilityLabel: String = label) {
     TextField(value = value, onValueChange = onChange, singleLine = true,
         placeholder = { Text(label) },
         leadingIcon = { StickerDockNavIcon("Search") },
@@ -52,7 +53,7 @@ fun LibrarySearch(value: String, onChange: (String) -> Unit, label: String, modi
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
-        modifier = modifier.semantics { contentDescription = label })
+        modifier = modifier.semantics { contentDescription = accessibilityLabel })
 }
 
 @Composable

@@ -137,6 +137,21 @@ def pack_cover(client, payload):
     row = current_pack(client, payload)
     if row["rating"] != "GENERAL":
         raise ValueError("Mature pack covers are not shown in the shared workspace")
+    cache_path = "admin/covers/v1/" + row["sha256"] + ".webp"
+    try:
+        cached = client.download(PRIVATE_BUCKET, cache_path, missing_ok=True)
+    except (SupabaseError, OSError):
+        logging.warning("Cover cache read unavailable; rendering from archive")
+        cached = None
+    if cached and len(cached) <= 100_000:
+        try:
+            with Image.open(io.BytesIO(cached)) as image:
+                if image.format == "WEBP" and image.size == (240, 240) and not getattr(image, "is_animated", False):
+                    image.load()
+                    return {"id": row["id"], "sha256": row["sha256"], "preview":
+                        "data:image/webp;base64," + base64.b64encode(cached).decode()}
+        except (OSError, ValueError, Image.DecompressionBombError):
+            pass  # Invalid derived cache is rebuilt from the checksum-verified ZIP.
     data, manifest = pack_archive(client, row)
     cover = Image.new("RGBA", (240, 240))
     placed = 0
@@ -158,6 +173,10 @@ def pack_cover(client, payload):
     cover.save(output, "WEBP", quality=75, method=4)
     if output.tell() > 100_000:
         raise ValueError("Pack cover exceeds the preview limit")
+    try:
+        client.upload(PRIVATE_BUCKET, cache_path, output.getvalue(), "image/webp")
+    except (SupabaseError, OSError):
+        logging.warning("Cover cache unavailable; returning the rendered cover")
     return {"id": row["id"], "sha256": row["sha256"], "preview":
             "data:image/webp;base64," + base64.b64encode(output.getvalue()).decode()}
 
@@ -552,13 +571,14 @@ def queue_action(client, payload):
     action = payload.get("operation")
     if action not in {"cancel", "retry"}:
         raise ValueError("Invalid queue action")
+    if action == "retry":
+        rows = client.rpc("admit_creator_request", {"p_id": request_id, "p_retry": True})
+        status = _shared.creator_admission_result(rows)
+        audit(client, "request.retry", request_id)
+        return {"status": status}
     # Conditional mutation avoids overwriting a worker claim or completion.
-    status_filter = "queued" if action == "cancel" else "in.(failed,cancelled)"
-    values = {"status": "cancelled"} if action == "cancel" else {
-        "status": "queued", "attempts": 0, "error_message": None,
-        "started_at": None, "completed_at": None, "worker_id": None, "result_path": None}
-    if action == "retry" and _shared.creator_outstanding_count() >= _shared.CREATOR_MAX_OUTSTANDING:
-        raise ValueError("Creator queue is full")
+    status_filter = "queued"
+    values = {"status": "cancelled"}
     rows = json.loads(client._request("PATCH", f"/rest/v1/creator_requests?id=eq.{request_id}&status={status_filter}",
         data=json.dumps(values).encode(), headers={"Content-Type": "application/json", "Prefer": "return=representation"}) or b"[]")
     if not rows:

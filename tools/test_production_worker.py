@@ -85,6 +85,242 @@ def pack_bytes(rating="GENERAL"):
 
 
 class ProductionWorkerTest(unittest.TestCase):
+    def saved_batch(self, runtime, day=DAY):
+        directory = runtime / "generated-stickers" / day
+        directory.mkdir(parents=True, exist_ok=True)
+        records = []
+        for index in range(5):
+            path = directory / f"{index}.webp"
+            Image.new("RGB", (512, 512), "red").save(path, "WEBP")
+            records.append({"id": str(worker.uuid.uuid5(worker.uuid.NAMESPACE_URL, f"saved:{day}:{index}")),
+                "file": str(path), "caption": f"Reaction {index}", "mood": "happy",
+                "kind": "STATIC", "rating": "GENERAL", "category": "GENERAL",
+                "media_credit": {"license": "CC0", "credit": "Fixture"}})
+        worker.atomic_json(directory / "state.json", {"records": records,
+            "batches": [{"start": 0, "end": 5}], "requests": 1})
+        return directory
+
+    def recovery_client(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {"enabled": True, "daily_target": 40,
+            "batch_size": 5, "rating": "GENERAL", "auto_migrate_completed": True}
+        client.rows[("factory_runs", DAY)] = {"day": DAY, "status": "running", "generated": 5,
+            "target": 40, "groq_metrics": {"postprocess_complete": False}}
+        return client
+
+    def test_interrupted_batch_recovers_on_fresh_runner_after_midnight_without_ai(self):
+        client = self.recovery_client()
+        original_upsert = client.upsert
+        failed = []
+        def fail_draft_once(table, rows, conflict):
+            if table == "admin_packs" and not failed:
+                failed.append(True)
+                raise OSError("interrupted draft write")
+            return original_upsert(table, rows, conflict)
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            root = Path(first)
+            self.saved_batch(root)
+            client.upload(PRIVATE_BUCKET, worker.STATE_OBJECT, worker.state_archive(root))
+            with patch.object(client, "upsert", side_effect=fail_draft_once), \
+                 patch.object(worker, "sync_inbox", return_value=0), \
+                 patch.object(worker, "configure", return_value={"daily_target": 40, "batch_size": 5, "rating": "GENERAL", "modes": ["illustration"]}), \
+                 patch.object(worker, "ensure_content_brief", side_effect=lambda c, conf, controls, now: (conf, {"source_mode": "fixture"})), \
+                 patch.object(worker, "mirror_licensed_inputs"):
+                with self.assertRaises(OSError):
+                    worker.run_production({"daily_target": 40, "batch_size": 5}, root, client,
+                        NOW + 86390, generator=lambda *_: "Saved output")
+            self.assertFalse(client.rows[("factory_runs", DAY)]["groq_metrics"]["postprocess_complete"])
+            fresh = Path(second)
+            generator = unittest.mock.Mock(side_effect=AssertionError("Recovery must not generate"))
+            result = worker.run_production({"daily_target": 40, "batch_size": 5}, fresh, client,
+                                           NOW + 86401, generator=generator)
+            generator.assert_not_called()
+            self.assertEqual(result["historical_delivery"]["days"], [DAY])
+            draft_id = result["historical_delivery"]["draft_ids"][0]
+            draft = client.rows[("admin_packs", draft_id)]
+            raw = client.download(PRIVATE_BUCKET, draft["private_path"])
+            self.assertEqual(__import__("hashlib").sha256(raw).hexdigest(), draft["sha256"])
+            self.assertTrue(client.rows[("factory_runs", DAY)]["groq_metrics"]["draft_delivery_complete"])
+            state = json.loads((fresh / "generated-stickers" / DAY / "state.json").read_text())
+            self.assertEqual(state["delivered_batches"], [draft_id])
+            draft.update(name="Reviewed name", status="reviewed")
+            replay = worker.recover_previous_batches(client, fresh / "generated-stickers", "2026-10-13", 5)
+            self.assertEqual(replay["days"], [])
+            self.assertEqual(draft["name"], "Reviewed name")
+
+    def test_retention_keeps_unacknowledged_and_unreadable_days(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = self.saved_batch(root)
+            unknown = directory.parent / "2026-10-10"
+            unknown.mkdir()
+            (unknown / "state.json").write_text("broken json")
+            (unknown / "keep.webp").write_bytes(b"keep")
+            worker.prune_old_days(directory.parent, NOW + 20 * 86400)
+            self.assertTrue((directory / "0.webp").exists())
+            self.assertTrue((unknown / "keep.webp").exists())
+
+    def test_missing_historical_media_blocks_recovery_without_fabricating_a_draft(self):
+        client = self.recovery_client()
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            directory = self.saved_batch(runtime)
+            (directory / "0.webp").unlink()
+            generator = unittest.mock.Mock(side_effect=AssertionError("No replacement AI calls"))
+            result = worker.run_production({"batch_size": 5}, runtime, client, NOW + 86401, generator)
+            self.assertEqual(result["status"], "attention_required")
+            self.assertEqual(result["historical_delivery"]["blocked_days"], [DAY])
+            self.assertEqual(len([key for key in client.rows if key[0] == "admin_packs"]), 0)
+            worker.prune_old_days(directory.parent, NOW + 20 * 86400)
+            self.assertTrue((directory / "1.webp").exists())
+            generator.assert_not_called()
+
+    def test_failed_historical_recovery_preserves_today_counters_and_saved_media(self):
+        client = self.recovery_client()
+        today = "2026-10-13"
+        client.rows[("factory_runs", today)] = {"day": today, "generated": 17, "attempts": 4}
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            directory = self.saved_batch(runtime)
+            with patch.object(client, "upload", side_effect=[OSError("storage unavailable"), None]):
+                with self.assertRaises(OSError):
+                    worker.run_production({"batch_size": 5}, runtime, client, NOW + 86401)
+            self.assertEqual(client.rows[("factory_runs", today)]["generated"], 17)
+            self.assertEqual(client.rows[("factory_runs", today)]["attempts"], 4)
+            self.assertTrue((directory / "0.webp").exists())
+
+    def test_acknowledgement_repairs_metrics_after_interrupted_status_write(self):
+        client = self.recovery_client()
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            directory = self.saved_batch(runtime)
+            ids = worker.migrate_ready_batches(client, directory.parent, DAY, 5)
+            # Equivalent to dying after durable ack but before factory_runs update.
+            outcome = worker.recover_previous_batches(client, directory.parent, "2026-10-13", 5)
+            self.assertEqual(outcome["days"], [DAY])
+            self.assertTrue(client.rows[("factory_runs", DAY)]["groq_metrics"]["postprocess_complete"])
+            self.assertEqual(len(ids), 1)
+
+    def test_historical_replay_is_bounded_and_keeps_unprocessed_artwork(self):
+        client = self.recovery_client()
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            for day in ("2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"):
+                self.saved_batch(runtime, day)
+            generated = runtime / "generated-stickers"
+            first = worker.recover_previous_batches(client, generated, DAY, 5)
+            self.assertEqual(len(first["days"]), 3)
+            worker.prune_old_days(generated, NOW)
+            self.assertTrue((generated / "2026-10-11" / "0.webp").exists())
+            self.assertEqual(worker.recover_previous_batches(client, generated, DAY, 5)["days"], ["2026-10-11"])
+
+    def test_blocked_marker_repairs_interrupted_remote_status_without_generating(self):
+        client = self.recovery_client()
+        update = client.update
+        failures = []
+        def interrupt_blocked_status(table, values, column, value):
+            if values.get("groq_metrics", {}).get("delivery_recovery", {}).get("status") == "blocked" and not failures:
+                failures.append(True)
+                raise OSError("interrupted status write")
+            return update(table, values, column, value)
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            directory = self.saved_batch(Path(first))
+            (directory / "0.webp").unlink()
+            with patch.object(client, "update", side_effect=interrupt_blocked_status):
+                with self.assertRaises(OSError):
+                    worker.run_production({"batch_size": 5}, Path(first), client, NOW + 86401)
+            self.assertNotIn("delivery_recovery", client.rows[("factory_runs", DAY)]["groq_metrics"])
+            generator = unittest.mock.Mock(side_effect=AssertionError("Status repair must not generate"))
+            result = worker.run_production({"batch_size": 5}, Path(second), client, NOW + 86401, generator)
+            self.assertEqual(result["status"], "attention_required")
+            metrics = client.rows[("factory_runs", DAY)]["groq_metrics"]
+            self.assertEqual(metrics["delivery_recovery"]["status"], "blocked")
+            self.assertFalse(metrics["draft_delivery_complete"])
+            self.assertEqual(client.rows[("factory_runs", DAY)]["generated"], 5)
+            generator.assert_not_called()
+
+    def test_missing_or_older_runtime_snapshot_is_blocked_without_claiming_delivery(self):
+        for missing_directory in (True, False):
+            with self.subTest(missing_directory=missing_directory), tempfile.TemporaryDirectory() as temporary:
+                client = self.recovery_client()
+                runtime = Path(temporary)
+                generated = runtime / "generated-stickers"
+                generated.mkdir()
+                if not missing_directory:
+                    directory = generated / DAY
+                    directory.mkdir()
+                    worker.atomic_json(directory / "state.json", {"records": []})
+                result = worker.recover_previous_batches(client, generated, "2026-10-13", 5)
+                self.assertEqual(result["blocked_days"], [DAY])
+                self.assertEqual(client.rows[("factory_runs", DAY)]["generated"], 5)
+                self.assertFalse(client.rows[("factory_runs", DAY)]["groq_metrics"]["draft_delivery_complete"])
+                self.assertEqual(worker.recover_previous_batches(client, generated, "2026-10-13", 5)["blocked_days"], [])
+
+    def test_acknowledged_snapshot_subset_is_not_pruned_when_database_records_more(self):
+        client = self.recovery_client()
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            directory = self.saved_batch(runtime)
+            worker.migrate_ready_batches(client, directory.parent, DAY, 5)
+            client.rows[("factory_runs", DAY)]["generated"] = 10
+            result = worker.run_production({"batch_size": 5}, runtime, client, NOW + 86401)
+            self.assertEqual(result["status"], "attention_required")
+            self.assertEqual(client.rows[("factory_runs", DAY)]["generated"], 10)
+            worker.prune_old_days(directory.parent, NOW + 20 * 86400)
+            self.assertTrue((directory / "0.webp").exists())
+
+    def test_unreadable_history_is_quarantined_on_fresh_runner_without_resetting_today(self):
+        from test_daily_stickers import ideas
+        client = self.recovery_client()
+        raw = b'{"records": broken json'
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
+            directory = self.saved_batch(Path(first))
+            (directory / "state.json").write_bytes(raw)
+            client.upload(PRIVATE_BUCKET, worker.STATE_OBJECT, worker.state_archive(Path(first)))
+            runtime = Path(second)
+            generator = unittest.mock.Mock(side_effect=AssertionError("Quarantine does not generate"))
+            result = worker.run_production({"batch_size": 5}, runtime, client, NOW + 86401, generator)
+            self.assertEqual(result["status"], "attention_required")
+            generator.assert_not_called()
+            old = runtime / "generated-stickers" / DAY
+            quarantined = next(old.glob("state.unreadable-*.json"))
+            self.assertEqual(quarantined.read_bytes(), raw)
+            self.assertTrue((old / "0.webp").exists())
+            self.assertEqual(client.rows[("factory_runs", DAY)]["groq_metrics"]["delivery_recovery"]["reason"], "unreadable_runtime_state")
+            with patch.dict(os.environ, {"GROQ_API_KEY": "test-only"}), \
+                    patch.object(worker, "ensure_content_brief", side_effect=lambda c, conf, controls, now: (conf, {"source_mode": "fixture"})), \
+                    patch("daily_stickers.groq_ideas", return_value=ideas(5)) as captions:
+                result = worker.run_production({"modes": ["illustration"]}, runtime, client, NOW + 86401)
+            self.assertEqual(result["generated"], 5)
+            captions.assert_called_once()
+            self.assertEqual(quarantined.read_bytes(), raw)
+            # Current-day corruption must fail, preserving counters and bytes.
+            current = runtime / "generated-stickers" / "2026-10-13" / "state.json"
+            current.write_bytes(raw)
+            with self.assertRaises(ValueError):
+                worker.relocate_state(runtime, "2026-10-13")
+            self.assertEqual(current.read_bytes(), raw)
+
+    def test_orphan_quarantine_has_durable_block_marker_and_does_not_starve_today(self):
+        client = self.recovery_client()
+        del client.rows[("factory_runs", DAY)]
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second, \
+                tempfile.TemporaryDirectory() as third:
+            directory = self.saved_batch(Path(first))
+            (directory / "state.json").write_bytes(b"corrupt orphan state")
+            client.upload(PRIVATE_BUCKET, worker.STATE_OBJECT, worker.state_archive(Path(first)))
+            unused = unittest.mock.Mock(side_effect=AssertionError("First pass only quarantines"))
+            result = worker.run_production({"modes": ["illustration"]}, Path(second), client, NOW + 86401, unused)
+            self.assertEqual(result["status"], "attention_required")
+            self.assertTrue((Path(second) / "generated-stickers" / DAY / "delivery-blocked.json").exists())
+            unused.assert_not_called()
+            today = unittest.mock.Mock(return_value="Waiting for normal batch")
+            with patch.object(worker, "ensure_content_brief", side_effect=lambda c, conf, controls, now: (conf, {"source_mode": "fixture"})):
+                result = worker.run_production({"modes": ["illustration"]}, Path(third), client, NOW + 86401, today)
+            today.assert_called_once()
+            self.assertEqual(result["historical_delivery"]["blocked_days"], [])
+            self.assertNotIn(("factory_runs", DAY), client.rows)
+
     def test_previous_utc_runs_close_without_losing_saved_counts(self):
         client = FakeSupabase()
         client.rows[("factory_runs", "2026-10-10")] = {

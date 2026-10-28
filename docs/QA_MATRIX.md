@@ -1,5 +1,19 @@
 # StickerDock verification checklist
 
+## October 27 EGM core increment
+
+The [new core increment](EGM_CORE_HARDENING_2026-10-27.md) adds failure/replay,
+concurrent admission and filtered-search coverage. Local results and the pushed
+PR's CI must be recorded separately. No new signed release, physical-device
+acceptance, production migration or hosted operation is implied by source fixes.
+
+Local: 283 Python / 140 Android / 12 shared tests pass without skips; debug APK
+and release lint pass (zero errors / 44 warnings / six informational findings).
+Real PostgreSQL 17 concurrent admission/retry/replay/grant checks pass, along with
+existing PGlite migrations and JS/Python static checks. Fresh-runner regressions
+cover midnight delivery, interrupted remote status, acknowledged stale snapshots,
+corrupt-history quarantine and orphan blocking without starving current work.
+
 ## October 28 HandNavigate collection workspace
 
 Real hosted Admin/Supabase checks now cover 20 Pinterest and four Reddit images downloaded by HandNavigate itself, unique stored candidates, blob/row read-back and image checksum verification. The hosted Admin passed daily topic-plan save, title edit, an exact downloaded-file digest, archive/restore, decoded library previews and desktop/mobile layout. [Evidence and remaining boundaries](HANDNAVIGATE_ADMIN_2026-10-28.md).
