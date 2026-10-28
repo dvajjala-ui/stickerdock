@@ -7,6 +7,50 @@ from api import _media_intake as intake
 from test_media_intake import Storage
 
 class CollectionControlTest(unittest.TestCase):
+    def test_capable_worker_uses_compatible_claim_while_legacy_contract_stays_supported(self):
+        client=Storage();worker=str(uuid.uuid4())
+        capabilities=[{'id':'pinterest','name':'Pinterest'},
+                      {'id':'imgflip','name':'Imgflip','revision':'a'*64}]
+        with patch.object(client,'rpc',create=True,return_value=[]) as rpc:
+            self.assertEqual(c.worker_dispatch(client,{'action':'claim','worker_id':worker}),{'job':None})
+            rpc.assert_called_once_with('claim_collection_job',{'p_worker_id':worker})
+            rpc.reset_mock()
+            c.worker_dispatch(client,{'action':'claim','worker_id':worker,'supported_sources':capabilities})
+            rpc.assert_called_once_with('claim_compatible_collection_job',
+                {'p_worker_id':worker,'p_sources':capabilities})
+
+    def test_invalid_worker_capabilities_never_reach_claim_rpc(self):
+        client=Storage();worker=str(uuid.uuid4())
+        invalid=[None,[],['imgflip'],[{'id':'../escape','name':'Bad'}],
+                 [{'id':'imgflip','name':''}],[{'id':'imgflip','name':'Imgflip','revision':'bad'}],
+                 [{'id':'imgflip','name':'One'},{'id':'imgflip','name':'Two'}]]
+        with patch.object(client,'rpc',create=True) as rpc:
+            for sources in invalid:
+                with self.subTest(sources=sources),self.assertRaises(ValueError):
+                    c.worker_dispatch(client,{'action':'claim','worker_id':worker,'supported_sources':sources})
+            rpc.assert_not_called()
+
+    def test_unclaimable_new_source_is_rejected_before_creating_a_job(self):
+        client=Storage();payload={'topics':['cats'],'sources':['pinterest','imgflip'],
+            'image_limit':20,'request_id':'capability-test'}
+        # Two workers supporting one site each cannot claim this combined job.
+        with patch.object(client,'find',return_value=None),patch.object(c,'rows',return_value=[
+            {'supported_sources':['pinterest','reddit']},{'supported_sources':['imgflip']}]), \
+                patch.object(client,'_request') as request:
+            with self.assertRaisesRegex(ValueError,'No configured HandNavigate worker'):
+                c.enqueue(client,payload)
+            request.assert_not_called()
+        with patch.object(client,'find',return_value=None),patch.object(c,'rows',return_value=[
+            {'supported_sources':['pinterest','reddit','imgflip']}]), \
+                patch.object(client,'_request',return_value=b'[{"id":"accepted","topics":["cats"],"sources":["pinterest","imgflip"],"image_limit":20}]'):
+            self.assertEqual(c.enqueue(client,payload)['job']['id'],'accepted')
+
+    def test_existing_request_replay_remains_available_when_capable_worker_is_offline(self):
+        client=Storage();job={'id':'saved','topics':['cats'],'sources':['imgflip'],'image_limit':20}
+        with patch.object(client,'find',return_value=job),patch.object(c,'rows') as workers:
+            result=c.enqueue(client,{**job,'request_id':'existing-imgflip'})
+            self.assertTrue(result['reused']);workers.assert_not_called()
+
     def test_daily_schedule_uses_atomic_budget_rpc_and_existing_planner_with_saved_fallback(self):
         client=Storage();plan={'id':str(uuid.uuid4()),'topics':['saved cats'],'sources':['reddit'],'image_limit':20,'use_planner':True}
         with patch.object(c,'rows',return_value=[plan]),patch.object(client,'find',return_value={'topic_plans':[{'topic':'fresh dogs'}]}),patch.object(client,'rpc',create=True,return_value=[]) as rpc:

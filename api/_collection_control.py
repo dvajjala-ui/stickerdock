@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlencode
@@ -10,9 +11,10 @@ from api._shared import StudioError, safe_text
 SOURCE_OPTIONS = [
     {'id':'pinterest','name':'Pinterest','description':'Search Pins using the worker’s saved browser session.'},
     {'id':'reddit','name':'Reddit','description':'Search image posts; a human check may require attention.'},
-    {'id':'imgflip','name':'Imgflip meme templates','description':'Name matches in the free popular-template catalog; finite, no full-catalog paid search.'},
+    {'id':'imgflip','name':'Imgflip meme templates','description':'Name matches in the free popular-template catalog. Requires an updated worker advertising Imgflip support.'},
 ]
 SOURCES = tuple(s['id'] for s in SOURCE_OPTIONS)
+LEGACY_SOURCES = frozenset({'pinterest', 'reddit'})
 TERMINAL = {'VERIFIED_STORAGE','PARTIAL','AUTH_REQUIRED','DELIVERY_FAILED','FAILED','CANCELLED','INTERRUPTED'}
 
 def now():
@@ -38,6 +40,35 @@ def rows(client,table,filters=None,limit=50,offset=0):
         raise StudioError('Invalid collection database response')
     return result
 
+def source_capabilities(value):
+    if not isinstance(value, list) or not 1 <= len(value) <= 20:
+        raise StudioError('Advertise 1–20 worker source capabilities')
+    result=[]
+    for source in value:
+        if (not isinstance(source, dict) or not isinstance(source.get('id'), str)
+                or not re.fullmatch(r'[a-z][a-z0-9_-]{1,39}', source['id'])):
+            raise StudioError('Invalid worker source capability')
+        item={'id':source['id'], 'name':safe_text(source.get('name'), 'source name', 100, required=True)}
+        revision=source.get('revision')
+        if revision is not None:
+            if not isinstance(revision, str) or not re.fullmatch(r'[0-9a-f]{64}', revision):
+                raise StudioError('Invalid worker source revision')
+            item['revision']=revision
+        result.append(item)
+    if len({s['id'] for s in result}) != len(result):
+        raise StudioError('Duplicate worker source capability')
+    return result
+
+def require_compatible_worker(client, sources):
+    if set(sources) <= LEGACY_SOURCES:
+        return  # Original workers can claim these jobs after reconnecting.
+    workers=rows(client, 'collection_workers', limit=100)
+    if not any(isinstance(w.get('supported_sources'), list) and
+               all(isinstance(s, str) for s in w['supported_sources']) and
+               set(sources) <= set(w['supported_sources']) for w in workers):
+        raise StudioError('No configured HandNavigate worker supports these sites together. '
+                          'Update and reconnect the worker before collecting from Imgflip.')
+
 def write(client,table,values,row_id=None,version=None):
     query = '?id=eq.'+str(uuid.UUID(str(row_id))) if row_id else ''
     if row_id:
@@ -61,6 +92,7 @@ def enqueue(client,payload):
         if any(old.get(k)!=v for k,v in values.items()):
             raise StudioError('Request ID belongs to different parameters')
         return {'job':old,'reused':True}
+    require_compatible_worker(client, values['sources'])
     result=json.loads(client._request('POST','/rest/v1/collection_jobs?on_conflict=request_id',
         data=json.dumps({**values,'request_id':key}).encode(),headers={'Content-Type':'application/json',
         'Prefer':'resolution=ignore-duplicates,return=representation'}) or b'[]')
@@ -86,6 +118,7 @@ def enqueue_daily(client,day):
             topics=brief_topics(brief or {})
             if topics:values['topics']=topics;origin='planner'
             else:origin='fallback'
+        require_compatible_worker(client, values['sources'])
         result.extend(client.rpc('enqueue_daily_collection',{'p_plan_id':plan['id'],'p_day':day,
             'p_topics':values['topics'],'p_topic_origin':origin,'p_budget':budget}))
     return result
@@ -93,7 +126,11 @@ def enqueue_daily(client,day):
 def worker_dispatch(client,payload):
     worker=str(uuid.UUID(str(payload.get('worker_id',''))))
     if payload['action']=='claim':
-        result=client.rpc('claim_collection_job',{'p_worker_id':worker})
+        if 'supported_sources' in payload:
+            sources=source_capabilities(payload['supported_sources'])
+            result=client.rpc('claim_compatible_collection_job',{'p_worker_id':worker,'p_sources':sources})
+        else:
+            result=client.rpc('claim_collection_job',{'p_worker_id':worker})
         return {'job':result[0] if result else None}
     job_id=str(uuid.UUID(str(payload.get('id',''))))
     report=payload.get('report')
@@ -138,6 +175,8 @@ def admin_dispatch(client,payload):
     if action=='collection_plan_save':
         values={**spec(payload),'name':safe_text(payload.get('name'),'plan name',100,required=True),
             'daily':payload.get('daily') is True,'use_planner':payload.get('use_planner') is True,'archived':payload.get('archived') is True}
+        if values['daily'] and not values['archived']:
+            require_compatible_worker(client, values['sources'])
         return {'plan':write(client,'collection_plans',values,payload.get('id'),payload.get('version'))}
     if action=='collection_plan_archive':
         return {'plan':write(client,'collection_plans',{'archived':payload.get('archived') is not False},payload.get('id'),payload.get('version'))}
@@ -148,6 +187,7 @@ def admin_dispatch(client,payload):
         if action=='collection_retry':
             if row['status'] not in TERMINAL-{'VERIFIED_STORAGE'}:
                 raise StudioError('Only incomplete collections can be resumed')
+            require_compatible_worker(client, row['sources'])
             values={'status':'QUEUED','worker_id':None,'lease_until':None,'cancel_requested':False,'error':None,'finished_at':None}
         else:
             if row['status'] in TERMINAL:

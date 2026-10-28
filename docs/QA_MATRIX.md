@@ -1,5 +1,14 @@
 # StickerDock verification checklist
 
+## October 28 PR #26 merge
+
+Merged as `04a687e` after [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641023505)
+and [Web/API CI including real concurrent PostgreSQL checks](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641023512)
+passed for `ca4071e`. The [production provisioning run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641030640)
+applied the additive admission RPC and verified its private grants before merge.
+The [architecture review](ARCHITECTURE_REVIEW_2026-10-28.md) records the new
+capability-contract regression checks and remaining installed-worker/native gates.
+
 ## October 27 EGM core increment
 
 The [new core increment](EGM_CORE_HARDENING_2026-10-27.md) adds failure/replay,
@@ -38,10 +47,11 @@ actual-user reaction testing remain open.
 [Apple CI for iPhone 0.10.7/build 19](https://github.com/dvajjala-ui/stickerdock/actions/runs/39945178923)
 passes the unsigned device build and simulator checks for sticker-first search,
 WhatsApp pack handoff and persisted metadata editing. This is not a signed
-iPhone installation or WhatsApp result. Android 0.11.6 signed release is
-running at [CI run 39946623361](https://github.com/dvajjala-ui/stickerdock/actions/runs/39946623361);
-no 0.11.6 artifact should be claimed until the workflow and independent
-download check pass.
+iPhone installation or WhatsApp result. The earlier Android 0.11.6
+[run 39946623361](https://github.com/dvajjala-ui/stickerdock/actions/runs/39946623361)
+passed exact-APK emulator acceptance but failed release publication with HTTP 403.
+The [new merge-bound run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641756805)
+must finish and its public download be checked before claiming a new release.
 
 ## Published Android 0.11.4 and current source — October 23, 2026
 

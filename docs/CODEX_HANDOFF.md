@@ -1,4 +1,13 @@
-# StickerDock development handoff — updated October 27, 2026
+# StickerDock development handoff — updated October 28, 2026
+
+## October 28 merge and architecture review
+
+Latest HandNavigate work through `fed2e98` is included. PR #26 merged as
+`04a687e` after source-bound Android/Web CI passed and the Creator admission
+migration plus private grants were verified in production. See the
+[architecture review](ARCHITECTURE_REVIEW_2026-10-28.md) for evidence, the source
+capability follow-up and the ordered remaining acceptance work. Signed release
+run `40641756805` must finish before updating Android download claims.
 
 ## October 27 EGM continuation
 
