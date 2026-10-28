@@ -1,5 +1,15 @@
 # StickerDock — private sticker creator and library
 
+October 28 workspace update: Admin now has one **Sources** library with upload,
+drop/paste, source/usage filters, previews, explicit generation approval and Trash;
+**Stickers & packs**, **Runs & automation**, and **Connections & roadmap** have
+separate purposes. Approved source images can enter Creator and are preferred
+by Factory photo generation. The scheduled hosted worker stored two Imgflip
+images, but Pinterest/Reddit blocked guest access from GitHub's network.
+The [acceptance record](docs/ADMIN_SOURCES_AND_HOSTED_COLLECTION_2026-10-28.md)
+and [researched hosting options](docs/HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
+explain the remaining exact-host and account setup. No always-on VM has been bought.
+
 October 28: **Android 0.11.6 (build 21)** is
 [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.6)
 after [signed APK and Android 15 acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/40644511402).
