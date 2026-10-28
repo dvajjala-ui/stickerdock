@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 from PIL import Image
 import source_text_screening as screening
@@ -12,6 +13,22 @@ HEADER='level\tconf\ttext\n'
 
 
 class SourceTextScreeningTest(unittest.TestCase):
+    def test_production_audit_only_downloads_snapshot_and_does_not_save_private_text(self):
+        from audit_factory_source_text import audit
+        image=io.BytesIO();Image.new('RGB',(80,80),'blue').save(image,'PNG')
+        archive=io.BytesIO()
+        with zipfile.ZipFile(archive,'w') as target:
+            target.writestr('reference-images/source.png',image.getvalue())
+        class ReadOnlyClient:
+            def download(self,bucket,path,missing_ok=False):
+                return archive.getvalue()
+        with patch.object(screening,'source_has_text',return_value=True):
+            result=audit(ReadOnlyClient())
+        self.assertEqual((result['screened'],result['withheld'],result['storage_writes'],result['generation_calls']),
+                         (1,1,0,0))
+        self.assertEqual(result['withheld_sha256'],[screening.hashlib.sha256(image.getvalue()).hexdigest()])
+        self.assertNotIn('source.png',json.dumps(result))
+
     def test_confident_words_withhold_source_but_noise_does_not(self):
         self.assertTrue(screening.has_confident_text(HEADER+'5\t92\tNOT\n5\t87\tTODAY\n'))
         self.assertTrue(screening.has_confident_text(HEADER+'5\t90\tWHATEVER\n'))

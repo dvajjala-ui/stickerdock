@@ -52,6 +52,11 @@ retains its existing ideas/state for explicit operator review. CI installs the
 engine and English data and runs real RGB/RGBA/outlined-caption/clean-image
 acceptance. Production installs the same engine before processing a due batch.
 
+The manual `source-text-audit.yml` workflow can check the existing private
+Factory snapshot without a Groq credential, generation call or remote write.
+It reports only counts and hashes of withheld sources. Run this after merge to
+verify the deployed source collection separately from the synthetic OCR cases.
+
 This is a conservative quality screen, not complete text recognition. Tiny text,
 stylized lettering, other scripts, animated frames, humor quality and repeated
 scenes still need review. Detected text can be legitimate signage; those sources
