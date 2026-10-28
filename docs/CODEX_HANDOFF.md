@@ -6,6 +6,13 @@ See [the implementation and acceptance record](ADMIN_SOURCES_AND_HOSTED_COLLECTI
 This consolidates source management, adds explicit version-bound admission into
 Factory/Creator, prepares hosted daily guest collection with private checkpoints,
 and provides verified corrupt-image quarantine without resetting packs or phones.
+Final CI passes 320 Python tests with no skips and real browser checks. The
+completed legacy audit checked 123 indexed inbox images and found no corrupt
+originals or broken candidate copies, so it removed zero files. Actual hosted
+collection stored two Imgflip images; Pinterest/Reddit guest access was blocked
+on GitHub's network. VM container/console/headful Chromium acceptance passes;
+the owner has no hosting account yet. Use the researched hosting comparison and
+qualify the chosen provider before promising unattended 20/day social collection.
 
 ## October 28 merge and architecture review
 

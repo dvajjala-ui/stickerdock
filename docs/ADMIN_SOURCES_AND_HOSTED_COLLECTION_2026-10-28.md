@@ -86,3 +86,27 @@ or paid provider generation is needed to verify this release.
 The owner has no existing hosting account and requested a researched setup.
 [Current hosting options and prepared VM deployment](HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
 record prices, account requirements and the exact-host acceptance sequence.
+
+## Final verification and cleanup
+
+- [Latest functional Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40657461836)
+  passes **320 Python tests, zero skips**, real OCR/PostgreSQL checks and Chromium
+  Sources acceptance. Custom Creator revalidates source admission before provider
+  work; generated results retain source identity and are marked RESULT so they
+  do not become automatic caption inputs again.
+- The first legacy audit reached its 20-minute limit after indexing valid files.
+  The resumed [verified audit](https://github.com/dvajjala-ui/stickerdock/actions/runs/40657272588)
+  completed with **123 existing/indexed legacy images, zero corrupt originals,
+  zero broken candidates and zero removals**. A preview problem was not treated
+  as permission to erase healthy bytes. Quarantine remains available for future
+  verified corrupt, unreferenced files; existing packs and phone libraries remain.
+- Live read-only Chromium acceptance on the deployed Sources page confirms 25
+  cards on the first page, actual decoded previews and no overflow at 390px.
+- HandNavigate's VM image, private console and headful browser check pass at
+  https://github.com/dvajjala-ui/handNavigation/actions/runs/40656090500.
+  Windows desktop/build/portable acceptance for the VM follow-up also passed:
+  https://github.com/dvajjala-ui/handNavigation/actions/runs/40656090424.
+
+No provider VM/account has been purchased or deployed. The scheduled GitHub
+worker remains available, with only Imgflip access qualified from that network;
+the configured Pinterest/Reddit daily plan still needs exact-host acceptance.
