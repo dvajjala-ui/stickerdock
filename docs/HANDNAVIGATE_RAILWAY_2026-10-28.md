@@ -64,7 +64,8 @@ StickerDock PR #32 merged as `d5108c5` after
 [Android debug checks](https://github.com/dvajjala-ui/stickerdock/actions/runs/40689597378)
 also pass. The [encrypted bootstrap run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40690381415)
 succeeded. Actual production checks verified the existing worker credential and
-151 minimal cloud duplicate identities; plaintext was not written to a file or log.
+151 minimal cloud duplicate identities. The bootstrap artifact contained only
+encrypted bytes; no plaintext credential was committed or displayed in chat.
 
 Three separate two-image requests are queued for Pinterest, Reddit and Imgflip.
 After dashboard deployment, correlate those requests with this host's logs and
