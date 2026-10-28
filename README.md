@@ -8,7 +8,9 @@ by Factory photo generation. The scheduled hosted worker stored two Imgflip
 images, but Pinterest/Reddit blocked guest access from GitHub's network.
 The [acceptance record](docs/ADMIN_SOURCES_AND_HOSTED_COLLECTION_2026-10-28.md)
 and [researched hosting options](docs/HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
-explain the remaining exact-host and account setup. No always-on VM has been bought.
+explain the remaining exact-host setup. Oracle Free is now the first target;
+the owner's Railway Hobby account is the $5–$10/month fallback. Native ARM and
+AMD64 browser-container checks pass; an always-on worker has not been activated.
 
 October 28: **Android 0.11.6 (build 21)** is
 [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.6)
