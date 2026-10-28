@@ -7,6 +7,7 @@ import io
 import json
 import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import PurePosixPath
 from PIL import Image
 from api._collection_control import rows, write
@@ -27,14 +28,25 @@ def maintain(client, cleanup=False):
             page=client.list_objects(PRIVATE_BUCKET,'inbox',100,offset=offset)
             yield from page
             if len(page)<100:break
-    # Materialize identities before cleanup; removing a row must not shift the
-    # storage-list offset and skip the next image.
-    for entry in list(objects()):
+    def downloaded():
+        # Independent bounded reads overlap; mutations remain sequential. Keep
+        # at most 25 source bodies in memory and never fetch oversized objects.
+        entries=list(objects())
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for start in range(0,len(entries),25):
+                pending=[]
+                for entry in entries[start:start+25]:
+                    name=str(entry.get('name',''));path=name if name.startswith('inbox/') else 'inbox/'+name
+                    suitable=PurePosixPath(path).suffix.lower() in {'.png','.jpg','.jpeg','.webp'} and int((entry.get('metadata') or {}).get('size') or 0)<=3000000
+                    pending.append((entry,pool.submit(client.download,PRIVATE_BUCKET,path) if suitable else None))
+                for entry,future in pending:yield entry,future.result() if future else None
+    # Materialize identities before cleanup; removing an object must not shift
+    # the storage-list offset and skip the next image.
+    for entry,raw in downloaded():
         name=str(entry.get('name',''));path=name if name.startswith('inbox/') else 'inbox/'+name
         if PurePosixPath(path).suffix.lower() not in {'.png','.jpg','.jpeg','.webp'}:continue
         if int((entry.get('metadata') or {}).get('size') or 0)>3000000:
             summary['oversized']+=1;continue
-        raw=client.download(PRIVATE_BUCKET,path)
         digest=hashlib.sha256(raw).hexdigest()
         if digest in known:
             summary['existing']+=1
