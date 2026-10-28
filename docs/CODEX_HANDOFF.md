@@ -11,8 +11,12 @@ completed legacy audit checked 123 indexed inbox images and found no corrupt
 originals or broken candidate copies, so it removed zero files. Actual hosted
 collection stored two Imgflip images; Pinterest/Reddit guest access was blocked
 on GitHub's network. VM container/console/headful Chromium acceptance passes;
-the owner has no hosting account yet. Use the researched hosting comparison and
-qualify the chosen provider before promising unattended 20/day social collection.
+the owner's Oracle Free account is now the first deployment target, with an
+existing Railway Hobby account as a $5–$10/month fallback. Native ARM and AMD64
+container checks pass in HandNavigate PR #2/run 40682685422. Check the current
+[hosting budget and activation gates](HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
+before creating resources. No Oracle VM has been created yet, and exact-host
+source access remains unverified.
 
 ## October 28 merge and architecture review
 

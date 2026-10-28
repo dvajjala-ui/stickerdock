@@ -2,14 +2,28 @@
 
 ## Recommendation
 
-Use one **DigitalOcean Basic Regular x86-64 Droplet, 2 vCPU / 4 GiB / 80 GiB,
-Ubuntu 24.04**, for a short access qualification before committing to continuous
-operation. Official published price: **$24/month cap, $0.03571/hour**, excluding
-applicable tax/optional extras. Account creation and a valid payment method are
-required. A different datacenter IP is not evidence of Pinterest/Reddit access.
+The owner now has an Oracle Free account and an existing Railway Hobby account.
+Their approved order is **Oracle at $0**, then **Railway within $5–$10/month for
+this worker**. The earlier DigitalOcean recommendation exceeds this budget and
+is superseded. No paid server or account upgrade is authorized outside it.
 
-The cheaper 1-vCPU/2-GiB regular Droplet is $12/month; it is a possible later
-right-sizing target, not the initial unmeasured browser-memory assumption.
+First qualify **Oracle A1 Flex, 1 OCPU / 6 GB RAM, Ubuntu 24.04 Minimal aarch64**
+in the tenancy's Mumbai home region. Confirm existing compute/storage allocation
+and the final estimate before creation; expiring trial credit does not qualify
+as permanent free hosting. Native ARM64 and AMD64 container checks both passed
+in [HandNavigate PR #2](https://github.com/dvajjala-ui/handNavigation/pull/2),
+[run 40682685422](https://github.com/dvajjala-ui/handNavigation/actions/runs/40682685422).
+This proves container startup, private console and headful Chromium, not provider
+capacity or Pinterest/Reddit access.
+
+If Oracle capacity or account access prevents deployment, inspect Railway's
+actual existing usage before adding a service. Prefer a bounded daily collector
+that exits after work, with persistent state, instead of billing idle Chromium
+all month. Railway's $5 Hobby subscription includes $5 of resource usage; RAM is
+$10/GB/month, CPU $20/vCPU/month, storage $0.15/GB/month and egress $0.05/GB.
+These are metered prices, not a promise of a $5 browser service. Railway's
+Compute hard limit stops every workload in the workspace, so do not change a
+shared workspace limit without checking the effect on existing projects.
 
 Keep Vercel/Supabase and the current Factory. This VM only runs the persistent
 browser collector and polls its existing outbound queue. It needs neither a new
@@ -21,8 +35,8 @@ database nor a paid image/model API. The existing source-rights review remains.
 | --- | --- | --- |
 | DigitalOcean | Regular Basic 2 vCPU / 4 GiB: $24/month cap | Straightforward x86 Ubuntu/Docker target and persistent disk. Account/payment setup required. Prefer a short billed access test first. |
 | Hetzner | EU CX23: 2 vCPU / 4 GB / 40 GB; €5.49/month before VAT and IPv4 | Low cost, but the official cost-optimized page currently marks CX23 unavailable. Recheck console availability and final account quote. |
-| Oracle Always Free | Current docs: A1 Arm allowance equivalent to 2 OCPU / 12 GB | Potential free route; capacity can be unavailable and idle instances can be reclaimed. This new VM deployment targets x86-64; Arm/container qualification is additional work. |
-| Railway Hobby | $5 minimum usage, includes $5 credit; actual resource usage adds cost | Convenient containers/volumes. The minimum is not a guaranteed monthly Chromium cost. Interactive browser recovery needs extra setup. Free tier's 0.5-GB limit is below the proposed browser sizing. |
+| Oracle Always Free | Current docs: A1 Arm allowance equivalent to 2 OCPU / 12 GB and 200 GB block storage | First choice within the owner's $0 requirement. The 1 OCPU / 6 GB container target passes native ARM CI. Capacity can be unavailable and idle instances can be reclaimed. |
+| Railway Hobby | $5 subscription includes $5 of metered usage | Budget fallback. Check existing usage and bound active runtime before deployment; persistent interactive recovery still needs host qualification. |
 | Existing GitHub Actions | Scheduled runner already configured | Actual two-image Imgflip delivery passed. Both Pinterest and Reddit required attention from this network. It is scheduled, not continuously online. |
 
 ## Prepared configuration
@@ -40,7 +54,8 @@ not prove a provider's site access, guest permissions or continuous operation.
 
 ## Activation acceptance
 
-1. Owner chooses/creates the hosting account and completes billing/verification.
+1. Use the owner's signed-in Oracle Free account first; verify Always Free
+   allocations and estimate. Existing Railway Hobby is the budget fallback.
 2. Create the Ubuntu VM, attach SSH public key, configure its firewall and deploy
    the reviewed container with existing ingest credentials kept server-side.
 3. Test Pinterest, Reddit and Imgflip independently on that exact host. Record
@@ -63,4 +78,6 @@ not prove a provider's site access, guest permissions or continuous operation.
 - Hetzner current availability: https://www.hetzner.com/cloud/cost-optimized/
 - Oracle limits, capacity and reclamation: https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm
 - Railway tiers/usage: https://railway.com/pricing
+- Railway metered resource prices: https://docs.railway.com/pricing/plans
+- Railway workspace cost limits: https://docs.railway.com/pricing/cost-control
 - Playwright container behavior: https://playwright.dev/docs/docker
