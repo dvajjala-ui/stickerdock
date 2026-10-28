@@ -54,8 +54,15 @@ acceptance. Production installs the same engine before processing a due batch.
 
 The manual `source-text-audit.yml` workflow can check the existing private
 Factory snapshot without a Groq credential, generation call or remote write.
-It reports only counts and hashes of withheld sources. Run this after merge to
-verify the deployed source collection separately from the synthetic OCR cases.
+It reports only counts and hashes of withheld sources. The
+[production audit](https://github.com/dvajjala-ui/stickerdock/actions/runs/40647029975)
+passed from merge `fa70eff`: 74 saved photos screened, 38 flagged and 36 without
+confident text detected, zero generation calls and zero storage writes. This
+snapshot audit includes saved photos independently of the later rights/purpose
+and reaction-suitability filters. An OCR-clear image is not automatically eligible
+for generation or publication. PR #28's [Web/API run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40645187893)
+passed all 315 Python tests with no skips, real OCR and database checks; its
+[Android run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40645188050) passed too.
 
 This is a conservative quality screen, not complete text recognition. Tiny text,
 stylized lettering, other scripts, animated frames, humor quality and repeated
@@ -73,5 +80,9 @@ and persists only submitted searches with a Clear action. The prior signed
 [run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641756805) failed
 at Favorites under 200% font scaling. The new
 [signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40644511402)
-must finish before claiming a new Android download. Physical WhatsApp/Business
-and signed iPhone acceptance remain open.
+passed and published Android 0.11.6/build 21 from `5130e24`. An independent public
+APK download was 3,952,171 bytes with SHA-256
+`c458d979c78947375ac450a632bf6fe8926ffbb48134f4d10f046dc331501e41`;
+the release manifest, checksum file and passing exact-APK report agree. The
+captured 200% text screen shows Favorites and all filters remain visible.
+Physical WhatsApp/Business and signed iPhone acceptance remain open.

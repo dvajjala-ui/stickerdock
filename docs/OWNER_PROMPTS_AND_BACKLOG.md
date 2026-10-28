@@ -91,10 +91,10 @@ and the remaining source-text quality repair are recorded in the
 
 ### UI / UX overhaul
 - [x] U1 — App icon draft (needs device review)
-- [ ] U2 — Bottom nav: 3 tabs (Library / Create / Discover), move Import to Settings
+- [x] U2 — Android bottom nav: Library / Create / Discover; Import opens from Settings/Create.
 - [x] U3 — Library: 2-column grid view + list view toggle
 - [ ] U4 — Pack detail: sticker grid with labels below each tile
-- [ ] U5 — Settings declutter: Import/Backup out of nav, into Settings gear
+- [x] U5 — Android Import/Backup tools are reached through Library settings, outside the primary navigation.
 - [ ] U6 — Micro-animations (tab transitions, sticker preview enter/exit)
 - [ ] U7 — Pull-to-refresh on Library and Discover
 - [ ] U8 — Onboarding: 3-step first-run flow
@@ -117,12 +117,12 @@ and the remaining source-text quality repair are recorded in the
 - [ ] C11 — Pinterest mood board reference (browsing only, no rehosting)
 
 ### Sticker Factory (AI pipeline)
-- [ ] F1 — Partial batch delivery: publish reviewed batches < 40 without waiting all day
+- [x] F1 — Partial batches become private review drafts without waiting for 40. Public publication follows explicit review.
 - [ ] F2 — Factory run monitoring in Admin (live progress, warnings)
 - [ ] F3 — More Groq API keys / model rotation for rate-limit headroom
-- [ ] F4 — OCR-based text detection (pytesseract / easyocr) as C1 upgrade
+- [x] F4 — Local Tesseract photo-source screening, opaque-alpha repair, pending-batch gate and real-source audit. Non-Latin/animated text and final visual quality remain review work.
 - [ ] F5 — Admin: bulk review UI (approve/reject per row or batch)
-- [ ] F6 — Draft lifecycle: close stale day-batches, deliver partial content
+- [x] F6 — Close stale day counters and replay saved partial batches with durable delivery acknowledgements. Historical days with missing media remain blocked for operator recovery.
 
 ### Platform / mobile
 - [ ] P1 — Android signed release + Galaxy S24 Ultra SAF + WhatsApp physical test
@@ -130,7 +130,7 @@ and the remaining source-text quality repair are recorded in the
 - [x] P3 — iPhone: animated WebP preview in Discover
 - [x] P4 — iPhone: WhatsApp handoff with emoji tags
 - [ ] P5 — iPhone: App Store signing and TestFlight build
-- [ ] P6 — Android: large-library thumbnail LRU cache
+- [x] P6 — Android byte-bounded thumbnail LRU cache exists; larger physical-library acceptance remains open.
 - [ ] P7 — Android: FTS5 virtual table for >10k sticker search
 
 ### Admin / backend
@@ -138,23 +138,23 @@ and the remaining source-text quality repair are recorded in the
 - [ ] A1 — Admin: source-candidate queue with license/scene tracking
 - [ ] A2 — Admin: OCR/duplicate warning flags in media review
 - [ ] A3 — Admin: bulk pack publish in one flow
-- [ ] A4 — Admin: Factory run health dashboard
+- [x] A4 — Admin Factory run health/cooldown/terminal status dashboard exists; dependable daily generation is still under observation.
 - [ ] A5 — Admin: search by sticker label/tags not just pack name
 - [ ] A6 — Community: moderation, report/block, age protection, rights review (future)
 
 ---
 
-## Next up (session 3 active work)
-1. This file created
-2. UI: simplify bottom nav to Library / Create / Discover, move Import to Settings
-3. Content: Openverse free image source integration in Factory
-4. Factory: partial-batch delivery gate (publish >=5 reviewed stickers without waiting for 40)
-5. Android: recent searches row (persist last 8 in SharedPreferences)
+## Next work — reviewed October 28
+
+1. Upgrade the installed HandNavigate worker to advertise its configured sources and verify a real Imgflip collection.
+2. Complete rights/quality admission from collected candidates into Factory, followed by short, relevant, user-reviewed reactions and better motion content.
+3. Extend review for scripts/frames OCR cannot qualify and inspect a normal next batch under the new gate. Android 0.11.6 publication and the read-only OCR audit are complete; see the dated quality report.
+4. Qualify multiple days of source delivery/generation, shared provider/storage budgets and the owner-requested open Admin access model before wider use. Physical Android/WhatsApp and signed iPhone remain separate acceptance work.
 
 ---
 
 ## Research references
-- WhatsApp sticker limits: 3-30 stickers/pack, 512x512px, <100KB/sticker, WebP only
-- Groq free tier: ~30 req/min, 6000 req/day (varies by model)
+- WhatsApp format requirements: use the repository validators and official sample; static and animated limits differ.
+- Groq quotas: check the account/model's current limits and saved provider cooldown; historical estimates are not a capacity guarantee.
 - Openverse API: https://api.openverse.org/v1/ (CC/PD image search with license filter)
 - WhatsApp sticker SDK: https://github.com/WhatsApp/stickers

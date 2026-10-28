@@ -1,5 +1,15 @@
 # StickerDock — private sticker creator and library
 
+October 28: **Android 0.11.6 (build 21)** is
+[published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.6)
+after [signed APK and Android 15 acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/40644511402).
+The independently downloaded APK matches the release manifest, checksums and
+passing emulator report. Library filters now wrap at large text sizes, search
+history stores submitted queries locally, and filtered sticker search applies
+kind/category before its result limit. [Recovery and quality work](docs/FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md)
+also reconciled saved Factory drafts and added a tested local OCR gate for new
+photo captions. Physical WhatsApp/Business and signed iPhone acceptance remain open.
+
 October 28: [HandNavigate collection controls are live](docs/HANDNAVIGATE_ADMIN_2026-10-28.md). Its own worker downloaded and verified **20 Pinterest + 4 Reddit images in production Supabase**. Admin now has topic plans, a daily queue, worker status and image preview/edit/download/archive/restore. A 20-image daily plan is enabled; this PC's worker must remain awake. Rights/quality admission into sticker generation remains a separate pending step.
 
 | Get StickerDock | Link |

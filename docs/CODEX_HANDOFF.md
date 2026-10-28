@@ -5,7 +5,10 @@
 The [recovery and quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md)
 records actual historical delivery recovery, inspected/rejected private drafts,
 the source-text repair and the Library accessibility follow-up. PR #27 merged
-as `5130e24`; signed run `40644511402` supersedes failed run `40641756805`.
+as `5130e24`; signed run `40644511402` passed and published Android 0.11.6/build 21.
+Its public APK hash matches the release and acceptance records. PR #28 merged as
+`fa70eff`; its real-source OCR audit screened 74 saved photos and flagged 38 with
+no generation calls or remote writes. See the dated report for exact evidence.
 
 Latest HandNavigate work through `fed2e98` is included. PR #26 merged as
 `04a687e` after source-bound Android/Web CI passed and the Creator admission

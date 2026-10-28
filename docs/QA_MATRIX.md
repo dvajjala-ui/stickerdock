@@ -1,5 +1,26 @@
 # StickerDock verification checklist
 
+## Published Android 0.11.6 and source-text screening — October 28
+
+[Android 0.11.6/build 21](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.6)
+is published from `5130e24c1469c4f5e4d6323809f16cdc315393cf` after
+[signed-release CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40644511402)
+passed. An independent public download was 3,952,171 bytes, SHA-256
+`c458d979c78947375ac450a632bf6fe8926ffbb48134f4d10f046dc331501e41`.
+This matches `release.json`, `SHA256SUMS.txt` and `acceptance.json`. The exact
+signed APK passed 334-pack/10,000-sticker, 200% text/Favorites, photo/video,
+import and editable-backup acceptance. Native test reports show 143 Android
+and 12 shared-core tests with no failures or skips. Physical WhatsApp/Business
+and signed iPhone acceptance remain separate.
+
+PR #28 merged as `fa70eff` after [Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40645187893)
+passed 315 Python tests without skips, real local OCR and concurrent PostgreSQL
+checks, and [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40645188050)
+passed. The [production read-only OCR audit](https://github.com/dvajjala-ui/stickerdock/actions/runs/40647029975)
+screened 74 saved photos: 38 flagged for text review, 36 with no confident text
+detected. It made no generation calls or storage writes. These are OCR decisions
+for the saved snapshot, not rights approval or proof of humorous finished output.
+
 ## October 28 PR #26 merge
 
 Merged as `04a687e` after [Android CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641023505)
@@ -50,8 +71,10 @@ WhatsApp pack handoff and persisted metadata editing. This is not a signed
 iPhone installation or WhatsApp result. The earlier Android 0.11.6
 [run 39946623361](https://github.com/dvajjala-ui/stickerdock/actions/runs/39946623361)
 passed exact-APK emulator acceptance but failed release publication with HTTP 403.
-The [new merge-bound run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641756805)
-must finish and its public download be checked before claiming a new release.
+The subsequent [run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641756805)
+failed when Favorites moved outside the visible horizontal filter row at 200%
+text. PR #27 repaired the layout; the published October 28 result above supersedes
+these failed candidates.
 
 ## Published Android 0.11.4 and current source — October 23, 2026
 

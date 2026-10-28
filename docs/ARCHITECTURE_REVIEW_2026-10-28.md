@@ -81,13 +81,14 @@ request from being accepted in the meantime.
    backlog, total storage or organization-wide provider spending.
 5. Complete Admin authentication/roles before wider management access, followed by
    explicit source/candidate audit history and deletion/revocation handling.
-6. Finish native release acceptance. The latest public Android release is still
-   0.11.4. The prior 0.11.6 build passed its emulator but publication returned
-   HTTP 403; the later Library redesign failed the old search locator. PR #26
-   repairs that locator. [The new signed run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40641756805)
-   is tied to merge `04a687e`; its outcome must be recorded before claiming a
-   fresh download. Physical Android/Business, signed iPhone/TestFlight and actual
-   user reaction quality remain open.
+6. Complete physical Android/Business and signed iPhone/TestFlight acceptance.
+   Android 0.11.6 is now published from `5130e24` after
+   [signed acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/40644511402)
+   passed and an independent public APK download matched all recorded hashes.
+   PR #27 also repaired the large-text Favorites layout failure. Actual-device
+   and actual-user reaction quality remain open. The
+   [quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md) records the newer
+   source-text gate and real-source audit separately from this initial review.
 
 Local follow-up verification: 308 Python tests pass (seven media tests skipped
 for this Windows FFmpeg/font setup), including 12 focused collection-control
