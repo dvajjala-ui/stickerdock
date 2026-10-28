@@ -36,6 +36,12 @@ def image():
 
 
 class SourceWorkspaceTest(unittest.TestCase):
+    def test_source_filters_include_registered_platforms_and_keep_the_exact_database_filter(self):
+        options=[{'id':'flickr','name':'Flickr public tag feed'},{'id':'custom-1234567890abcdef','name':'Owned gallery'}]
+        with patch.object(sources,'rows',return_value=[]) as query,patch.object(control,'source_options',return_value=options):
+            result=sources.dispatch(Store(),{'action':'sources_list','platform':'flickr'})
+            self.assertEqual(query.call_args.args[2]['platform'],'eq.flickr')
+            self.assertEqual([s['id'] for s in result['source_options']],['flickr','custom-1234567890abcdef','upload','licensed','legacy'])
     def test_corrupt_cleanup_verifies_quarantine_and_preserves_referenced_sources(self):
         from tools.source_workspace_maintenance import maintain
         class AuditStore(Store):

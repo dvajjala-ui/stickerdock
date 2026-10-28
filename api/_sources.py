@@ -111,7 +111,9 @@ def dispatch(client, payload):
             query=re.sub(r'[^\w\s-]',' ',query).strip()
             if query:filters['or']='(title.ilike.*'+query+'*,topic.ilike.*'+query+'*)'
         items=rows(client,'media_intake_items',filters,25,offset)
-        return {'items':items,'next_offset':offset+25 if len(items)==25 else None}
+        from api._collection_control import source_options
+        options=source_options(client)+[{'id':'upload','name':'My uploads'},{'id':'licensed','name':'Licensed library'},{'id':'legacy','name':'Earlier uploads'}]
+        return {'items':items,'next_offset':offset+25 if len(items)==25 else None,'source_options':options}
     if action=='source_upload_candidate':return upload(client,payload)
     if action=='source_admit':return admit(client,payload)
     if action=='source_use':return creator_source(client,payload)
