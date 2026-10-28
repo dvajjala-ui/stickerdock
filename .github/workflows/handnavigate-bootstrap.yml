@@ -1,0 +1,32 @@
+name: Seal existing HandNavigate worker credential
+on:
+  workflow_dispatch:
+    inputs:
+      recipient_public_key:
+        description: RSA PEM public key belonging to the approved deployment operator
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Encrypt the existing ingest credential for server provisioning
+        env:
+          RECIPIENT_PUBLIC_KEY: ${{ inputs.recipient_public_key }}
+          INGEST_TOKEN: ${{ secrets.HANDNAVIGATE_INGEST_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "${#INGEST_TOKEN}" -ge 32
+          test "${#INGEST_TOKEN}" -le 256
+          printf '%s\n' "$RECIPIENT_PUBLIC_KEY" > recipient.pem
+          printf '%s' "$INGEST_TOKEN" | openssl pkeyutl -encrypt -pubin -inkey recipient.pem -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -out worker-token.enc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-worker-bootstrap
+          path: worker-token.enc
+          retention-days: 1
+          if-no-files-found: error
