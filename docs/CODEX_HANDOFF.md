@@ -1,5 +1,7 @@
 # StickerDock development handoff — updated October 28, 2026
 
+October 29 continuation merges the unfinished HandNavigate custom-source work into the latest hosted-worker/Sources implementation. Read [the sync record](HANDNAVIGATE_SYNC_2026-10-29.md) for retained behavior, current verification and worker installation boundaries. The hosting and source-acceptance records below remain authoritative; this integration does not change hosting resources or approve candidate rights.
+
 ## Sources workspace and hosted HandNavigate
 
 See [the implementation and acceptance record](ADMIN_SOURCES_AND_HOSTED_COLLECTION_2026-10-28.md).

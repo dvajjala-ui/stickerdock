@@ -20,13 +20,21 @@ TERMINAL = {'VERIFIED_STORAGE','PARTIAL','AUTH_REQUIRED','DELIVERY_FAILED','FAIL
 def now():
     return datetime.now(timezone.utc).isoformat()
 
-def spec(payload):
+def source_options(client):
+    saved=rows(client,'collection_source_catalog',limit=20)
+    return SOURCE_OPTIONS+[{'id':s['id'],'name':s['name'],'description':'Reviewed workflow on the HandNavigate worker. A saved browser sign-in may be required.'} for s in saved if s['id'] not in SOURCES]
+
+
+def spec(payload,client=None):
     topics = payload.get('topics')
     sources = payload.get('sources')
     if not isinstance(topics,list) or not 1 <= len(topics) <= 10:
         raise StudioError('Choose 1–10 topics')
     topics = list(dict.fromkeys(safe_text(t,'topic',240,required=True) for t in topics))
-    if not isinstance(sources,list) or not 1 <= len(sources) <= 10 or any(not isinstance(s,str) or s not in SOURCES for s in sources):
+    allowed=SOURCES
+    if client and isinstance(sources,list) and any(isinstance(s,str) and s not in SOURCES for s in sources):
+        allowed=tuple(s['id'] for s in source_options(client))
+    if not isinstance(sources,list) or not 1 <= len(sources) <= 10 or any(not isinstance(s,str) or s not in allowed for s in sources):
         raise StudioError('Choose a configured image source')
     limit = payload.get('image_limit',20)
     if isinstance(limit,bool) or not isinstance(limit,int) or not 1 <= limit <= 100:
@@ -67,7 +75,7 @@ def require_compatible_worker(client, sources):
                all(isinstance(s, str) for s in w['supported_sources']) and
                set(sources) <= set(w['supported_sources']) for w in workers):
         raise StudioError('No configured HandNavigate worker supports these sites together. '
-                          'Update and reconnect the worker before collecting from Imgflip.')
+                          'Update and reconnect a worker with every selected source before collecting.')
 
 def write(client,table,values,row_id=None,version=None):
     query = '?id=eq.'+str(uuid.UUID(str(row_id))) if row_id else ''
@@ -83,7 +91,7 @@ def write(client,table,values,row_id=None,version=None):
     return result[0]
 
 def enqueue(client,payload):
-    values=spec(payload)
+    values=spec(payload,client)
     key=safe_text(payload.get('request_id'),'request id',128,required=True)
     if len(key)<8:
         raise StudioError('Invalid collection request ID')
@@ -110,7 +118,7 @@ def enqueue_daily(client,day):
     plans=rows(client,'collection_plans',{'daily':'eq.true','archived':'eq.false'},limit=100)
     brief=None;loaded=False;result=[]
     for plan in plans:
-        values=spec(plan);origin='saved'
+        values=spec(plan,client);origin='saved'
         if plan.get('use_planner') is True:
             if not loaded:
                 brief=client.find('content_briefs','day',datetime.now(timezone.utc).date().isoformat());loaded=True
@@ -152,11 +160,12 @@ def worker_dispatch(client,payload):
 def admin_dispatch(client,payload):
     action=payload['action']
     if action=='collection_dashboard':
+        options=source_options(client);available=tuple(s['id'] for s in options)
         offset=payload.get('offset',0)
         if isinstance(offset,bool) or not isinstance(offset,int) or not 0<=offset<=1000000:
             raise StudioError('Invalid page')
         filters={'archived':'eq.'+str(payload.get('archived') is True).lower()}
-        if payload.get('platform') in SOURCES:
+        if payload.get('platform') in available:
             filters['platform']='eq.'+payload['platform']
         if payload.get('topic'):
             # Exact topic filter avoids injecting PostgREST filter syntax.
@@ -167,13 +176,13 @@ def admin_dispatch(client,payload):
         online=bool(seen and (datetime.now(timezone.utc)-datetime.fromisoformat(seen.replace('Z','+00:00'))).total_seconds()<90)
         return {'items':items,'next_offset':offset+25 if len(items)==25 else None,
             'plans':rows(client,'collection_plans',limit=100),'jobs':rows(client,'collection_jobs',limit=30),
-            'sources':list(SOURCES),'source_options':SOURCE_OPTIONS,'capabilities':{'candidate_thumbnail':True},
-            'daily_schedule':'09:53 Asia/Kolkata (GitHub Actions; timing may be delayed)',
+            'sources':list(available),'source_options':options,'capabilities':{'candidate_thumbnail':True,'custom_sources':True},
+            'daily_schedule':os.environ.get('HANDNAVIGATE_SCHEDULE_LABEL','10:00 Asia/Kolkata (Railway; timing may be delayed)'),
             'worker_required':True,'worker_online':online,'worker_last_seen':seen}
     if action=='collection_create':
         return enqueue(client,payload)
     if action=='collection_plan_save':
-        values={**spec(payload),'name':safe_text(payload.get('name'),'plan name',100,required=True),
+        values={**spec(payload,client),'name':safe_text(payload.get('name'),'plan name',100,required=True),
             'daily':payload.get('daily') is True,'use_planner':payload.get('use_planner') is True,'archived':payload.get('archived') is True}
         if values['daily'] and not values['archived']:
             require_compatible_worker(client, values['sources'])

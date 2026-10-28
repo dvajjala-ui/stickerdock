@@ -51,6 +51,21 @@ class CollectionControlTest(unittest.TestCase):
             result=c.enqueue(client,{**job,'request_id':'existing-imgflip'})
             self.assertTrue(result['reused']);workers.assert_not_called()
 
+    def test_registered_sources_are_available_without_accepting_arbitrary_remote_recipes(self):
+        client=Storage();source={'id':'custom-1234567890abcdef','name':'Owned gallery'}
+        with patch.object(c,'source_options',return_value=[*c.SOURCE_OPTIONS,source]):
+            self.assertEqual(c.spec({'topics':['cats'],'sources':[source['id']],'image_limit':2},client)['sources'],[source['id']])
+            with self.assertRaisesRegex(ValueError,'configured'):
+                c.spec({'topics':['cats'],'sources':['custom-unknown'],'image_limit':2},client)
+
+    def test_worker_advertises_only_bounded_descriptors_and_uses_compatible_claim(self):
+        client=Storage();worker=str(uuid.uuid4());source={'id':'custom-1234567890abcdef','name':'Owned gallery','revision':'a'*64,'cookie':'must not reach database','searchUrl':'https://private.example'}
+        with patch.object(client,'rpc',create=True,return_value=[]) as rpc:
+            self.assertEqual(c.worker_dispatch(client,{'action':'claim','worker_id':worker,'supported_sources':[source]}),{'job':None})
+            self.assertEqual(rpc.call_args.args,('claim_compatible_collection_job',{'p_worker_id':worker,'p_sources':[{k:source[k] for k in ('id','name','revision')}]}))
+            for invalid in ([],[source,source],[{**source,'id':'https://site.example'}],[{**source,'revision':'secret'}]):
+                with self.assertRaises(ValueError):c.worker_dispatch(client,{'action':'claim','worker_id':worker,'supported_sources':invalid})
+
     def test_daily_schedule_uses_atomic_budget_rpc_and_existing_planner_with_saved_fallback(self):
         client=Storage();plan={'id':str(uuid.uuid4()),'topics':['saved cats'],'sources':['reddit'],'image_limit':20,'use_planner':True}
         with patch.object(c,'rows',return_value=[plan]),patch.object(client,'find',return_value={'topic_plans':[{'topic':'fresh dogs'}]}),patch.object(client,'rpc',create=True,return_value=[]) as rpc:
