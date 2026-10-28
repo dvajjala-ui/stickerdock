@@ -1,5 +1,9 @@
 # StickerDock verification checklist
 
+## October 29 HandNavigate source continuation
+
+[Actual Railway Flickr acceptance](HANDNAVIGATE_FLICKR_2026-10-29.md): 20/20 downloaded/stored candidates, twenty independent checksum/decoded-image read-backs, successful bounded batch exit, and a read-only hosted Admin check with all twenty previews and no 390px overflow/page errors. The daily plan was changed only after that acceptance. [Source-filter Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40760718870) passes; local backend 327/327. This does not prove multiple natural scheduled days, third-party reuse rights, source-to-sticker generation quality or new phone acceptance.
+
 ## Published Android 0.11.6 and source-text screening — October 28
 
 [Android 0.11.6/build 21](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.11.6)

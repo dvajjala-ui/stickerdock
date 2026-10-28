@@ -1,5 +1,7 @@
 # StickerDock — private sticker creator and library
 
+October 29: [Flickr collection is verified on the actual Railway host](docs/HANDNAVIGATE_FLICKR_2026-10-29.md): twenty photos downloaded and stored, with every Supabase image fetched back and checked. The daily animal plan now uses Flickr cat/dog tags at 10:00 India time, twenty total. Sources supports Flickr/custom platform filters; downloaded candidates stay pending review. [HandNavigate 0.9 portable preview](https://github.com/dvajjala-ui/handNavigation/releases/tag/desktop-v0.9.0) is available. Pinterest/Reddit datacenter blocks and multi-day natural-run acceptance remain open.
+
 October 28 workspace update: Admin now has one **Sources** library with upload,
 drop/paste, source/usage filters, previews, explicit generation approval and Trash;
 **Stickers & packs**, **Runs & automation**, and **Connections & roadmap** have

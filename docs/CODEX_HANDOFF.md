@@ -1,5 +1,7 @@
 # StickerDock development handoff — updated October 28, 2026
 
+October 29 current state: [Flickr collection passed 20/20 on the actual Railway host](HANDNAVIGATE_FLICKR_2026-10-29.md), with independent Supabase image read-back and a successful bounded process exit. Daily animal collection now uses Flickr cat/dog tags at 10:00 India time. HandNavigate 0.9.0 is a verified portable preview. Current Sources filters include Flickr/custom worker recipes; 327 backend tests and source-bound CI pass. Natural multi-day yield and rights/quality admission remain open. Older hosting records below are superseded where this dated acceptance explicitly completes them.
+
 October 29 continuation merges the unfinished HandNavigate custom-source work into the latest hosted-worker/Sources implementation. Read [the sync record](HANDNAVIGATE_SYNC_2026-10-29.md) for retained behavior, current verification and worker installation boundaries. The hosting and source-acceptance records below remain authoritative; this integration does not change hosting resources or approve candidate rights.
 
 ## Sources workspace and hosted HandNavigate
