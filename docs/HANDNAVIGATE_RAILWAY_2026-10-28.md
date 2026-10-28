@@ -41,9 +41,38 @@ service, so that shared setting is not changed by this deployment.
 - Disable the old GitHub browser worker after the new host is accepted. The
   Railway worker can enqueue daily work itself and does not wait for GitHub timing.
 
-Deployment is still being qualified. Container/unit tests do not establish
-Pinterest or Reddit guest access on Railway's network. Record separate source
-outcomes, actual Supabase read-back and process exit before calling it active.
+## Current activation state
+
+The [private Railway project](https://railway.com/project/ce45c8b7-2f41-4228-9a99-987c1c5d403f)
+contains `daily-collector` and `handnavigate-state` in Singapore. Its source is
+staged and pinned to checked HandNavigate revision
+`1b2c9f92bf0e14491cc05e95f61ca4223a017634`. The owner explicitly approved deployment;
+the connector nevertheless rejected the final commit twice with “the user did
+not approve this action.” The owner was asked to apply the prepared staged
+changes in Railway's dashboard. No deployment exists yet. Cron is unset and
+`HANDNAVIGATE_ENQUEUE_DAILY=0`. The existing GitHub automation is preserved.
+
+[Native AMD64/ARM64 container checks](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690215987)
+pass, including a real headful browser and a mounted-state cron that exits.
+[Worker API CI](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690216051)
+passes 36 unit and 24 worker tests; [Windows desktop/package CI](https://github.com/dvajjala-ui/handNavigation/actions/runs/40690216084)
+also passes. The container uses Tini for child-process reaping and signal handling.
+HandNavigate PR #3 merged as `038cfd1`.
+
+StickerDock PR #32 merged as `d5108c5` after
+[Web/API checks](https://github.com/dvajjala-ui/stickerdock/actions/runs/40689597507);
+[Android debug checks](https://github.com/dvajjala-ui/stickerdock/actions/runs/40689597378)
+also pass. The [encrypted bootstrap run](https://github.com/dvajjala-ui/stickerdock/actions/runs/40690381415)
+succeeded. Actual production checks verified the existing worker credential and
+151 minimal cloud duplicate identities; plaintext was not written to a file or log.
+
+Three separate two-image requests are queued for Pinterest, Reddit and Imgflip.
+After dashboard deployment, correlate those requests with this host's logs and
+worker identity, inspect actual stored image receipts and verify process exit.
+Container/unit tests do not establish Pinterest or Reddit guest access. Only
+after acceptance, set one daily cron, enable the host's daily enqueue and disable
+the competing GitHub browser worker. Set the Admin schedule label to the actual
+chosen time and record the first full daily result.
 
 ## Useful Oracle Always Free resources
 

@@ -2,6 +2,11 @@
 
 ## Recommendation
 
+Current account outcome: Oracle Mumbai rejected the A1 request as out of capacity.
+A separate Railway collector is prepared, with the owner's deployment approval;
+the final connector action was rejected and awaits dashboard apply. See
+[the measured budget, passing checks and activation state](HANDNAVIGATE_RAILWAY_2026-10-28.md).
+
 The owner now has an Oracle Free account and an existing Railway Hobby account.
 Their approved order is **Oracle at $0**, then **Railway within $5–$10/month for
 this worker**. The earlier DigitalOcean recommendation exceeds this budget and
