@@ -61,6 +61,15 @@ Done:
 
 Result: pulled the new HandNavigate features through `fed2e98`, resolved PR #26's QA-document conflict, applied and verified its additive admission migration, and merged it as `04a687e` after passing Android and Web/API CI. The [architecture review](ARCHITECTURE_REVIEW_2026-10-28.md) records the source-capability gap and remaining acceptance work.
 
+### Prompt 5 — October 28, 2026 (continuation)
+
+> conntinuw from wher eu left off
+
+Repeated continuation requests resume the active work. PR #27 delivered the
+Library accessibility/search-history fix after native CI passed. Factory recovery
+and the remaining source-text quality repair are recorded in the
+[quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md).
+
 ## Master feature backlog
 
 ### Search & discovery

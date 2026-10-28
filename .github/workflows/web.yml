@@ -44,6 +44,10 @@ jobs:
         run: bash tools/ci_media_tools.sh
       - name: Install test dependencies
         run: python -m pip install -r tools/requirements-stickers.txt -r tools/requirements-pinterest.txt -r tools/requirements-checks.txt
+      - name: Verify local source-text screening with real OCR
+        run: |
+          bash tools/ci_text_tools.sh
+          python tools/check_text_screening.py
       - name: Validate web scripts and API
         run: |
           node --check admin/app.js

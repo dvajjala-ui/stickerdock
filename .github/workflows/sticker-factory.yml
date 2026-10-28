@@ -49,6 +49,7 @@ jobs:
         if: steps.due.outputs.run == 'true'
         run: |
           bash tools/ci_media_tools.sh
+          bash tools/ci_text_tools.sh
           python -m pip install -r tools/requirements-stickers.txt
       - name: Verify production configuration exists
         if: steps.due.outputs.run == 'true'
