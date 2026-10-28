@@ -601,6 +601,9 @@ def signed_download(client, payload):
 
 
 def dispatch(payload, client=None):
+    if payload.get('action') in {'sources_list','source_upload_candidate','source_admit','source_use','source_trash','source_revoke'}:
+        from api._sources import dispatch as source_dispatch
+        return source_dispatch(client or SupabaseFactory(),payload)
     if payload.get("action") == "health":
         return readiness(client)
     client = client or SupabaseFactory()

@@ -6,6 +6,7 @@
   <meta name="description" content="StickerDock Factory dashboard, pack review and publication.">
   <link rel="stylesheet" href="/admin/styles.css">
   <script src="/admin/collect.js" defer></script>
+  <script src="/admin/sources.js" defer></script>
   <script src="/admin/app.js" defer></script>
 </head>
 <body>
@@ -14,19 +15,21 @@
     <p class="nav-label">WORKSPACE</p>
     <nav aria-label="Admin navigation">
       <button data-page="overview" class="active"><span>◫</span> Overview</button>
-      <button data-page="packs"><span>▧</span> Sticker packs <b id="pack-count">0</b></button>
-      <button data-page="media"><span>▨</span> Media library</button>
-      <button data-page="collect"><span>↓</span> Collect images</button>
+      <button data-page="sources"><span>▨</span> Sources</button>
+      <button data-page="packs"><span>▧</span> Stickers & packs <b id="pack-count">0</b></button>
+      <button data-page="factory"><span>◷</span> Runs & automation</button>
+      <p class="nav-label">CREATE & PLAN</p>
       <button data-page="generate"><span>✦</span> AI workbench</button>
       <button data-page="content"><span>◎</span> Content planner</button>
       <p class="nav-label">OPERATIONS</p>
-      <button data-page="factory"><span>◷</span> Factory & queue</button>
+      <button data-page="connections"><span>⌘</span> Connections & roadmap</button>
+      <details class="nav-advanced"><summary>More tools</summary>
       <button data-page="catalog"><span>↗</span> Public catalog</button>
       <button data-page="community"><span>♧</span> User submissions</button>
       <button data-page="activity"><span>≋</span> Activity log</button>
       <button data-page="settings"><span>⚙</span> Settings</button>
       <button data-page="health"><span>✓</span> Setup & health</button>
-      <button data-page="pinterest"><span>Ⓟ</span> Pinterest connection</button>
+      </details>
     </nav>
     <div class="sidebar-bottom"><a class="download-apk" href="/download">Download Android APK <span>Latest signed release ↗</span></a><div class="flow-note"><span>☏</span><strong>Made for your phone</strong><p>Pack browsing, photo/video editing and editable backups. Review public packs here.</p></div><div class="account"><span class="avatar">D</span><span>Shared workspace<small id="connection-label">No password required</small></span></div></div>
   </aside>

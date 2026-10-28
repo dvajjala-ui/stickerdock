@@ -52,6 +52,7 @@ jobs:
         run: |
           node --check admin/app.js
           node --check admin/collect.js
+          node --check admin/sources.js
           node --check studio/app.js
           python -m ruff check api tools --select F821,F822,F823
           python -m unittest discover -s tools -p 'test_*.py' -q
@@ -64,3 +65,9 @@ jobs:
         env:
           POSTGRES_TEST_CONTAINER: ${{ job.services.postgres.id }}
         run: python tools/check_creator_admission.py --docker-container "$POSTGRES_TEST_CONTAINER"
+
+      - name: Verify Sources workspace in a real browser with fixture APIs
+        run: |
+          npm install --prefix "$RUNNER_TEMP/stickerdock-ui" --no-save playwright@1.64.1
+          node "$RUNNER_TEMP/stickerdock-ui/node_modules/playwright/cli.js" install --with-deps chromium
+          PLAYWRIGHT_MODULE="$RUNNER_TEMP/stickerdock-ui/node_modules/playwright" node tools/source_workspace_browser.cjs

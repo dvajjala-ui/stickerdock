@@ -1,0 +1,35 @@
+name: Maintain unified source library
+on:
+  workflow_dispatch:
+    inputs:
+      cleanup_broken:
+        description: Quarantine and remove verified corrupt unreferenced inbox images
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: source-workspace-maintenance
+  cancel-in-progress: false
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install Pillow==11.3.0
+      - name: Index valid sources and audit damaged bytes
+        env:
+          CLEANUP_BROKEN: ${{ inputs.cleanup_broken }}
+        run: |
+          if [ "$CLEANUP_BROKEN" = "true" ]; then
+            python -m tools.source_workspace_maintenance --cleanup-broken
+          else
+            python -m tools.source_workspace_maintenance
+          fi
