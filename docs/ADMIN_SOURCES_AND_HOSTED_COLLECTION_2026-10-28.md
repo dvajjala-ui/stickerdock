@@ -61,3 +61,28 @@ non-transmission and guest galleries beside optional login prompts.
 Hosted CI, actual hosted guest download/storage, legacy cleanup counts and final
 deployment evidence are recorded separately when completed. No new public pack
 or paid provider generation is needed to verify this release.
+
+## Hosted acceptance and current source limits
+
+- [Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40654235085)
+  passed for functional revision `6cfab27`; its merged deployment also passed
+  [Web/API](https://github.com/dvajjala-ui/stickerdock/actions/runs/40654479447)
+  and [Android debug](https://github.com/dvajjala-ui/stickerdock/actions/runs/40654479662).
+- [Hosted bootstrap](https://github.com/dvajjala-ui/stickerdock/actions/runs/40654285720)
+  proved install, private checkpoint restore/save and queue integration. It
+  correctly enqueued zero jobs after the day's stored-image quota was met.
+- The first two-image guest qualification failed, exposing the need to separate
+  blocked optional login iframes from guarded main-page navigation. The corrected
+  worker keeps the real redirect non-transmission regression intact.
+- [Corrected hosted collection](https://github.com/dvajjala-ui/stickerdock/actions/runs/40655114039)
+  passed and production job `8bc2f74e-a8a7-4631-9d82-efe9291f4eef` reached
+  `VERIFIED_STORAGE`, 2/2 images, both from Imgflip. **Pinterest and Reddit both
+  reported `AUTH_REQUIRED` from GitHub's guest network.** This does not establish
+  an unattended 20/day Pinterest/Reddit pipeline. Candidates remain unreviewed.
+- Read-only hosted Chromium checks verified Sources previews, pack filters,
+  roadmap navigation and no page errors. A separate fixture check covers 390px
+  Sources layout; actual provider/device acceptance remains separate.
+
+The owner has no existing hosting account and requested a researched setup.
+[Current hosting options and prepared VM deployment](HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
+record prices, account requirements and the exact-host acceptance sequence.
