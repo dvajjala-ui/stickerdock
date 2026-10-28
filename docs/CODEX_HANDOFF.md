@@ -1,5 +1,12 @@
 # StickerDock development handoff — updated October 28, 2026
 
+## Sources workspace and hosted HandNavigate
+
+See [the implementation and acceptance record](ADMIN_SOURCES_AND_HOSTED_COLLECTION_2026-10-28.md).
+This consolidates source management, adds explicit version-bound admission into
+Factory/Creator, prepares hosted daily guest collection with private checkpoints,
+and provides verified corrupt-image quarantine without resetting packs or phones.
+
 ## October 28 merge and architecture review
 
 The [recovery and quality follow-up](FACTORY_RECOVERY_AND_QUALITY_2026-10-28.md)

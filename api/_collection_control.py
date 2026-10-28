@@ -212,6 +212,7 @@ def admin_dispatch(client,payload):
         review=payload.get('rights_status','UNREVIEWED')
         if review not in ('UNREVIEWED','APPROVED','REJECTED'):
             raise StudioError('Invalid review status')
+        # Editing details invalidates any earlier version-bound admission.
         values.update(rights_status=review,generation_eligible=False)
         return {'item':write(client,'media_intake_items',values,payload.get('id'),payload.get('version'))}
     if action=='intake_archive':

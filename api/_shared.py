@@ -224,7 +224,14 @@ def source_metadata(source_path):
     if not isinstance(metadata, dict) or metadata.get("license") not in (
             "CC0", "PUBLIC_DOMAIN", "USER_OWNED", "REFERENCE_ONLY"):
         raise StudioError("Invalid source rights metadata")
-    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title", "purpose")
+    if metadata.get('intake_id'):
+        from api._sources import approved_credit
+        from tools.supabase_factory import SupabaseFactory
+        client=SupabaseFactory()
+        current=approved_credit(client,client.find('media_intake_items','id',metadata['intake_id']))
+        if current.get('stored_sha256') != digest or current.get('candidate_version') != metadata.get('candidate_version'):
+            raise StudioError('Source approval changed; select this image again')
+    return {key: metadata[key] for key in ("source", "source_url", "download_url", "license", "credit", "title", "purpose", "intake_id", "platform", "original_sha256", "stored_sha256", "admission_verified")
             if key in metadata}
 
 

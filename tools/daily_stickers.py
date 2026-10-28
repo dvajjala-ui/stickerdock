@@ -720,7 +720,8 @@ def run(config, root, font_path, now=None):
                 if mode == "photo":
                     recent_use = Counter(Path(record.get("image_path", "")).name
                                          for record in history if record.get("image_path"))
-                    images.sort(key=lambda path: (recent_use[path.name], path.name))
+                    preferred=set(config.get('preferred_media_files',[]))
+                    images.sort(key=lambda path: (path.name not in preferred,recent_use[path.name],path.name))
                     image_paths = [str(path.resolve()) for path in images[:min(count, len(images), 6)]]
                 image_path = image_paths[0] if image_paths else str(images[batch_index % len(images)].resolve())
                 model = config["vision_model"]

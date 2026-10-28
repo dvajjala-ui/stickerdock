@@ -3,6 +3,11 @@ on:
   schedule:
     - cron: '23 4 * * *' # about 09:53 Asia/Kolkata; Actions timing can be delayed
   workflow_dispatch:
+    inputs:
+      qualification:
+        description: Qualify hosted guest browsing with two real images
+        type: boolean
+        default: false
 concurrency:
   group: handnavigate-daily-intake
   cancel-in-progress: false
@@ -12,16 +17,62 @@ jobs:
   collect:
     if: vars.HANDNAVIGATE_INTAKE_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       HANDNAVIGATE_DAILY_BUDGET: ${{ vars.HANDNAVIGATE_DAILY_BUDGET || '20' }}
+      STICKERDOCK_BASE_URL: https://stickerdock.vercel.app
+      STICKERDOCK_INGEST_TOKEN: ${{ secrets.HANDNAVIGATE_INGEST_TOKEN }}
+      HANDNAVIGATE_CLOUD_QUEUE: '1'
+      HANDNAVIGATE_DATA: ${{ github.workspace }}/work/handnavigate-hosted
+      HANDNAVIGATE_HEADLESS: '1'
+      HANDNAVIGATE_DAILY_LIMIT: ${{ vars.HANDNAVIGATE_DAILY_BUDGET || '20' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - run: python -m pip install Pillow==11.3.0
+      - name: Check out the reviewed browser worker
+        uses: actions/checkout@v7
+        with:
+          repository: dvajjala-ui/handNavigation
+          ref: b3c83aa3fb2ed431cf49621d02ac0b2ac4d6134c
+          path: work/handnavigate-source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install browser worker
+        working-directory: work/handnavigate-source
+        run: |
+          npm ci --omit=dev
+          npx playwright install --with-deps chromium
+      - name: Restore private worker journal and unfinished downloads
+        run: python -m tools.hosted_collection restore --folder "$HANDNAVIGATE_DATA"
+      - name: Start hosted guest worker
+        run: |
+          node work/handnavigate-source/service/server.cjs > "$RUNNER_TEMP/handnavigate-worker.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/handnavigate-worker.pid"
+          python -c "import time; time.sleep(3)"
+          kill -0 "$(cat "$RUNNER_TEMP/handnavigate-worker.pid")"
       - name: Enqueue enabled Admin topic plans for the outbound worker
-        run: python -m tools.enqueue_collections --wait
+        env:
+          QUALIFICATION: ${{ inputs.qualification }}
+        run: |
+          if [ "$QUALIFICATION" = "true" ]; then
+            python -m tools.enqueue_collections --qualification --wait --wait-timeout 1100
+          else
+            python -m tools.enqueue_collections --wait --wait-timeout 1100
+          fi
+      - name: Stop worker and preserve private checkpoint
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/handnavigate-worker.pid" ]; then
+            pid="$(cat "$RUNNER_TEMP/handnavigate-worker.pid")"
+            kill -TERM "$pid" 2>/dev/null || true
+            for attempt in $(seq 1 45); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+            if kill -0 "$pid" 2>/dev/null; then echo "Worker did not stop cleanly; checkpoint was not overwritten."; exit 1; fi
+          fi
+          python -m tools.hosted_collection save --folder "$HANDNAVIGATE_DATA"

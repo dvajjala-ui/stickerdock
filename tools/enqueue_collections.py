@@ -30,11 +30,17 @@ def wait_for_completion(client,submissions,timeout=1200,interval=10):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--wait',action='store_true',help='Fail the workflow if queued work does not reach verified storage')
+    parser.add_argument('--qualification',action='store_true',help='Collect two real guest images to qualify the hosted worker')
     parser.add_argument('--wait-timeout',type=int,default=1200)
     args=parser.parse_args()
     if not 1<=args.wait_timeout<=3600:raise ValueError('Wait timeout must be 1–3600 seconds')
     client=SupabaseFactory()
-    jobs=enqueue_daily(client,datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d'))
+    if args.qualification:
+        from api._collection_control import enqueue
+        jobs=[enqueue(client,{'request_id':'hosted-qualification-'+uuid.uuid4().hex,
+            'topics':['cat'],'sources':['pinterest','reddit','imgflip'],'image_limit':2})]
+    else:
+        jobs=enqueue_daily(client,datetime.now(ZoneInfo('Asia/Kolkata')).strftime('%Y-%m-%d'))
     print(json.dumps({'queued':sum(not r['reused'] for r in jobs),'note':'No new jobs when today\'s stored-image budget is already satisfied or no daily plans are enabled.',
         'jobs':[{'id':r['job']['id'],'status':r['job']['status'],'limit':r['job']['image_limit'],'topic_origin':r['job'].get('topic_origin','saved'),'reused':r['reused']} for r in jobs]}),flush=True)
     if args.wait:wait_for_completion(client,jobs,timeout=args.wait_timeout)

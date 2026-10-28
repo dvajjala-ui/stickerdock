@@ -11,9 +11,14 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import tempfile
+import sys
 import uuid
 import zipfile
 from PIL import Image
+
+# This entry point is also executed as `python tools/production_worker.py`.
+# Make the shared API admission contract importable in that invocation.
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 
 from daily_stickers import atomic_json, export_zip, run as run_generator, ProviderError, ProviderResponseError
 from sticker_fonts import default_font
@@ -438,12 +443,16 @@ def inbox_metadata(client, digest, remote_path):
     metadata = json.loads(data)
     if not isinstance(metadata, dict) or metadata.get("license") not in SOURCE_LICENSES:
         raise ValueError("Invalid source metadata")
+    if metadata.get('intake_id'):
+        from api._sources import approved_credit
+        approved_credit(client,client.find('media_intake_items','id',metadata['intake_id']))
     result = {"source_url": str(metadata.get("source_url", ""))[:1000],
               "download_url": str(metadata.get("download_url", ""))[:1000],
               "license": metadata["license"],
               "title": str(metadata.get("title", Path(remote_path).name))[:240],
               "credit": str(metadata.get("credit", ""))[:400],
               "source": str(metadata.get("source", "uploaded-reference"))[:80]}
+    result.update({key:metadata[key] for key in ('intake_id','admission_verified','purpose','candidate_version','stored_sha256') if key in metadata})
     if not result["source_url"]:
         result["source_url"] = "supabase://" + remote_path
     if not result["download_url"]:
@@ -560,9 +569,10 @@ def configure(config, runtime, now):
         allowed = [item["file"] for item in assets if item.get("license") in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
                    and item.get("purpose") not in {"REFERENCE", "RESULT"}
                    and not str(item.get("source", "")).startswith("pinterest")
-                   and "pinterest.com" not in str(item.get("source_url", ""))
+                   and ("pinterest.com" not in str(item.get("source_url", "")) or item.get("admission_verified") is True)
                    and (not config.get("require_reaction_media") or reaction_media(item))]
         config["allowed_media_files"] = allowed
+        config["preferred_media_files"] = [item['file'] for item in assets if item.get('intake_id') and item['file'] in allowed]
         files = [path for path in files if path.name in allowed]
         has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
         has_clips = any(path.suffix.lower() in CLIP_EXTENSIONS for path in files)
@@ -773,6 +783,9 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         except (SupabaseError, ValueError, TypeError):
             deferred.append("Historical run status repair is pending")
         inbox_added = sync_inbox(client, runtime)
+        if config.get('source_workspace') is True:
+            from api._sources import sync_factory_sources
+            sync_factory_sources(client,runtime)
         configured = configure(config, runtime, now)
         if controls:
             # Admin controls take precedence over workflow defaults.
@@ -781,6 +794,13 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
             configured["rating"] = controls.get("rating", configured["rating"])
             configured, brief = ensure_content_brief(client, configured, controls, now)
         mirror_licensed_inputs(client, runtime)
+        if config.get('source_workspace') is True:
+            pending_path=generated/datetime.fromtimestamp(now,timezone.utc).date().isoformat()/'state.json'
+            pending_state=json.loads(pending_path.read_text()) if pending_path.exists() else {}
+            pending=pending_state.get('pending') or {}
+            paths=pending.get('image_paths') or ([pending['image_path']] if pending.get('image_path') else [])
+            if configured.get('require_real_media') and any(Path(p).name not in configured.get('allowed_media_files',[]) for p in paths):
+                raise ValueError('A pending batch source is no longer approved; review it before generation')
         current_day_started = True
         result = generator(configured, generated,
                            default_font(), now)

@@ -7,6 +7,7 @@
   "vision_model": "qwen/qwen3.8-27b",
   "modes": ["photo", "clip"],
   "require_real_media": true,
+  "source_workspace": true,
   "require_reaction_media": true,
   "require_source_text_screening": true,
   "require_unique_photo_per_sticker": true,
