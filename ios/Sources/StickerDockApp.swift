@@ -348,6 +348,7 @@ private struct StickerDetail: View {
     @Environment(\.dismiss) private var dismiss
     @State private var deleting = false
     @State private var editingMetadata = false
+    @State private var choosingCopyTarget = false
     @State private var label = ""
     @State private var tags = ""
     var body: some View {
@@ -359,10 +360,48 @@ private struct StickerDetail: View {
                     label = sticker.label; tags = sticker.tags; editingMetadata = true
                 }
                 Button("Toggle favorite", systemImage: "heart") { model.run("Updating favorite") { try await model.store.toggleFavorite(packID: pack.id, stickerID: sticker.id); dismiss() } }
+                Button("Copy to another pack", systemImage: "square.on.square") { choosingCopyTarget = true }
                 Button("Delete sticker", systemImage: "trash", role: .destructive) { deleting = true }
             }.padding().navigationTitle("Sticker preview").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
                 .confirmationDialog("Delete this sticker?", isPresented: $deleting) { Button("Delete", role: .destructive) { model.run("Removing sticker") { try await model.store.remove(packID: pack.id, stickerID: sticker.id); dismiss() } } }
+                .sheet(isPresented: $choosingCopyTarget) {
+                    NavigationStack {
+                        let targets = model.packs.filter { candidate in
+                            candidate.id != pack.id && candidate.kind == pack.kind && candidate.stickers.count < 30 &&
+                            (pack.rating != .MATURE || candidate.rating == .MATURE)
+                        }
+                        List {
+                            if targets.isEmpty {
+                                ContentUnavailableView("No compatible pack", systemImage: "square.stack.3d.up",
+                                    description: Text("Create another \(pack.kind == .ANIMATED ? "animated" : "static") pack with room first. Private mature stickers stay in private mature packs."))
+                            } else {
+                                ForEach(targets) { target in
+                                    Button {
+                                        choosingCopyTarget = false
+                                        model.run("Copying sticker") {
+                                            try await model.store.copySticker(packID: pack.id, stickerID: sticker.id, to: target.id)
+                                            model.notice = "Copied to \(target.name). The original remains in \(pack.name)."
+                                            dismiss()
+                                        }
+                                    } label: {
+                                        HStack {
+                                            VStack(alignment: .leading) {
+                                                Text(target.name)
+                                                Text("\(target.stickers.count)/30 stickers\(target.rating == .MATURE ? " · Private" : "")")
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .navigationTitle("Copy to pack")
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Cancel") { choosingCopyTarget = false } } }
+                    }
+                }
                 .sheet(isPresented: $editingMetadata) {
                     NavigationStack {
                         Form {

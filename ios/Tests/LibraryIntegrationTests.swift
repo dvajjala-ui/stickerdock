@@ -61,6 +61,29 @@ final class LibraryIntegrationTests: XCTestCase {
         XCTAssertEqual(bytes, first.data)
     }
 
+    func testCopyPreservesMetadataAndRejectsDuplicatesAndPrivateToGeneral() async throws {
+        let root = try directory()
+        let store = LibraryStore(root: root)
+        var item = try await photo(.systemOrange)
+        item.label = "Work reaction"; item.tags = "work, hello"
+        let packs = try await store.importPacks([
+            ImportedPack(name: "Private", kind: .STATIC, rating: .MATURE, stickers: [item]),
+            ImportedPack(name: "Private destination", kind: .STATIC, rating: .MATURE, stickers: []),
+            ImportedPack(name: "General destination", kind: .STATIC, rating: .GENERAL, stickers: [])
+        ])
+        let sticker = try XCTUnwrap(packs[0].stickers.first)
+        do { try await store.copySticker(packID: packs[0].id, stickerID: sticker.id, to: packs[2].id); XCTFail("Private content reached a general pack") } catch { }
+        try await store.copySticker(packID: packs[0].id, stickerID: sticker.id, to: packs[1].id)
+        do { try await store.copySticker(packID: packs[0].id, stickerID: sticker.id, to: packs[1].id); XCTFail("Duplicate copy was accepted") } catch { }
+        let saved = try await LibraryStore(root: root).load()
+        XCTAssertEqual(saved[0].stickers, packs[0].stickers)
+        XCTAssertTrue(saved[2].stickers.isEmpty)
+        XCTAssertEqual(saved[1].stickers.count, 1)
+        XCTAssertEqual(saved[1].stickers[0].sha256, sticker.sha256)
+        XCTAssertEqual(saved[1].stickers[0].label, "Work reaction")
+        XCTAssertEqual(saved[1].stickers[0].tags, "work, hello")
+    }
+
     func testLegacyFoundationUUIDsExportWithCanonicalAndroidPaths() async throws {
         let root = try directory()
         let item = try await photo(.systemPurple)

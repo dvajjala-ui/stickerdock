@@ -97,3 +97,11 @@ does not automatically save. Public pack detail can share a code and app link.
 Malformed or unavailable links get a clear error; private packs are still
 shared as an explicit ZIP. Unit and simulator checks cover the entry points;
 real messenger-to-app links and physical iPhone acceptance remain open.
+
+## iPhone organization continuation
+
+Sticker detail offers **Copy to another pack**. It preserves the original,
+artwork hash, label and tags; rejects duplicates, incompatible media and full
+packs; and prevents private mature content from entering a general pack. Copy
+uses the existing atomic library commit. This is a copy, not a destructive
+move; cross-pack bulk operations and favorites parity are still open.
