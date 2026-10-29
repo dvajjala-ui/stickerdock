@@ -892,7 +892,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                             }
                                         },
                                         onPreview = { entry -> withContext(Dispatchers.IO) {
-                                            CommunityCatalog(this@StickerDockPolishedActivity, backup).preview(entry)
+                                            CommunityCatalog(this@StickerDockPolishedActivity, backup).preview(entry, allowLegacyDownload = true)
                                         } },
                                         previewRevision = catalogArtworkRevision,
                                         onHide = { entry ->

@@ -10,6 +10,7 @@ final class NavigationTests: XCTestCase {
         app.buttons["WhatsApp packs"].tap()
         XCTAssertTrue(app.staticTexts["No packs yet"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Create stickers"].exists)
+        let whatsappShot = XCTAttachment(screenshot: app.screenshot()); whatsappShot.name = "WhatsApp packs"; whatsappShot.lifetime = .keepAlways; add(whatsappShot)
         app.buttons["Done"].tap()
         app.tabBars.buttons["Create"].tap()
         XCTAssertTrue(app.buttons["Choose from Photos"].waitForExistence(timeout: 5))

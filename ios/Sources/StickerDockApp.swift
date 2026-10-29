@@ -62,18 +62,14 @@ struct RootView: View {
     @State private var creatorPresented = false
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { DiscoverView(onSaved: { tab = .library }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
-            NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
             NavigationStack {
-                LibraryView()
+                LibraryView(onCreate: { tab = .create }, onDiscover: { tab = .discover }, onWhatsApp: { whatsAppHub = true })
                     .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button { whatsAppHub = true } label: { Label("WhatsApp", systemImage: "message.fill") }
-                                .accessibilityLabel("WhatsApp packs")
-                        }
                         ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") }
                     }
             }.tabItem { Label("Library", systemImage: "square.grid.2x2") }.tag(HomeTab.library)
+            NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
+            NavigationStack { DiscoverView(onSaved: { tab = .library }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
         }
         .environment(\.creatorSheetPresentation, $creatorPresented)
         .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
@@ -169,6 +165,9 @@ enum StickerSearchRanking {
 }
 
 struct LibraryView: View {
+    var onCreate: () -> Void = {}
+    var onDiscover: () -> Void = {}
+    var onWhatsApp: () -> Void = {}
     @EnvironmentObject var model: LibraryModel
     @State private var query = ""
     @State private var kind = "All"
@@ -209,12 +208,31 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Picker("Sticker type", selection: $kind) { Text("All").tag("All"); Text("Static").tag("STATIC"); Text("Animated").tag("ANIMATED") }.pickerStyle(.segmented)
-                    Button { favorites.toggle() } label: { Image(systemName: favorites ? "heart.fill" : "heart") }.accessibilityLabel("Show favorite packs").accessibilityAddTraits(favorites ? .isSelected : [])
+                Button(action: onWhatsApp) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "message.fill").font(.title3).foregroundStyle(.white)
+                            .frame(width: 44, height: 44).background(Color(red: 0.03, green: 0.5, blue: 0.36), in: RoundedRectangle(cornerRadius: 14))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Add to WhatsApp").font(.headline).foregroundStyle(.primary)
+                            Text(model.packs.isEmpty ? "Create a pack to get started" : "Choose a pack from your library")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                    }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                }.buttonStyle(.plain).accessibilityLabel("WhatsApp packs")
+                if !model.packs.isEmpty {
+                    HStack {
+                        Picker("Sticker type", selection: $kind) { Text("All").tag("All"); Text("Static").tag("STATIC"); Text("Animated").tag("ANIMATED") }.pickerStyle(.segmented)
+                        Button { favorites.toggle() } label: { Image(systemName: favorites ? "heart.fill" : "heart") }.accessibilityLabel("Show favorite packs").accessibilityAddTraits(favorites ? .isSelected : [])
+                    }
                 }
                 if model.packs.isEmpty {
-                    ContentUnavailableView { Label("Your reactions belong here", systemImage: "face.smiling") } description: { Text("Create from a photo or clip, or import a StickerDock ZIP. Your library stays on this device.") } actions: { Button("Import sticker ZIP") { importer = true }.buttonStyle(.borderedProminent) }
+                    ContentUnavailableView { Label("Your reactions belong here", systemImage: "face.smiling") } description: { Text("Create a pack or find something to send. Your saved stickers stay on this device.") } actions: {
+                        Button("Create stickers", action: onCreate).buttonStyle(.borderedProminent)
+                        Button("Explore packs", action: onDiscover).buttonStyle(.bordered)
+                        Button("Import sticker ZIP") { importer = true }
+                    }
                 } else if filtered.isEmpty && (searchTerms.isEmpty || resultsView == "Packs") {
                     ContentUnavailableView.search(text: query)
                 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct DiscoverView: View {
     var onSaved: () -> Void = {}
     @EnvironmentObject var model: LibraryModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var query = ""
     @State private var kind = "ALL"
     @State private var selected: CatalogPack?
@@ -19,8 +20,8 @@ struct DiscoverView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                Text("Find your next reaction").font(.title2.bold())
-                Text("Preview a pack, then save only what you want.").foregroundStyle(.secondary)
+                Text("A reaction for every chat.").font(.largeTitle.bold())
+                Text("Explore reviewed packs, preview the stickers and save your favorites.").foregroundStyle(.secondary)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(["ALL", "STATIC", "ANIMATED"], id: \.self) { value in
@@ -36,8 +37,10 @@ struct DiscoverView: View {
                 if !loading && failure == nil && !model.catalog.isEmpty && visiblePacks.isEmpty {
                     ContentUnavailableView.search(text: query.isEmpty ? kind.capitalized : query)
                 }
-                ForEach(visiblePacks) { pack in
-                    Button { selected = pack } label: { CatalogCard(pack: pack) }.buttonStyle(.plain)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 300 : 160), spacing: 12)], spacing: 12) {
+                    ForEach(visiblePacks) { pack in
+                        Button { selected = pack } label: { CatalogCard(pack: pack) }.buttonStyle(.plain)
+                    }
                 }
             }.padding()
         }
@@ -60,7 +63,10 @@ private struct CatalogCard: View {
     @State private var preview: Data?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let preview { StickerImage(data: preview, pixels: 576).frame(height: 190) }
+            if let preview {
+                StickerImage(data: preview, pixels: 384).frame(maxWidth: .infinity).frame(height: 150)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            }
             else {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("CURATED STICKERS").font(.caption2.weight(.bold)).tracking(1.4)
@@ -71,14 +77,14 @@ private struct CatalogCard: View {
                 .foregroundStyle(.primary)
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 190)
+                .frame(height: 150)
                 .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
             }
             Text(pack.name).font(.headline)
             Text(pack.creator + (pack.stickerCount.map { " · \($0) stickers" } ?? ""))
                 .font(.caption).foregroundStyle(.secondary)
-            Label("Preview pack", systemImage: "arrow.up.right").font(.subheadline)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+            Label("View pack", systemImage: "arrow.up.right").font(.caption.weight(.semibold))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
             .task(id: pack.sha256) { preview = try? await model.catalogClient.preview(pack) }
     }
 }

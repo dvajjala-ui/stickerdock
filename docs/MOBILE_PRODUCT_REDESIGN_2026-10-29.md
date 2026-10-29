@@ -68,3 +68,22 @@ reviewed original content that people want to send. Verify real catalog loading,
 save and handoff on devices; do not publish the existing rejected Factory drafts.
 Use Android emulator and iPhone simulator as early checks, then real WhatsApp,
 Business and physical iPhone/Samsung checks before a release claim.
+
+## Artwork-first continuation
+
+On October 29 the public catalog's five published packs all lacked dedicated
+preview thumbnails. This caused generic placeholder cards despite the packs
+containing real artwork. Both apps now derive a cover from a small public archive
+when a dedicated cover is missing. The archive is bounded to 2 MB, must match
+the catalog SHA-256, and is parsed without importing it into the personal
+library. Larger or unavailable archives still offer an explicit full preview.
+iPhone keeps a bounded in-memory cover cache; Android uses its existing bounded
+preview cache. iPhone Discover uses an adaptive artwork grid and switches to a
+single column for accessibility text sizes.
+
+The first iPhone simulator screenshots showed that the toolbar collapsed the
+WhatsApp label to an ambiguous chat bubble, and the empty Library focused on ZIP
+import while hiding the more common Create and Discover paths. Library now has a
+clearly labeled WhatsApp card, direct Create/Discover actions and removes inactive
+type filters when empty. Tab order matches Android: Library, Create, Discover.
+Fresh screenshot, larger-text and device acceptance remain required.

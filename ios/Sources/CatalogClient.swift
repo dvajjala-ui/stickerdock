@@ -25,6 +25,8 @@ private final class NoRedirects: NSObject, URLSessionTaskDelegate {
 actor CatalogClient {
     private let base: URL?
     private let session: URLSession
+    private var previewCache: [String: Data] = [:]
+    private var previewOrder: [String] = []
     init(base: URL?) {
         self.base = base
         let configuration = URLSessionConfiguration.ephemeral
@@ -53,9 +55,28 @@ actor CatalogClient {
     }
 
     func preview(_ pack: CatalogPack) async throws -> Data? {
-        guard let base, let preview = pack.preview else { return nil }
-        let bytes = try await fetch(base.appendingPathComponent("previews").appendingPathComponent(preview.file), limit: 320_000)
-        try require(MediaRules.hash(bytes) == preview.sha256, "Preview failed its integrity check.")
+        guard let base else { return nil }
+        if let cached = previewCache[pack.sha256] { return cached }
+        let bytes: Data
+        if let preview = pack.preview {
+            bytes = try await fetch(base.appendingPathComponent("previews").appendingPathComponent(preview.file), limit: 320_000)
+            try require(MediaRules.hash(bytes) == preview.sha256, "Preview failed its integrity check.")
+        } else {
+            // Older published packs have no cover. Derive one from a small verified
+            // public archive without adding anything to the personal library.
+            let archive = try await fetch(base.appendingPathComponent("packs").appendingPathComponent(pack.file), limit: 2_000_000)
+            try require(MediaRules.hash(archive) == pack.sha256, "Pack failed its integrity check.")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".zip")
+            defer { try? FileManager.default.removeItem(at: url) }
+            try archive.write(to: url, options: .atomic)
+            let packs = try PackArchive.read(url)
+            try require(packs.allSatisfy { $0.rating == .GENERAL }, "Public packs cannot contain mature content.")
+            guard let first = packs.first?.stickers.first else { return nil }
+            bytes = first.data
+        }
+        previewCache[pack.sha256] = bytes
+        previewOrder.removeAll { $0 == pack.sha256 }; previewOrder.append(pack.sha256)
+        if previewOrder.count > 24 { previewCache.removeValue(forKey: previewOrder.removeFirst()) }
         return bytes
     }
 
