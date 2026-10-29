@@ -357,8 +357,8 @@ private fun FavoriteStickerCard(result: StickerSearchResult, files: StickerFiles
 private fun LibraryOnboardingCard(busy: Boolean, onCreatePack: () -> Unit, onImportPhone: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         StickerDockBrandLockup()
-        Text("Build the reaction shelf you actually use.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Text("Make a sticker from your photos or bring over your existing WhatsApp folders. Your library stays on this phone until you choose to share or back it up.",
+        Text("Your library starts here", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        Text("Build the reaction shelf you actually use. Make a sticker from your photos or bring over your existing WhatsApp folders. Your library stays on this phone until you choose to share or back it up.",
             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         ProductAction("Choose photos", "Cut out a subject, add a caption and save your first pack", "Photo", !busy, onCreatePack)
         OutlinedButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.fillMaxWidth()) {
@@ -603,10 +603,10 @@ fun CreateScreen(
 
             // Media creators
             item {
-                CreationCard("Choose photos", "Smart cutout from photos", "Pick camera or gallery photos. Automatic cutout, stroke outline and custom captions.", "Photo", !busy, onPhotos, prominent = true)
+                CreationCard("Make stickers from photos", "Smart cutout from photos", "Pick camera or gallery photos. Automatic cutout, stroke outline and custom captions.", "Photo", !busy, onPhotos, prominent = true)
             }
             item {
-                CreationCard("Choose clip", "Looped moving sticker", "Trim a video or GIF, add text overlay, and convert into a 512×512 animated WebP.", "Video", !busy, onClip, prominent = false)
+                CreationCard("Make an animated reaction", "Looped moving sticker", "Trim a video or GIF, add text overlay, and convert into a 512×512 animated WebP.", "Video", !busy, onClip, prominent = false)
             }
             item {
                 Surface(
