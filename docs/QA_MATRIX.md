@@ -844,3 +844,21 @@ Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing 
   the 2-image test without creating a job. After the next scheduled connection,
   verify `openverse`, perform Supabase delivery/read-back and only then edit the
   daily plan. No candidate is automatically approved or published.
+
+## Android 0.12.0 signed release — October 30
+
+- RELEASE: [android-v0.12.0](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.12.0), build 22, source `4db31807f81dd38e6a46b91b658ea1d5d723ed34`.
+  [Signed workflow 40933890345](https://github.com/dvajjala-ui/stickerdock/actions/runs/40933890345)
+  completed successfully, including Android 15 acceptance of the exact APK later published.
+- INDEPENDENT RELEASE CHECK: the downloaded public APK's local SHA-256, GitHub asset digest, `release.json`,
+  `SHA256SUMS.txt`, and [acceptance.json](https://github.com/dvajjala-ui/stickerdock/releases/download/android-v0.12.0/acceptance.json)
+  all agree on `dc84d6417a3faad69e91ed95e64335e6e6b498f1b21cc2bbef1cf5623d4f8004`
+  (4,001,323 bytes). The release AAB digest is
+  `a9812917922e562c1052bc6314abfaa2d9934909b0c115bdd53b2c08cf99fc4f`.
+- EMULATOR PASS: 334 packs/10,000 stickers; animated posters/playback, large text and
+  tablet layout, scrolling/memory, MP4 preview, photo picker and explicit save,
+  brush undo/redo and restart, favorites, custom/shared pack handling, and editable
+  backup export plus one-project restore with source/mask/history integrity.
+- DEVICE PENDING: physical Galaxy and WhatsApp/Business acceptance, live published-pack
+  HTTPS sharing, low-storage rollback beyond native unit coverage, and Google Play
+  subject inference/cutout quality. This emulator result does not establish those.

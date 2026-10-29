@@ -1,5 +1,7 @@
 # StickerDock — private sticker creator and library
 
+October 30: **Android 0.12.0 (build 22)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.12.0) after [signed APK and Android 15 emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/40933890345). The public APK digest matches the release manifest and [acceptance record](https://github.com/dvajjala-ui/stickerdock/releases/download/android-v0.12.0/acceptance.json). The emulator exercised a 10,000-sticker library, photo/video creation, brush edits, favorites, shared packs, and editable backup export/restore. Physical WhatsApp/Business and Galaxy acceptance remain open; see [the QA matrix](docs/QA_MATRIX.md).
+
 October 30: [HandNavigate 0.9.3 portable preview](https://github.com/dvajjala-ui/handNavigation/releases/tag/desktop-v0.9.3) is available. Its Railway collector has the bounded Openverse paging and strict rights-key fix deployed. [Flickr collection remains verified on the actual Railway host](docs/HANDNAVIGATE_FLICKR_2026-10-29.md): twenty photos were stored, and every Supabase image was fetched back and checked. The daily animal plan uses Flickr cat/dog tags at 10:00 India time, twenty total. Sources supports Flickr/custom platform filters; downloaded candidates stay pending review. Pinterest/Reddit datacenter blocks and multi-day natural-run acceptance remain open.
 
 Current source adds a keyless Openverse CC0/public-domain candidate adapter and an Android product refresh using StickerDock's ink/volt-lime launcher identity. The local live check verified 2/2 real Openverse images; Railway rollout succeeded, while Openverse hosted Supabase read-back is still pending. Openverse labels remain review hints, never automatic rights approval. See [product refresh and Openverse evidence](docs/PRODUCT_REFRESH_OPENVERSE_2026-10-29.md).
@@ -28,7 +30,7 @@ kind/category before its result limit. [Recovery and quality work](docs/FACTORY_
 also reconciled saved Factory drafts and added a tested local OCR gate for new
 photo captions. Physical WhatsApp/Business and signed iPhone acceptance remain open.
 
-October 28: [HandNavigate collection controls are live](docs/HANDNAVIGATE_ADMIN_2026-10-28.md). Its own worker downloaded and verified **20 Pinterest + 4 Reddit images in production Supabase**. Admin now has topic plans, a daily queue, worker status and image preview/edit/download/archive/restore. A 20-image daily plan is enabled; this PC's worker must remain awake. Rights/quality admission into sticker generation remains a separate pending step.
+October 28: [HandNavigate collection controls are live](docs/HANDNAVIGATE_ADMIN_2026-10-28.md). Its own worker downloaded and verified **20 Pinterest + 4 Reddit images in production Supabase**. Admin now has topic plans, a daily queue, worker status and image preview/edit/download/archive/restore. The active 20-image daily plan now runs on Railway at 10:00 India time. Rights/quality admission into sticker generation remains a separate review step.
 
 | Get StickerDock | Link |
 | --- | --- |
