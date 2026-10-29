@@ -68,16 +68,19 @@ fun FactoryScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
-                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("DISCOVER", style = MaterialTheme.typography.labelSmall)
-                            Text("A reaction for every chat.", style = MaterialTheme.typography.headlineSmall,
+                        Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                StickerDockNavIcon("DiscoverFilled", customColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("✦ SPOTLIGHT & AI DROPS", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                            Text("Reactions that make every chat pop.", style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold)
-                            Text("Explore reviewed packs, preview the stickers and save your favorites.",
+                            Text("Explore reviewed packs, preview animations, and add them to WhatsApp in one tap.",
                                 style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Find a pack for your next conversation.", modifier = Modifier.weight(1f),
+                        Text("Find a reaction for your next conversation.", modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Box {
                             IconButton(onClick = { showOptions = true }, modifier = Modifier.semantics { contentDescription = "Discover options" }) { StickerDockNavIcon("More") }
@@ -88,12 +91,19 @@ fun FactoryScreen(
                             }
                         }
                     }
-                    LibrarySearch(query, { query = it }, "Search packs, creators or topics", Modifier.fillMaxWidth())
+                    LibrarySearch(query, { query = it }, "Search packs, creators, topics or AI…", Modifier.fillMaxWidth())
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        item { FilterChip(selectedKind == null, { selectedKindName = "" }, { Text("All packs") }) }
+                        item { FilterChip(selectedKind == null && query.isBlank(), { selectedKindName = ""; query = "" }, { Text("All packs") }) }
+                        item {
+                            FilterChip(
+                                selected = query.equals("AI", ignoreCase = true),
+                                onClick = { query = if (query.equals("AI", ignoreCase = true)) "" else "AI" },
+                                label = { Text("✦ AI Drops") }
+                            )
+                        }
                         items(StickerKind.entries) { kind ->
                             FilterChip(selectedKind == kind, { selectedKindName = kind.name },
-                                { Text(if (kind == StickerKind.STATIC) "Static" else "Animated") })
+                                { Text(if (kind == StickerKind.STATIC) "Static" else "Animated ⚡") })
                         }
                     }
                 }
@@ -112,11 +122,20 @@ fun FactoryScreen(
                 else -> gridItems(visible, key = { it.id + it.sha256 }) { entry ->
                     var showMenu by remember(entry.id) { mutableStateOf(false) }
                     Surface(onClick = { onPack(entry) }, enabled = !busy, shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(entry.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        if (StickerKind.ANIMATED in entry.kinds) {
+                                            Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                                Text("⚡", modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall)
+                                            }
+                                        }
+                                    }
                                     Text(entry.creator + (entry.stickerCount?.let { " · $it stickers" } ?: ""),
                                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
@@ -130,13 +149,16 @@ fun FactoryScreen(
                             }
                             CatalogArtwork(entry, onPreview, compact = true, revision = previewRevision)
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (StickerKind.ANIMATED in entry.kinds) "Animated" else "Sticker pack", modifier = Modifier.weight(1f),
+                                Text(if (StickerKind.ANIMATED in entry.kinds) "Animated ⚡" else "Static Pack", modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                FilledTonalButton(enabled = !busy, onClick = { onPack(entry) }) {
-                                    Text(if (entry.id in importedIds) "Open in library" else "View pack")
+                                Button(
+                                    enabled = !busy,
+                                    onClick = { onPack(entry) },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(if (entry.id in importedIds) "In Library ✓" else "Preview & Save")
                                 }
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .35f))
                         }
                     }
                 }

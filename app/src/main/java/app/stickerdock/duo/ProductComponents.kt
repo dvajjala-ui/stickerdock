@@ -1,32 +1,48 @@
 package app.stickerdock.duo
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-val WhatsAppGreen = Color(0xFF087F5B)
+val WhatsAppGreen = Color(0xFF25D366)
+val WhatsAppDeepGreen = Color(0xFF075E54)
+val WhatsAppDarkBackground = Color(0xFF128C7E)
 
 @Composable
 fun StickerDockBrandLockup(compact: Boolean = false, modifier: Modifier = Modifier) {
@@ -65,28 +81,282 @@ fun StickerDockBrandLockup(compact: Boolean = false, modifier: Modifier = Modifi
     }
 }
 
+/** High-contrast, tactile WhatsApp button with official green branding and clear feedback. */
+@Composable
+fun WhatsAppActionButton(
+    stickerCount: Int,
+    isAdded: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        label = "press_scale"
+    )
+
+    val ready = stickerCount >= 3
+    val bgColor = when {
+        isAdded -> MaterialTheme.colorScheme.surfaceVariant
+        ready -> WhatsAppGreen
+        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val contentColor = when {
+        isAdded -> WhatsAppDeepGreen
+        ready -> Color.White
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
+        onClick = onClick,
+        enabled = enabled && ready,
+        shape = RoundedCornerShape(20.dp),
+        color = bgColor,
+        contentColor = contentColor,
+        shadowElevation = if (ready && !isAdded) 2.dp else 0.dp,
+        interactionSource = interactionSource,
+        modifier = modifier
+            .scale(scale)
+            .semantics {
+                role = Role.Button
+                this.contentDescription = if (isAdded) "Added to WhatsApp" else if (ready) "Add pack to WhatsApp" else "Needs ${3 - stickerCount} more stickers for WhatsApp"
+            }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                StickerDockNavIcon(if (isAdded) "Check" else "WhatsAppFilled", customColor = contentColor)
+            }
+            Text(
+                text = when {
+                    isAdded -> "In WhatsApp ✓"
+                    ready -> "+ Add to WhatsApp"
+                    else -> "$stickerCount/3 Stickers"
+                },
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
+        }
+    }
+}
+
+/** Top Status & WhatsApp Sync Hub with instant target switcher and installation detection. */
+@Composable
+fun WhatsAppConnectHero(
+    personalInstalled: Boolean,
+    businessInstalled: Boolean,
+    activeTarget: WhatsAppTarget,
+    onSelectTarget: (WhatsAppTarget) -> Unit,
+    onOpenHub: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(shape = CircleShape, color = WhatsAppGreen) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        StickerDockNavIcon("WhatsAppFilled", customColor = Color.White)
+                    }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("WhatsApp Handoff", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = when {
+                            personalInstalled && businessInstalled -> "Both WhatsApp & Business detected"
+                            personalInstalled -> "Personal WhatsApp active"
+                            businessInstalled -> "WhatsApp Business active"
+                            else -> "Install WhatsApp to send packs"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    onClick = onOpenHub,
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Text(
+                        "Manage",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // Target app switcher if multiple installed
+            if (personalInstalled && businessInstalled) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    WhatsAppTarget.entries.forEach { target ->
+                        val selected = activeTarget == target
+                        Surface(
+                            onClick = { onSelectTarget(target) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) WhatsAppGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (selected) WhatsAppGreen else MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                if (selected) {
+                                    Box(Modifier.size(12.dp)) {
+                                        StickerDockNavIcon("Check", customColor = WhatsAppDeepGreen)
+                                    }
+                                    Spacer(Modifier.width(6.dp))
+                                }
+                                Text(
+                                    target.label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (selected) WhatsAppDeepGreen else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Radiant interactive AI Prompt Studio card. */
+@Composable
+fun AiStudioCard(
+    promptText: String,
+    onPromptChange: (String) -> Unit,
+    onGenerate: () -> Unit,
+    busy: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val quickIdeas = listOf("Cat drinking chai", "Sarcastic boss reaction", "Monday morning mood", "Bollywood drama", "Confused doggo", "Victory dance")
+
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.primaryContainer,
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        StickerDockNavIcon("DiscoverFilled", customColor = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Column {
+                    Text("✦ AI STICKER STUDIO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text("Turn any thought into a sticker", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Text(
+                "Describe a scene, Hinglish reaction or meme idea. The AI studio prepares a reaction sticker for your pack.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
+            OutlinedTextField(
+                value = promptText,
+                onValueChange = onPromptChange,
+                placeholder = { Text("e.g. Sarcastic cat typing on laptop...") },
+                singleLine = false,
+                maxLines = 2,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Situation inspiration chips
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Popular reaction prompts:", style = MaterialTheme.typography.labelSmall)
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    quickIdeas.forEach { idea ->
+                        Surface(
+                            onClick = { onPromptChange(idea) },
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ) {
+                            Text(
+                                idea,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+            }
+
+            Button(
+                onClick = onGenerate,
+                enabled = !busy && promptText.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    contentColor = MaterialTheme.colorScheme.primaryContainer
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StickerDockNavIcon("DiscoverFilled", customColor = MaterialTheme.colorScheme.primaryContainer)
+                    Text(if (busy) "Designing sticker…" else "Generate Reaction Sticker")
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun CreationCard(action: String, title: String, description: String, icon: String, enabled: Boolean,
                  onClick: () -> Unit, prominent: Boolean = true) {
     Surface(shape = MaterialTheme.shapes.extraLarge,
-        color = if (prominent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-        contentColor = if (prominent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-        border = if (prominent) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = if (prominent) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface.copy(alpha = .92f)) {
-                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { StickerDockNavIcon(icon) }
+                Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
+                    Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { StickerDockNavIcon(icon) }
                 }
                 Spacer(Modifier.weight(1f))
-                Text(if (prominent) "START WITH PHOTOS" else "START WITH MOTION", style = MaterialTheme.typography.labelSmall)
+                Text(if (prominent) "MAGIC CUTOUT" else "MOTION & LOOPS", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
             }
-            Text(title, style = if (prominent) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge)
-            Text(description, style = MaterialTheme.typography.bodyMedium)
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (prominent) Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primaryContainer)) { Text(action) }
-            else OutlinedButton(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(action) }
+                shape = RoundedCornerShape(12.dp)) { Text(action) }
+            else OutlinedButton(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)) { Text(action) }
         }
     }
 }
@@ -114,11 +384,11 @@ fun LibrarySearch(value: String, onChange: (String) -> Unit, label: String, modi
 fun ProductAction(title: String, description: String, icon: String, enabled: Boolean = true, onClick: () -> Unit) {
     Surface(onClick = onClick, enabled = enabled, shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(18.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.surface) {
-                Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) { StickerDockNavIcon(icon) }
+                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) { StickerDockNavIcon(icon) }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

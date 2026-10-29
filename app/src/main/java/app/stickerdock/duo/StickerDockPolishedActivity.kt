@@ -40,10 +40,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class PolishedHomeSection(val label: String) {
+    FACTORY("Discover"),
+    CREATE("Studio"),
     LIBRARY("Library"),
-    CREATE("Create"),
-    IMPORT("Import"),
-    FACTORY("Discover")
+    SETTINGS("Settings"),
+    IMPORT("Import")
 }
 
 private data class LibrarySnapshot(
@@ -177,6 +178,9 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var pendingPackCode by rememberSaveable { mutableStateOf<String?>(null) }
         var whatsAppStatus by remember { mutableStateOf<Map<WhatsAppTarget, WhatsAppPackStatus>>(emptyMap()) }
         var whatsAppStatusRefresh by remember { mutableStateOf(0) }
+        var activeWhatsAppTarget by rememberSaveable { mutableStateOf(WhatsAppTarget.PERSONAL) }
+        var personalInstalled by remember { mutableStateOf(true) }
+        var businessInstalled by remember { mutableStateOf(false) }
         var pendingWhatsAppTargetName by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingWhatsAppPackId by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -573,10 +577,87 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 val installed = withContext(Dispatchers.IO) {
                     WhatsAppTarget.entries.filter { WhatsAppIntegration.status(this@StickerDockPolishedActivity, candidate.id, it).installed }
                 }
-                when (installed.size) {
-                    0 -> snackbar.showSnackbar("Install WhatsApp or WhatsApp Business to add this pack.")
-                    1 -> launchWhatsApp(candidate, installed.single())
+                when {
+                    installed.isEmpty() -> snackbar.showSnackbar("Install WhatsApp or WhatsApp Business to add this pack.")
+                    installed.size == 1 -> launchWhatsApp(candidate, installed.single())
+                    installed.contains(activeWhatsAppTarget) -> launchWhatsApp(candidate, activeWhatsAppTarget)
                     else -> quickAddPack = candidate
+                }
+            }
+        }
+
+        fun handleAiStickerPrompt(prompt: String) {
+            if (busy || prompt.isBlank()) return
+            operation("Generating AI reaction") {
+                withContext(Dispatchers.IO) {
+                    val existingPack = store.listPacks().firstOrNull { it.name.equals("AI Reactions", ignoreCase = true) }
+                        ?: store.createPack("AI Reactions", StickerKind.STATIC, PackRating.GENERAL, PackCategory.MEMES)
+                    
+                    val bitmap = android.graphics.Bitmap.createBitmap(512, 512, android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    
+                    val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.parseColor("#12130F")
+                    }
+                    val rect = android.graphics.RectF(16f, 16f, 496f, 496f)
+                    canvas.drawRoundRect(rect, 48f, 48f, bgPaint)
+                    
+                    val borderPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeWidth = 6f
+                        color = android.graphics.Color.parseColor("#D9FF6A")
+                    }
+                    canvas.drawRoundRect(rect, 48f, 48f, borderPaint)
+                    
+                    val badgePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.parseColor("#D9FF6A")
+                        textSize = 28f
+                        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+                    canvas.drawText("✦ STICKERDOCK AI ✦", 256f, 96f, badgePaint)
+                    
+                    val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 42f
+                        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+                    
+                    val words = prompt.trim().split("\\s+".toRegex())
+                    val lines = mutableListOf<String>()
+                    var currentLine = ""
+                    for (word in words) {
+                        val candidate = if (currentLine.isEmpty()) word else "$currentLine $word"
+                        if (textPaint.measureText(candidate) <= 420f) {
+                            currentLine = candidate
+                        } else {
+                            if (currentLine.isNotEmpty()) lines.add(currentLine)
+                            currentLine = word
+                        }
+                    }
+                    if (currentLine.isNotEmpty()) lines.add(currentLine)
+                    
+                    val totalTextHeight = lines.size * 54f
+                    var startY = 270f - (totalTextHeight / 2f)
+                    for (line in lines) {
+                        canvas.drawText(line, 256f, startY, textPaint)
+                        startY += 54f
+                    }
+                    
+                    val stream = java.io.ByteArrayOutputStream()
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP_LOSSLESS, 100, stream)
+                    val bytes = stream.toByteArray()
+                    bitmap.recycle()
+                    
+                    val hash = StickerFiles.sha256(bytes)
+                    files.restoreBytes(existingPack.id, bytes, hash, label = prompt.take(30), tags = "ai, meme, reaction")
+                    
+                    runOnUiThread {
+                        selectedId = existingPack.id
+                        sectionName = PolishedHomeSection.LIBRARY.name
+                    }
+                    "Generated reaction sticker"
                 }
             }
         }
@@ -754,7 +835,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                 favoritesOnly = favoritesOnly, onFavoritesOnlyChange = { favoritesOnly = it },
                                                 onOpenFavorite = { selectedId = it.packId; managingSticker = it },
                                                 onRemoveFavorite = ::toggleFavorite,
-                                                onQuickAddPack = ::quickAddToWhatsApp
+                                                onQuickAddPack = ::quickAddToWhatsApp,
+                                                personalWhatsAppInstalled = personalInstalled,
+                                                businessWhatsAppInstalled = businessInstalled,
+                                                activeWhatsAppTarget = activeWhatsAppTarget,
+                                                onSelectWhatsAppTarget = { activeWhatsAppTarget = it },
+                                                onOpenWhatsAppHub = { showWhatsAppHub = true }
                                             )
                                         }
                                         VerticalDivider()
@@ -838,14 +924,57 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                         favoritesOnly = favoritesOnly, onFavoritesOnlyChange = { favoritesOnly = it },
                                         onOpenFavorite = { selectedId = it.packId; managingSticker = it },
                                         onRemoveFavorite = ::toggleFavorite,
-                                        onQuickAddPack = ::quickAddToWhatsApp
+                                        onQuickAddPack = ::quickAddToWhatsApp,
+                                        personalWhatsAppInstalled = personalInstalled,
+                                        businessWhatsAppInstalled = businessInstalled,
+                                        activeWhatsAppTarget = activeWhatsAppTarget,
+                                        onSelectWhatsAppTarget = { activeWhatsAppTarget = it },
+                                        onOpenWhatsAppHub = { showWhatsAppHub = true }
                                     )
                                 }
                                 section == PolishedHomeSection.CREATE -> AnimatedScreenSwap("create") {
-                                    CreateScreen(busy,
-                                        { photoPackPicker.launch(arrayOf("image/*")) },
-                                        { clipPicker.launch(arrayOf("video/*", "image/gif")) },
-                                        { importReturnSectionName = PolishedHomeSection.CREATE.name; sectionName = PolishedHomeSection.IMPORT.name })
+                                    CreateScreen(
+                                        busy,
+                                        onPhotos = { photoPackPicker.launch(arrayOf("image/*")) },
+                                        onClip = { clipPicker.launch(arrayOf("video/*", "image/gif")) },
+                                        onImport = { importReturnSectionName = PolishedHomeSection.CREATE.name; sectionName = PolishedHomeSection.IMPORT.name },
+                                        onCreateEmptyPack = {
+                                            name = ""; newPackKind = StickerKind.STATIC; newPackRating = PackRating.GENERAL
+                                            newPackCategory = PackCategory.GENERAL; dialog = "create"
+                                        },
+                                        onGenerateAi = ::handleAiStickerPrompt
+                                    )
+                                }
+                                section == PolishedHomeSection.SETTINGS -> AnimatedScreenSwap("settings") {
+                                    SettingsScreen(
+                                        personalInstalled = personalInstalled,
+                                        businessInstalled = businessInstalled,
+                                        activeTarget = activeWhatsAppTarget,
+                                        onSelectTarget = { activeWhatsAppTarget = it },
+                                        onOpenWhatsAppHub = { showWhatsAppHub = true },
+                                        onImportFolder = { importReturnSectionName = PolishedHomeSection.SETTINGS.name; sectionName = PolishedHomeSection.IMPORT.name; folderImporter.launch(null) },
+                                        onImportZip = { zipImporter.launch(arrayOf("application/zip", "application/octet-stream")) },
+                                        onBackupEditable = {
+                                            editableBackup = true; saveBackup.launch("stickerdock-editable.zip")
+                                        },
+                                        onBackupZip = {
+                                            editableBackup = false; saveBackup.launch("stickerdock.zip")
+                                        },
+                                        onCloud = { showCloud = true },
+                                        cloudEnabled = cloud.enabled,
+                                        onToggleMature = {
+                                            val nextRating = if (newPackRating == PackRating.MATURE) PackRating.GENERAL else PackRating.MATURE
+                                            newPackRating = nextRating
+                                            scope.launch { snackbar.showSnackbar(if (nextRating == PackRating.MATURE) "Mature vault enabled" else "General audience mode active") }
+                                        },
+                                        showMature = newPackRating == PackRating.MATURE,
+                                        onRoadmap = { showRoadmap = true },
+                                        onClearCache = {
+                                            previewCache.clear()
+                                            scope.launch { snackbar.showSnackbar("Preview cache cleared") }
+                                        },
+                                        busy = busy
+                                    )
                                 }
                                 section == PolishedHomeSection.IMPORT -> AnimatedScreenSwap("import") {
                                     ImportScreen(

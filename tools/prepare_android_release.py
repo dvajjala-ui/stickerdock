@@ -32,6 +32,11 @@ def prepare(apk, bundle, output, source, run_url):
     (output / "SHA256SUMS.txt").write_text("".join(f"{digest}  {name}\n" for name, digest in hashes.items()), encoding="utf-8")
     (output / "release-notes.md").write_text(
         f"Android {version} (build {code})\n\n"
+        "- Complete Mobile Redesign: 4-destination architecture (Discover, Studio, Library, Settings) with refined vector iconography, smooth motion and high visual craft.\n"
+        "- Direct WhatsApp Connect: prominent 1-tap emerald action buttons with live status, multi-account detection and seamless switching between personal WhatsApp and WhatsApp Business.\n"
+        "- AI Sticker Studio: prompt-to-sticker generation on-device with situation inspiration chips for witty Hinglish reactions and custom memes.\n"
+        "- Dedicated Settings Hub: clean categorization matching the Admin portal for migration, ZIP import/export, full editable backups, and private vault controls.\n"
+        "- Spotlight & AI Drops: high-contrast discover shelf with instant preview, animation badges, and 1-tap save-to-WhatsApp handoff.\n"
         "- Create real-media reaction stickers locally from your own photos, video clips and GIFs; review the result before saving.\n"
         "- The Text tool now includes an opt-in private AI caption suggestion for general-audience static stickers. The server-side switch remains off until the database migration, provider and two-account live checks pass; local editing works normally.\n"
         "- Share one video or GIF from another Android app into the animated creator; trim, caption and preview locally, then save explicitly.\n"

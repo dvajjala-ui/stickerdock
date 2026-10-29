@@ -16,7 +16,7 @@ import UniformTypeIdentifiers
     }
 }
 
-private enum HomeTab: Hashable { case discover, create, library }
+private enum HomeTab: Hashable { case discover, create, library, settings }
 
 private struct CreatorSheetPresentationKey: EnvironmentKey { static let defaultValue: Binding<Bool> = .constant(false) }
 private extension EnvironmentValues {
@@ -57,28 +57,29 @@ extension View {
 
 struct RootView: View {
     @EnvironmentObject var model: LibraryModel
-    @State private var tab: HomeTab = .library
+    @State private var tab: HomeTab = .discover
     @State private var settings = false
     @State private var whatsAppHub = false
     @State private var creatorPresented = false
     var body: some View {
         TabView(selection: $tab) {
+            NavigationStack { DiscoverView(onSaved: { tab = .library; whatsAppHub = true }) }
+                .tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
+            NavigationStack { CreatorView() }
+                .tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
             NavigationStack {
                 LibraryView(onCreate: { tab = .create }, onDiscover: { tab = .discover }, onWhatsApp: { whatsAppHub = true })
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") }
-                    }
             }.tabItem { Label("Library", systemImage: "square.grid.2x2") }.tag(HomeTab.library)
-            NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
-            NavigationStack { DiscoverView(onSaved: { tab = .library; whatsAppHub = true }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
+            NavigationStack { SettingsView() }
+                .tabItem { Label("Settings", systemImage: "gearshape") }.tag(HomeTab.settings)
         }
         .environment(\.creatorSheetPresentation, $creatorPresented)
-        .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
+        .tint(Color(red: 0.145, green: 0.827, blue: 0.400))
         .safeAreaInset(edge: .bottom) { OperationProgressBar() }
         .sheet(isPresented: $settings) { NavigationStack { SettingsView() } }
         .sheet(isPresented: $whatsAppHub) {
             NavigationStack { WhatsAppPacksView(onCreate: { whatsAppHub = false; tab = .create }) }
-                .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
+                .tint(Color(red: 0.145, green: 0.827, blue: 0.400))
         }
         .sheet(isPresented: Binding(get: { !settings && model.shareURL != nil }, set: { if !$0 && !settings { model.shareURL = nil } })) {
             if let url = model.shareURL { ShareSheet(url: url) }

@@ -64,7 +64,12 @@ fun LibraryScreen(
     favoriteStickers: List<StickerSearchResult> = emptyList(), favoriteCount: Int = 0,
     favoritesOnly: Boolean = false, onFavoritesOnlyChange: (Boolean) -> Unit = {},
     onOpenFavorite: (StickerItem) -> Unit = {}, onRemoveFavorite: (StickerItem) -> Unit = {},
-    onQuickAddPack: (StickerPack) -> Unit = {}
+    onQuickAddPack: (StickerPack) -> Unit = {},
+    personalWhatsAppInstalled: Boolean = true,
+    businessWhatsAppInstalled: Boolean = false,
+    activeWhatsAppTarget: WhatsAppTarget = WhatsAppTarget.PERSONAL,
+    onSelectWhatsAppTarget: (WhatsAppTarget) -> Unit = {},
+    onOpenWhatsAppHub: () -> Unit = {}
 ) {
     val matchesByPack = remember(stickerMatches) { stickerMatches.groupBy { it.pack.id } }
     val visiblePackIds = remember(filteredPacks) { filteredPacks.mapTo(mutableSetOf()) { it.id } }
@@ -91,6 +96,17 @@ fun LibraryScreen(
                 item { ProductAction("Make an animated reaction", "Turn a video or GIF into a sticker", "Video", !busy, onClip) }
                 item { TextButton(enabled = !busy, onClick = onCreatePack) { Text("Create an empty pack") } }
                 return@LazyColumn
+            }
+            if (packs.isNotEmpty() && searchText.isBlank() && !favoritesOnly) {
+                item {
+                    WhatsAppConnectHero(
+                        personalInstalled = personalWhatsAppInstalled,
+                        businessInstalled = businessWhatsAppInstalled,
+                        activeTarget = activeWhatsAppTarget,
+                        onSelectTarget = onSelectWhatsAppTarget,
+                        onOpenHub = onOpenWhatsAppHub
+                    )
+                }
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -387,13 +403,12 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
                         if (pack.rating == PackRating.MATURE) append(" · Private")
                     }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (onQuickAdd != null && stickerCount >= 3) {
-                    IconButton(
-                        onClick = onQuickAdd,
-                        modifier = Modifier.size(36.dp).semantics { contentDescription = "Add ${pack.name} to WhatsApp" }
-                    ) {
-                        StickerDockNavIcon("WhatsApp")
-                    }
+                if (onQuickAdd != null) {
+                    WhatsAppActionButton(
+                        stickerCount = stickerCount,
+                        enabled = true,
+                        onClick = onQuickAdd
+                    )
                 }
                 StickerDockNavIcon("Forward")
             }
@@ -497,14 +512,11 @@ private fun GridPackCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
-                    if (stickerCount >= 3) {
-                        IconButton(
-                            onClick = onQuickAdd,
-                            modifier = Modifier.size(28.dp).semantics { contentDescription = "Add ${pack.name} to WhatsApp" }
-                        ) {
-                            StickerDockNavIcon("WhatsApp")
-                        }
-                    }
+                    WhatsAppActionButton(
+                        stickerCount = stickerCount,
+                        enabled = true,
+                        onClick = onQuickAdd
+                    )
                 }
             }
         }
@@ -558,29 +570,229 @@ fun LibraryFiltersSheet(
 }
 
 @Composable
-fun CreateScreen(busy: Boolean, onPhotos: () -> Unit, onClip: () -> Unit, onImport: () -> Unit) {
+fun CreateScreen(
+    busy: Boolean,
+    onPhotos: () -> Unit,
+    onClip: () -> Unit,
+    onImport: () -> Unit,
+    onCreateEmptyPack: () -> Unit = {},
+    onGenerateAi: ((String) -> Unit)? = null
+) {
+    var prompt by rememberSaveable { mutableStateOf("") }
+
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = 800.dp), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Make one worth sending.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Text("Pick media, shape the reaction, then save it into a real WhatsApp-ready pack.",
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Sticker Studio", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("Turn thoughts, photos or video clips into stickers ready for WhatsApp.",
                         style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            item { CreationCard("Make stickers from photos", "Photo stickers, without the busywork.", "Choose several photos. StickerDock groups them, keeps the originals private and lets you edit each result before sending.", "Photo", !busy, onPhotos) }
-            item { CreationCard("Make an animated reaction", "Motion for the moments that need it.", "Trim a short clip, add a caption and preview the loop before anything is saved.", "Video", !busy, onClip, prominent = false) }
-            item { CreationFlowCard() }
+
+            // AI Prompt Studio Card
             item {
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Already have stickers?", style = MaterialTheme.typography.titleMedium)
-                        Text("Import phone folders or ZIP packs from the library tools. Existing collections stay separate from creation.",
-                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(enabled = !busy, onClick = onImport) { Text("Open import & backup tools") }
+                AiStudioCard(
+                    promptText = prompt,
+                    onPromptChange = { prompt = it },
+                    onGenerate = { onGenerateAi?.invoke(prompt) },
+                    busy = busy
+                )
+            }
+
+            // Media creators
+            item {
+                CreationCard("Choose photos", "Smart cutout from photos", "Pick camera or gallery photos. Automatic cutout, stroke outline and custom captions.", "Photo", !busy, onPhotos, prominent = true)
+            }
+            item {
+                CreationCard("Choose clip", "Looped moving sticker", "Trim a video or GIF, add text overlay, and convert into a 512×512 animated WebP.", "Video", !busy, onClip, prominent = false)
+            }
+            item {
+                Surface(
+                    onClick = onCreateEmptyPack,
+                    enabled = !busy,
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surface) {
+                            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                StickerDockNavIcon("Create")
+                            }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text("Create empty pack", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Name a custom pack and add stickers manually over time", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        StickerDockNavIcon("Forward")
                     }
                 }
             }
+            item { CreationFlowCard() }
+            item { Spacer(Modifier.height(20.dp)) }
+        }
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    personalInstalled: Boolean,
+    businessInstalled: Boolean,
+    activeTarget: WhatsAppTarget,
+    onSelectTarget: (WhatsAppTarget) -> Unit,
+    onOpenWhatsAppHub: () -> Unit,
+    onImportFolder: () -> Unit,
+    onImportZip: () -> Unit,
+    onBackupEditable: () -> Unit,
+    onBackupZip: () -> Unit,
+    onCloud: () -> Unit,
+    cloudEnabled: Boolean,
+    onToggleMature: () -> Unit,
+    showMature: Boolean,
+    onRoadmap: () -> Unit,
+    onClearCache: () -> Unit,
+    busy: Boolean
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        LazyColumn(
+            Modifier.fillMaxHeight().widthIn(max = 800.dp),
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Settings & Tools", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("Manage WhatsApp handoff, phone migration, backups and content preferences.",
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // WhatsApp section
+            item {
+                Text("WHATSAPP INTEGRATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+            item {
+                WhatsAppConnectHero(
+                    personalInstalled = personalInstalled,
+                    businessInstalled = businessInstalled,
+                    activeTarget = activeTarget,
+                    onSelectTarget = onSelectTarget,
+                    onOpenHub = onOpenWhatsAppHub
+                )
+            }
+
+            // Migration & Import
+            item {
+                Text("IMPORT & MIGRATION", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+            item {
+                ProductAction(
+                    title = "Bring stickers from this phone",
+                    description = "Scan local WhatsApp or camera folders with deduplication and progress resume",
+                    icon = "Import",
+                    enabled = !busy,
+                    onClick = onImportFolder
+                )
+            }
+            item {
+                ProductAction(
+                    title = "Import shared ZIP archive",
+                    description = "Bring StickerDock, Telegram or portable sticker archives into your collection",
+                    icon = "Library",
+                    enabled = !busy,
+                    onClick = onImportZip
+                )
+            }
+
+            // Backup & Cloud
+            item {
+                Text("BACKUP & CLOUD STORAGE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+            item {
+                ProductAction(
+                    title = "Export full editable backup",
+                    description = "Retains originals, masks and drafts for complete Android restore",
+                    icon = "Cloud",
+                    enabled = !busy,
+                    onClick = onBackupEditable
+                )
+            }
+            item {
+                ProductAction(
+                    title = "Export portable sticker backup",
+                    description = "Standard ZIP with clean 512×512 WebP stickers for any device",
+                    icon = "Library",
+                    enabled = !busy,
+                    onClick = onBackupZip
+                )
+            }
+            item {
+                ProductAction(
+                    title = if (cloudEnabled) "Private Cloud Library · Active" else "Private Cloud Library",
+                    description = "Optional encrypted remote backup and multi-device sync",
+                    icon = "Cloud",
+                    enabled = !busy,
+                    onClick = onCloud
+                )
+            }
+
+            // Privacy & Content
+            item {
+                Text("PRIVACY & VAULT", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+            item {
+                Surface(
+                    onClick = onToggleMature,
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Private Mature Content Vault", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Keep mature reaction packs segregated and private from general discovery",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = showMature, onCheckedChange = { onToggleMature() })
+                    }
+                }
+            }
+
+            // Diagnostics & About
+            item {
+                Text("ABOUT & HEALTH", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+            item {
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StickerDockBrandLockup(compact = true)
+                            Spacer(Modifier.weight(1f))
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                Text("v0.12.0", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Text("StickerDock Duo • Native Android & WhatsApp Provider",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = onRoadmap) { Text("Roadmap") }
+                            TextButton(onClick = onClearCache) { Text("Clear preview cache") }
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
