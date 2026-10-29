@@ -12,6 +12,8 @@ final class CatalogLiveTests: XCTestCase {
         XCTAssertEqual(entry.kinds, ["STATIC"])
         XCTAssertEqual(entry.stickerCount, 3)
         XCTAssertEqual(entry.sha256, "b7c370afeef27f41400f30f37ef88a6cce43912f920170c929707687a1526dfe")
+        let cover = try await client.preview(entry)
+        XCTAssertNotNil(cover, "Published packs without dedicated thumbnails should show their real artwork")
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("live-workday-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = LibraryStore(root: root)

@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
                 .task { do { try await model.refresh() } catch { model.error = error.localizedDescription } }
                 .onOpenURL { url in
                     if url.pathExtension.lowercased() == "zip" { model.importArchive(url) }
+                    else if let id = PublicPackLinks.parse(url.absoluteString) { model.incomingPublicPackID = id }
                     else { model.error = "Open StickerDock ZIP backups here. Use Create for photos or clips." }
                 }
         }
@@ -58,24 +59,91 @@ struct RootView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var tab: HomeTab = .library
     @State private var settings = false
+    @State private var whatsAppHub = false
     @State private var creatorPresented = false
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { DiscoverView() }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
-            NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
             NavigationStack {
-                LibraryView()
-                    .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") } }
+                LibraryView(onCreate: { tab = .create }, onDiscover: { tab = .discover }, onWhatsApp: { whatsAppHub = true })
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") }
+                    }
             }.tabItem { Label("Library", systemImage: "square.grid.2x2") }.tag(HomeTab.library)
+            NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
+            NavigationStack { DiscoverView(onSaved: { tab = .library; whatsAppHub = true }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
         }
         .environment(\.creatorSheetPresentation, $creatorPresented)
-        .tint(.indigo)
+        .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
         .safeAreaInset(edge: .bottom) { OperationProgressBar() }
         .sheet(isPresented: $settings) { NavigationStack { SettingsView() } }
+        .sheet(isPresented: $whatsAppHub) {
+            NavigationStack { WhatsAppPacksView(onCreate: { whatsAppHub = false; tab = .create }) }
+                .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
+        }
         .sheet(isPresented: Binding(get: { !settings && model.shareURL != nil }, set: { if !$0 && !settings { model.shareURL = nil } })) {
             if let url = model.shareURL { ShareSheet(url: url) }
         }
         .operationFeedback(active: !settings && !creatorPresented)
+        .onChange(of: model.incomingPublicPackID) { _, id in if id != nil { tab = .discover } }
+    }
+}
+
+private struct WhatsAppPacksView: View {
+    @EnvironmentObject var model: LibraryModel
+    @Environment(\.dismiss) private var dismiss
+    let onCreate: () -> Void
+    var body: some View {
+        List {
+            Section {
+                Text("Pick a pack to add to WhatsApp. You’ll confirm it there before it appears in your sticker tray.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            if model.packs.isEmpty {
+                Section {
+                    ContentUnavailableView {
+                        Label("No packs yet", systemImage: "square.stack.3d.up")
+                    } description: {
+                        Text("Create or import a pack, then come back here to add it to WhatsApp.")
+                    } actions: {
+                        Button("Create stickers", action: onCreate).buttonStyle(.borderedProminent)
+                    }
+                }
+            } else {
+                Section("Your library") {
+                    ForEach(model.packs) { pack in
+                        HStack(spacing: 12) {
+                            if let first = pack.stickers.first {
+                                StickerImage(url: model.mediaURL(pack, first)).frame(width: 52, height: 52)
+                            } else {
+                                Image(systemName: "square.stack.3d.up").frame(width: 52, height: 52)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(pack.name).font(.headline).lineLimit(2)
+                                Text(pack.stickers.count < 3 ? "\(pack.stickers.count) stickers · add \(3 - pack.stickers.count) more" : "\(pack.stickers.count) stickers · \(pack.kind == .ANIMATED ? "Animated" : "Static")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            if pack.stickers.count >= 3 {
+                                Button("Add") { dismiss(); model.addToWhatsApp(pack) }
+                                    .buttonStyle(.borderedProminent).disabled(model.busy != nil)
+                                    .accessibilityLabel("Add \(pack.name) to WhatsApp")
+                            } else {
+                                NavigationLink("Open", value: pack.id)
+                            }
+                        }
+                    }
+                }
+            }
+            Section {
+                Text("Each pack needs at least three stickers. If you use multiple accounts inside one WhatsApp app, choose the account in WhatsApp.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("WhatsApp")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: String.self) { PackView(id: $0) }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
     }
 }
 
@@ -99,6 +167,9 @@ enum StickerSearchRanking {
 }
 
 struct LibraryView: View {
+    var onCreate: () -> Void = {}
+    var onDiscover: () -> Void = {}
+    var onWhatsApp: () -> Void = {}
     @EnvironmentObject var model: LibraryModel
     @State private var query = ""
     @State private var kind = "All"
@@ -139,12 +210,31 @@ struct LibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Picker("Sticker type", selection: $kind) { Text("All").tag("All"); Text("Static").tag("STATIC"); Text("Animated").tag("ANIMATED") }.pickerStyle(.segmented)
-                    Button { favorites.toggle() } label: { Image(systemName: favorites ? "heart.fill" : "heart") }.accessibilityLabel("Show favorite packs").accessibilityAddTraits(favorites ? .isSelected : [])
+                Button(action: onWhatsApp) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "message.fill").font(.title3).foregroundStyle(.white)
+                            .frame(width: 44, height: 44).background(Color(red: 0.03, green: 0.5, blue: 0.36), in: RoundedRectangle(cornerRadius: 14))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Add to WhatsApp").font(.headline).foregroundStyle(.primary)
+                            Text(model.packs.isEmpty ? "Create a pack to get started" : "Choose a pack from your library")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                    }.padding(14).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
+                }.buttonStyle(.plain).accessibilityLabel("WhatsApp packs")
+                if !model.packs.isEmpty {
+                    HStack {
+                        Picker("Sticker type", selection: $kind) { Text("All").tag("All"); Text("Static").tag("STATIC"); Text("Animated").tag("ANIMATED") }.pickerStyle(.segmented)
+                        Button { favorites.toggle() } label: { Image(systemName: favorites ? "heart.fill" : "heart") }.accessibilityLabel("Show favorite packs").accessibilityAddTraits(favorites ? .isSelected : [])
+                    }
                 }
                 if model.packs.isEmpty {
-                    ContentUnavailableView { Label("Your reactions belong here", systemImage: "face.smiling") } description: { Text("Create from a photo or clip, or import a StickerDock ZIP. Your library stays on this device.") } actions: { Button("Import sticker ZIP") { importer = true }.buttonStyle(.borderedProminent) }
+                    ContentUnavailableView { Label("Your reactions belong here", systemImage: "face.smiling") } description: { Text("Create a pack or find something to send. Your saved stickers stay on this device.") } actions: {
+                        Button("Create stickers", action: onCreate).buttonStyle(.borderedProminent)
+                        Button("Explore packs", action: onDiscover).buttonStyle(.bordered)
+                        Button("Import sticker ZIP") { importer = true }
+                    }
                 } else if filtered.isEmpty && (searchTerms.isEmpty || resultsView == "Packs") {
                     ContentUnavailableView.search(text: query)
                 }
@@ -256,23 +346,88 @@ private struct StickerDetail: View {
     let sticker: SavedSticker
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var deleting = false
     @State private var editingMetadata = false
+    @State private var choosingCopyTarget = false
     @State private var label = ""
     @State private var tags = ""
+    private var isFavorite: Bool {
+        model.packs.first(where: { $0.id == pack.id })?.stickers.first(where: { $0.id == sticker.id })?.favorite ?? sticker.favorite
+    }
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                StickerImage(url: model.mediaURL(pack, sticker), pixels: 512, animated: pack.kind == .ANIMATED).aspectRatio(1, contentMode: .fit)
-                Text(sticker.label).font(.title3).multilineTextAlignment(.center)
-                Button("Edit label and tags", systemImage: "tag") {
-                    label = sticker.label; tags = sticker.tags; editingMetadata = true
-                }
-                Button("Toggle favorite", systemImage: "heart") { model.run("Updating favorite") { try await model.store.toggleFavorite(packID: pack.id, stickerID: sticker.id); dismiss() } }
-                Button("Delete sticker", systemImage: "trash", role: .destructive) { deleting = true }
-            }.padding().navigationTitle("Sticker preview").navigationBarTitleDisplayMode(.inline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    StickerImage(url: model.mediaURL(pack, sticker), pixels: 512, animated: pack.kind == .ANIMATED)
+                        .aspectRatio(1, contentMode: .fit).frame(maxWidth: 340).frame(maxWidth: .infinity)
+                        .padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(sticker.label.isEmpty ? "Sticker" : sticker.label).font(.title2.bold())
+                        Text("In \(pack.name) · \(pack.kind == .ANIMATED ? "Animated" : "Static")")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Button {
+                        model.run("Updating favorite") { try await model.store.toggleFavorite(packID: pack.id, stickerID: sticker.id) }
+                    } label: {
+                        Label(isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: isFavorite ? "heart.fill" : "heart")
+                            .symbolEffect(.bounce, value: reduceMotion ? false : isFavorite)
+                            .frame(maxWidth: .infinity)
+                    }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
+                    VStack(spacing: 0) {
+                        Button { label = sticker.label; tags = sticker.tags; editingMetadata = true } label: {
+                            Label("Edit label and tags", systemImage: "tag").frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                        }
+                        Divider().padding(.leading, 16)
+                        Button { choosingCopyTarget = true } label: {
+                            Label("Copy to another pack", systemImage: "square.on.square").frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                        }
+                    }.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                        .disabled(model.busy != nil)
+                    Button("Delete sticker", systemImage: "trash", role: .destructive) { deleting = true }
+                        .padding(.vertical, 8).disabled(model.busy != nil)
+                }.padding()
+            }.background(Color(uiColor: .systemGroupedBackground))
+                .navigationTitle("Sticker preview").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
                 .confirmationDialog("Delete this sticker?", isPresented: $deleting) { Button("Delete", role: .destructive) { model.run("Removing sticker") { try await model.store.remove(packID: pack.id, stickerID: sticker.id); dismiss() } } }
+                .sheet(isPresented: $choosingCopyTarget) {
+                    NavigationStack {
+                        let targets = model.packs.filter { candidate in
+                            candidate.id != pack.id && candidate.kind == pack.kind && candidate.stickers.count < 30 &&
+                            (pack.rating != .MATURE || candidate.rating == .MATURE)
+                        }
+                        List {
+                            if targets.isEmpty {
+                                ContentUnavailableView("No compatible pack", systemImage: "square.stack.3d.up",
+                                    description: Text("Create another \(pack.kind == .ANIMATED ? "animated" : "static") pack with room first. Private mature stickers stay in private mature packs."))
+                            } else {
+                                ForEach(targets) { target in
+                                    Button {
+                                        choosingCopyTarget = false
+                                        model.run("Copying sticker") {
+                                            try await model.store.copySticker(packID: pack.id, stickerID: sticker.id, to: target.id)
+                                            model.notice = "Copied to \(target.name). The original remains in \(pack.name)."
+                                            dismiss()
+                                        }
+                                    } label: {
+                                        HStack {
+                                            VStack(alignment: .leading) {
+                                                Text(target.name)
+                                                Text("\(target.stickers.count)/30 stickers\(target.rating == .MATURE ? " · Private" : "")")
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .navigationTitle("Copy to pack")
+                        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Cancel") { choosingCopyTarget = false } } }
+                    }
+                }
                 .sheet(isPresented: $editingMetadata) {
                     NavigationStack {
                         Form {

@@ -1,12 +1,18 @@
 import SwiftUI
 
 struct DiscoverView: View {
+    var onSaved: () -> Void = {}
     @EnvironmentObject var model: LibraryModel
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var query = ""
     @State private var kind = "ALL"
     @State private var selected: CatalogPack?
+    @State private var continueAfterSave = false
     @State private var loading = false
     @State private var failure: String?
+    @State private var showCode = false
+    @State private var code = ""
+    @State private var codeError: String?
     private var visiblePacks: [CatalogPack] {
         model.catalog.filter { pack in
             (kind == "ALL" || pack.kinds?.contains(kind) == true) &&
@@ -18,8 +24,8 @@ struct DiscoverView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                Text("Find your next reaction").font(.title2.bold())
-                Text("Preview a pack, then save only what you want.").foregroundStyle(.secondary)
+                Text("A reaction for every chat.").font(.largeTitle.bold())
+                Text("Explore reviewed packs, preview the stickers and save your favorites.").foregroundStyle(.secondary)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(["ALL", "STATIC", "ANIMATED"], id: \.self) { value in
@@ -35,14 +41,39 @@ struct DiscoverView: View {
                 if !loading && failure == nil && !model.catalog.isEmpty && visiblePacks.isEmpty {
                     ContentUnavailableView.search(text: query.isEmpty ? kind.capitalized : query)
                 }
-                ForEach(visiblePacks) { pack in
-                    Button { selected = pack } label: { CatalogCard(pack: pack) }.buttonStyle(.plain)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 300 : 160), spacing: 12)], spacing: 12) {
+                    ForEach(visiblePacks) { pack in
+                        Button { selected = pack } label: { CatalogCard(pack: pack) }.buttonStyle(.plain)
+                    }
                 }
             }.padding()
         }
         .navigationTitle("Discover").searchable(text: $query, prompt: "Search reactions")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+            Button { code = ""; showCode = true } label: { Image(systemName: "link") }.accessibilityLabel("Open pack code")
+        } }
         .task { await refresh() }.refreshable { await refresh() }
-        .sheet(item: $selected) { pack in NavigationStack { CatalogDetail(pack: pack) } }
+        .task(id: model.incomingPublicPackID) {
+            guard let id = model.incomingPublicPackID else { return }
+            await openPack(id)
+            if model.incomingPublicPackID == id { model.incomingPublicPackID = nil }
+        }
+        .alert("Open pack code", isPresented: $showCode) {
+            TextField("SD:pack-code", text: $code).textInputAutocapitalization(.never).autocorrectionDisabled()
+            Button("Preview") {
+                guard let id = PublicPackLinks.parse(code) else { codeError = "Enter a valid StickerDock pack code or link."; return }
+                Task { await openPack(id) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Paste a StickerDock code or link to preview a public pack.") }
+        .alert("Pack unavailable", isPresented: Binding(get: { codeError != nil }, set: { if !$0 { codeError = nil } })) {
+            Button("OK") { codeError = nil }
+        } message: { Text(codeError ?? "") }
+        .sheet(item: $selected, onDismiss: {
+            if continueAfterSave { continueAfterSave = false; onSaved() }
+        }) { pack in
+            NavigationStack { CatalogDetail(pack: pack, onSaved: { continueAfterSave = true }) }
+        }
     }
     private func refresh() async {
         loading = true; failure = nil
@@ -50,6 +81,20 @@ struct DiscoverView: View {
         do { model.catalog = try await model.catalogClient.browse() }
         catch is CancellationError { }
         catch { failure = error.localizedDescription }
+    }
+    private func openPack(_ id: String) async {
+        loading = true
+        defer { loading = false }
+        do {
+            let entries = try await model.catalogClient.browse()
+            model.catalog = entries
+            guard let pack = entries.first(where: { $0.id == id }) else {
+                codeError = "This pack is unavailable or no longer public."
+                return
+            }
+            selected = pack
+        } catch is CancellationError {
+        } catch { codeError = "Couldn't check this pack. Check your connection and try again." }
     }
 }
 
@@ -59,7 +104,10 @@ private struct CatalogCard: View {
     @State private var preview: Data?
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if let preview { StickerImage(data: preview, pixels: 576).frame(height: 190) }
+            if let preview {
+                StickerImage(data: preview, pixels: 384).frame(maxWidth: .infinity).frame(height: 150)
+                    .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+            }
             else {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("CURATED STICKERS").font(.caption2.weight(.bold)).tracking(1.4)
@@ -70,23 +118,25 @@ private struct CatalogCard: View {
                 .foregroundStyle(.primary)
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: 190)
+                .frame(height: 150)
                 .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
             }
             Text(pack.name).font(.headline)
             Text(pack.creator + (pack.stickerCount.map { " · \($0) stickers" } ?? ""))
                 .font(.caption).foregroundStyle(.secondary)
-            Label("Preview pack", systemImage: "arrow.up.right").font(.subheadline)
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+            Label("View pack", systemImage: "arrow.up.right").font(.caption.weight(.semibold))
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
             .task(id: pack.sha256) { preview = try? await model.catalogClient.preview(pack) }
     }
 }
 
 private struct CatalogDetail: View {
     let pack: CatalogPack
+    let onSaved: () -> Void
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
     @State private var contents: [ImportedPack]?
+    @State private var cover: Data?
     @State private var selectedSticker: CatalogStickerPreview?
     var body: some View {
         ScrollView {
@@ -121,17 +171,35 @@ private struct CatalogDetail: View {
                     Button("Save to library", systemImage: "tray.and.arrow.down") {
                         model.run("Saving pack") {
                             _ = try await model.store.importPacks(contents, sourceKey: pack.id + ":" + pack.sha256)
-                            model.notice = "Saved. Add to WhatsApp from your library when you choose."
+                            try await model.refresh()
+                            model.notice = "Saved to your library. Choose a pack when you're ready for WhatsApp."
+                            onSaved()
                             dismiss()
                         }
                     }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
                 } else {
+                    if let cover {
+                        StickerImage(data: cover, pixels: 512)
+                            .aspectRatio(1, contentMode: .fit)
+                            .frame(maxWidth: 240).frame(maxWidth: .infinity)
+                            .padding(16)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+                    }
+                    if let count = pack.stickerCount {
+                        Text("\(count) stickers · \((pack.kinds ?? []).map { $0.capitalized }.joined(separator: " + "))")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
                     Text("Download this pack for a full preview. It won’t enter your library until you tap Save.").foregroundStyle(.secondary)
                     Button("Load full preview", systemImage: "eye") { model.run("Loading pack preview") { contents = try await model.catalogClient.download(pack) } }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
                 }
             }.padding()
         }.navigationTitle(pack.name).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .topBarLeading) {
+                ShareLink(item: PublicPackLinks.shareText(name: pack.name, id: pack.id)) {
+                    Image(systemName: "square.and.arrow.up")
+                }.accessibilityLabel("Share pack code")
+            } }
             .sheet(item: $selectedSticker) { sticker in
                 NavigationStack {
                     VStack(spacing: 16) {
@@ -145,6 +213,7 @@ private struct CatalogDetail: View {
                     .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { selectedSticker = nil } } }
                 }
             }
+            .task(id: pack.sha256) { cover = try? await model.catalogClient.preview(pack) }
     }
 }
 

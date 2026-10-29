@@ -69,10 +69,10 @@ fun FactoryScreen(
                     Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("REVIEWED FOR STICKERDOCK", style = MaterialTheme.typography.labelSmall)
-                            Text("Reactions with a real place in chat.", style = MaterialTheme.typography.headlineSmall,
+                            Text("DISCOVER", style = MaterialTheme.typography.labelSmall)
+                            Text("A reaction for every chat.", style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold)
-                            Text("Source images stay in private review. Discover only shows packs that passed rights, quality and publication checks.",
+                            Text("Explore reviewed packs, preview the stickers and save your favorites.",
                                 style = MaterialTheme.typography.bodyMedium)
                         }
                     }

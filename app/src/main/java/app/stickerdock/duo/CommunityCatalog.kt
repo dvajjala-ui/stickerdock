@@ -50,7 +50,7 @@ class CommunityCatalog(
 
     fun clearHidden() { context.getSharedPreferences("catalog_safety", Context.MODE_PRIVATE).edit().remove("blocked").apply() }
 
-    /** Only a small public thumbnail is fetched during browsing. Old ZIPs are read on explicit preview. */
+    /** Legacy covers are derived from a small, checksum-verified public archive, never imported. */
     fun preview(item: Listing, allowLegacyDownload: Boolean = false): ByteArray? {
         val directory = File(context.cacheDir, "catalog-previews").apply { mkdirs() }
         val key = item.previewSha256 ?: "legacy-${item.sha256}"
@@ -68,7 +68,8 @@ class CommunityCatalog(
             }
         } else {
             require(item.downloadUrl.startsWith(base + "packs/")) { "Invalid pack URL" }
-            val archive = fetch(item.downloadUrl, 25_000_000)
+            // Browsing must not silently download arbitrarily large packs.
+            val archive = fetch(item.downloadUrl, 2_000_000)
             require(sha256(archive) == item.sha256) { "Public pack checksum mismatch" }
             val temporary = File.createTempFile("catalog-preview-", ".zip", context.cacheDir)
             try {

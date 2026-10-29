@@ -136,6 +136,8 @@ class StickerFiles(private val context: Context, private val store: StickerStore
         val origin = store.getPack(item.packId) ?: return ImportResult.Failed("Source pack not found")
         val target = store.getPack(targetPackId) ?: return ImportResult.Failed("Target pack not found")
         if (origin.kind != target.kind) return ImportResult.Failed("Static and animated stickers must use separate packs")
+        if (origin.rating == PackRating.MATURE && target.rating != PackRating.MATURE)
+            return ImportResult.Failed("Private mature stickers can only go into a private mature pack")
         if (store.hasStickerHash(item.sha256, targetPackId)) return ImportResult.Duplicate
         if (store.stickerCount(targetPackId) >= 30) return ImportResult.Failed("Target pack full")
         val id = UUID.randomUUID().toString()

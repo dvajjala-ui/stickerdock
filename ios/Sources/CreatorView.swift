@@ -47,6 +47,7 @@ struct CreatorView: View {
     var destination: String? = nil
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var photo: PhotosPickerItem?
     @State private var photosPresented = false
     @State private var importer = false
@@ -77,12 +78,16 @@ struct CreatorView: View {
     }
 
     var body: some View {
-        Form {
+        Group {
+            if info == nil {
+                CreatorStartView(onPhotos: { photosPresented = true }, onFiles: { importer = true })
+            } else {
+              Form {
             Section {
-                Text("Make a reaction worth sending").font(.title2.bold())
-                Text("Use your own photos, funny moments or short clips. Preview everything before it enters your library.").foregroundStyle(.secondary)
-                Button("Choose from Photos", systemImage: "photo.on.rectangle") { photosPresented = true }
+                Button("Choose different media", systemImage: "photo.on.rectangle") { photosPresented = true }
                 Button("Choose from Files", systemImage: "folder") { importer = true }
+            } footer: {
+                Text("Your current edit stays here if you cancel the picker.")
             }
             if let info {
                 Section("Make it yours") {
@@ -175,7 +180,10 @@ struct CreatorView: View {
                     Button("Save to library", systemImage: "tray.and.arrow.down", action: save).accessibilityIdentifier("save-to-library")
                 }
             }
+              }
+            }
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: info != nil)
         .disabled(model.busy != nil)
         .navigationTitle("Create")
         .toolbar {
@@ -383,6 +391,47 @@ struct CreatorView: View {
         invalidateAISuggestion()
         sessionID = UUID()
         source = nil; info = nil; output = nil; photo = nil
+    }
+}
+
+private struct CreatorStartView: View {
+    let onPhotos: () -> Void
+    let onFiles: () -> Void
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("YOUR NEXT REACTION", systemImage: "sparkle")
+                        .font(.caption.weight(.bold)).tracking(1)
+                    Text("Make it yours.").font(.largeTitle.bold())
+                    Text("Turn a photo, GIF or short video into a sticker pack you can actually use in chat.")
+                        .font(.body)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Pick", systemImage: "photo")
+                        Label("Edit", systemImage: "slider.horizontal.3")
+                        Label("Send", systemImage: "message")
+                    }.font(.caption.weight(.semibold)).padding(.top, 4)
+                }
+                .foregroundStyle(Color(red: 0.08, green: 0.09, blue: 0.06))
+                .frame(maxWidth: .infinity, alignment: .leading).padding(24)
+                .background(Color(red: 0.85, green: 1, blue: 0.42), in: RoundedRectangle(cornerRadius: 26))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Start with your media").font(.title3.bold())
+                    Button(action: onPhotos) {
+                        Label("Choose from Photos", systemImage: "photo.on.rectangle.angled")
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                    }.buttonStyle(.borderedProminent)
+                    Button(action: onFiles) {
+                        Label("Choose from Files", systemImage: "folder")
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(8)
+                    }.buttonStyle(.bordered)
+                }
+                Label("Preview first. Save when you're happy.", systemImage: "lock.shield")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }.padding(20).frame(maxWidth: 700)
+        }.frame(maxWidth: .infinity)
+            .background(Color(uiColor: .systemGroupedBackground))
     }
 }
 

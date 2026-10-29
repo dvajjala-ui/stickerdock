@@ -87,6 +87,19 @@ actor LibraryStore {
         try appendBatch([source], to: id, kind: kind)
     }
 
+    func copySticker(packID: String, stickerID: String, to targetID: String) throws {
+        _ = try load()
+        guard let source = document.packs.first(where: { $0.id == packID }),
+              let sticker = source.stickers.first(where: { $0.id == stickerID }),
+              let target = document.packs.first(where: { $0.id == targetID }) else {
+            throw StickerError.invalid("Sticker or destination pack no longer exists.")
+        }
+        try require(source.id != target.id && source.kind == target.kind, "Choose another pack of the same sticker type.")
+        try require(source.rating != .MATURE || target.rating == .MATURE, "Private mature stickers can only be copied to a private mature pack.")
+        let data = try bytes(pack: source, sticker: sticker)
+        try append(ImportedSticker(data: data, label: sticker.label, tags: sticker.tags), to: target.id, kind: source.kind)
+    }
+
     func appendBatch(_ sources: [ImportedSticker], to id: String, kind: StickerKind) throws {
         _ = try load()
         guard let i = document.packs.firstIndex(where: { $0.id == id }) else { throw StickerError.invalid("Pack no longer exists.") }
