@@ -819,7 +819,7 @@ Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing 
 
 ## Product refresh and Openverse source — October 29
 
-- LOCAL: all 328 Python tests pass (7 environment/provider skips), including
+- LOCAL: 328 Python tests run (7 environment/provider skips; all others pass), including
   Openverse source registration and bounded intake title/tag metadata. Admin
   JavaScript syntax checks pass.
 - LOCAL LIVE: current HandNavigate source fetched and decoded 2/2 real keyless
@@ -828,10 +828,12 @@ Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing 
 - ANDROID SOURCE: root branding, light/dark color tokens, first-library flow,
   Create workflow, reviewed Discover explanation and Coming next sheet changed.
   Visible Android/Admin encoding damage was removed.
-- CI PENDING: this computer has no Java runtime, so Android compile/unit tests,
-  APK assembly and screenshot artifacts must pass in the new GitHub Actions run.
+- CI PASS: Android compile, unit tests, lint and debug APK assembly passed in
+  [run 40836281242](https://github.com/dvajjala-ui/stickerdock/actions/runs/40836281242).
 - VISUAL PENDING: inspect light, dark and 200% text screenshots. A passing compile
   does not establish product polish or physical-device behavior.
-- HOSTED PENDING: deploy the compatible HandNavigate worker to Railway, advertise
-  `openverse`, run a 2-image Supabase delivery/read-back check and only then edit
-  the daily plan. No Openverse candidate is automatically approved or published.
+- HOSTED PENDING: the compatible Railway worker update is staged as a single
+  source-commit change. The connector returned `INVALID_ARGUMENT` when applying
+  it; dashboard deployment is pending. Advertise `openverse`, run a 2-image
+  Supabase delivery/read-back check and only then edit the daily plan. No
+  Openverse candidate is automatically approved or published.

@@ -52,24 +52,26 @@ separate pack review.
 
 ## Evidence and remaining gates
 
-- StickerDock Python suite: 328 tests passed, 7 skipped.
+- StickerDock Python suite: 328 tests run, 7 skipped; all others passed.
 - Admin JavaScript syntax checks passed.
 - HandNavigate core: 37 tests passed.
 - HandNavigate service: 36 tests passed.
 - Real local Openverse check: 2 requested, 2 decoded and verified; one reported
   CC0 and one public-domain mark.
-- Android source changed but local Java/Gradle is not installed on this computer;
-  Android compile, screenshots, 200% text, dark mode and signed release must be
-  established by GitHub Actions and then physical-device review.
-- Openverse is not yet enabled on Railway. Deploy the compatible worker, run a
-  2-image hosted storage/read-back check, then change the daily plan.
+- Android [debug build, unit tests and lint passed in CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40836281242).
+  Screenshots, 200% text, dark mode, physical-device use and a signed release
+  remain separate acceptance work.
+- Both PRs merged: StickerDock `0c4c831` and HandNavigate `0dd205f`. The
+  Openverse-compatible Railway worker update is staged, awaiting dashboard
+  deployment after the connector returned `INVALID_ARGUMENT`. Run a 2-image
+  hosted storage/read-back check before changing the daily plan.
 - Pinterest and Reddit remain Coming Soon/interactive-host work because Railway
   datacenter guest access is blocked. No login bypass is attempted.
 
 ## Next acceptance order
 
-1. Merge green HandNavigate and StickerDock CI.
-2. Deploy the new worker to Railway; verify it advertises `openverse`.
+1. Apply the staged Railway deployment; verify it advertises `openverse`.
+2. Verify the production Admin deployment has the merged source registration.
 3. Run a 2-image Openverse job into Supabase and read both images back.
 4. Replace or extend the daily plan only after that hosted check.
 5. Review one candidate into a private Factory draft; do not auto-publish.

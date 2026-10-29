@@ -119,7 +119,8 @@ and the remaining source-text quality repair are recorded in the
 - [x] Keep unfinished mobile ideas in one Coming next sheet
 - [x] Add a keyless Openverse adapter with CC0/public-domain, use and mature filters
 - [x] Preserve source-reported creator/license hints while retaining manual rights approval
-- [ ] Merge green Android CI and inspect screenshots
+- [x] Merge green Android CI
+- [ ] Inspect Android screenshots in light/dark and 200% text
 - [ ] Deploy Openverse-compatible HandNavigate to Railway and complete hosted storage read-back
 
 See [product refresh and Openverse evidence](PRODUCT_REFRESH_OPENVERSE_2026-10-29.md).
@@ -200,7 +201,7 @@ See [product refresh and Openverse evidence](PRODUCT_REFRESH_OPENVERSE_2026-10-2
 
 ## Next work — reviewed October 29 (product refresh + Openverse source)
 
-1. **Merge both green CI runs** and inspect Android light/dark/200% screenshots before claiming the visual refresh complete.
+1. **Inspect Android light/dark/200% screenshots** before claiming the visual refresh complete; both PRs are merged with green CI.
 2. **Deploy the Openverse-capable worker to Railway**, confirm capability advertisement, then run a 2-image Supabase storage/read-back check.
 3. **Switch or extend the daily plan only after hosted qualification**, keeping the shared 20-image budget and review gate.
 4. **Prove end-to-end once:** one rights-verified candidate → Factory → reviewed draft sticker → WhatsApp send.
