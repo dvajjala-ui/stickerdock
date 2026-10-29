@@ -13,6 +13,7 @@ SOURCE_OPTIONS = [
     {'id':'reddit','name':'Reddit','description':'Search image posts; a human check may require attention.'},
     {'id':'imgflip','name':'Imgflip meme templates','description':'Name matches in the free popular-template catalog. Requires an updated worker advertising Imgflip support.'},
     {'id':'flickr','name':'Flickr public tag feed','description':'Recent public photos matching comma-separated tags (all tags must match), using provider-advertised photo URLs. Requires an updated worker; reuse rights are reviewed per image.'},
+    {'id':'openverse','name':'Openverse CC / public-domain search','description':'Keyless image search filtered to CC0 and public-domain candidates. Source license metadata is a review hint, not automatic approval.'},
 ]
 SOURCES = tuple(s['id'] for s in SOURCE_OPTIONS)
 LEGACY_SOURCES = frozenset({'pinterest', 'reddit'})

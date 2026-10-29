@@ -105,6 +105,25 @@ and the remaining source-text quality repair are recorded in the
 - Android 0.11.6 released and signed (PR #27)
 - See [full deployment handoff](HANDNAVIGATE_DEPLOYMENT_HANDOFF_2026-10-28.md) and [future roadmap](FUTURE_IMPLEMENTATION_ROADMAP_2026-10-28.md)
 
+### Prompt 7 — October 29, 2026 (latest code + product redesign + free sources)
+
+> Pull the latest changes, analyze the new code, continue the earlier work, redesign the Android app and logo/brand so it does not feel like a generic AI-made app, improve the product flow as owner, integrate useful free image services/APIs with filters and daily fetching, and keep unfinished features in Coming Soon.
+
+**Decoded intent:**
+- [x] Fast-forward StickerDock and HandNavigate to their latest remote `main`
+- [x] Preserve the untracked HandNavigate research file and quarantine unsafe wildcard/GIF edits in a named stash
+- [x] Review the new Flickr, custom-source, Railway and crash-recovery work
+- [x] Fix visible Android/Admin mojibake
+- [x] Apply the launcher mark and a distinctive ink/lime/paper system throughout Android
+- [x] Rewrite Library onboarding, Create and Discover around a coherent consumer journey
+- [x] Keep unfinished mobile ideas in one Coming next sheet
+- [x] Add a keyless Openverse adapter with CC0/public-domain, use and mature filters
+- [x] Preserve source-reported creator/license hints while retaining manual rights approval
+- [ ] Merge green Android CI and inspect screenshots
+- [ ] Deploy Openverse-compatible HandNavigate to Railway and complete hosted storage read-back
+
+See [product refresh and Openverse evidence](PRODUCT_REFRESH_OPENVERSE_2026-10-29.md).
+
 ## Master feature backlog
 
 ### Search & discovery
@@ -179,15 +198,15 @@ and the remaining source-text quality repair are recorded in the
 
 ---
 
-## Next work — reviewed October 28 (evening, post-Railway deployment)
+## Next work — reviewed October 29 (product refresh + Openverse source)
 
-1. **Observe first natural 10:00 IST Railway run** and record: deployment ID, job ID, unique candidate count, exit status, Railway usage cost. Verify Supabase `media_intake_items` count increased.
-2. **Review existing Imgflip candidates** for rights and visual quality. Approve only with confirmed reuse rights. Do not bulk-approve.
-3. **Broaden Imgflip topic plans** — add work reactions, Hinglish expressions, festival moods.
-4. **Prove end-to-end once:** one candidate → approved → Factory → sticker → WhatsApp send.
-5. **Add Openverse as a source** (CC/PD, no login required, Railway-compatible).
-6. **Retry Oracle A1 Mumbai** when capacity becomes available; use SSH-tunneled console for Pinterest/Reddit interactive session.
-7. **7-day Railway observation** before calling daily operation dependable.
+1. **Merge both green CI runs** and inspect Android light/dark/200% screenshots before claiming the visual refresh complete.
+2. **Deploy the Openverse-capable worker to Railway**, confirm capability advertisement, then run a 2-image Supabase storage/read-back check.
+3. **Switch or extend the daily plan only after hosted qualification**, keeping the shared 20-image budget and review gate.
+4. **Prove end-to-end once:** one rights-verified candidate → Factory → reviewed draft sticker → WhatsApp send.
+5. **Review existing Flickr/Imgflip candidates** individually. Do not bulk-approve source-reported rights.
+6. **Retry Oracle A1 Mumbai organically** if an interactive Pinterest/Reddit host is still product-worthy; do not bypass access controls.
+7. **Observe 7 natural Railway runs** before calling daily operation dependable.
 8. See [FUTURE_IMPLEMENTATION_ROADMAP_2026-10-28.md](FUTURE_IMPLEMENTATION_ROADMAP_2026-10-28.md) for full phased plan.
 
 ---

@@ -66,6 +66,16 @@ fun FactoryScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("REVIEWED FOR STICKERDOCK", style = MaterialTheme.typography.labelSmall)
+                            Text("Reactions with a real place in chat.", style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold)
+                            Text("Source images stay in private review. Discover only shows packs that passed rights, quality and publication checks.",
+                                style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Find a pack for your next conversation.", modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

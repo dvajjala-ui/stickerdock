@@ -7,6 +7,11 @@ from api import _media_intake as intake
 from test_media_intake import Storage
 
 class CollectionControlTest(unittest.TestCase):
+    def test_openverse_is_a_reviewed_builtin_source(self):
+        option=next(source for source in c.SOURCE_OPTIONS if source['id']=='openverse')
+        self.assertIn('CC',option['name'])
+        self.assertEqual(c.spec({'topics':['work reaction'],'sources':['openverse'],'image_limit':20})['sources'],['openverse'])
+
     def test_flickr_cannot_be_queued_to_an_older_worker(self):
         client=Storage();payload={'topics':['cat'],'sources':['flickr'],'image_limit':20,'request_id':'flickr-capability-check'}
         with patch.object(client,'find',return_value=None),patch.object(c,'rows',return_value=[{'supported_sources':['pinterest','reddit','imgflip']}]),patch.object(client,'_request') as request:

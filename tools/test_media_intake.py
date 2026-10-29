@@ -33,6 +33,7 @@ def payload():
     output = io.BytesIO()
     Image.new("RGB", (400, 300), "#18b344").save(output, "PNG")
     return {"action": "store", "collection_id": str(uuid.uuid4()), "platform": "reddit", "topic": "happy dogs",
+        "title": "Happy dog", "tags": ["openverse", "reported-license:CC0"],
         "source_url": "https://www.reddit.com/comments/example/", "download_url": "https://i.redd.it/example.png",
         "original_sha256": hashlib.sha256(output.getvalue()).hexdigest(),
         "image": "data:image/png;base64," + base64.b64encode(output.getvalue()).decode()}
@@ -84,6 +85,8 @@ class MediaIntakeTest(unittest.TestCase):
         self.assertTrue(row["storage_path"].startswith("handnavigate/candidates/"))
         self.assertEqual(row["source_url"], spec["source_url"])
         self.assertEqual(row["topic"], spec["topic"])
+        self.assertEqual(row["title"], "Happy dog")
+        self.assertEqual(row["tags"], ["openverse", "reported-license:CC0"])
         fetched = intake.dispatch({"action": "get", "id": row["id"]}, client)
         raw = base64.b64decode(fetched["image"].split(",", 1)[1])
         self.assertEqual(hashlib.sha256(raw).hexdigest(), row["stored_sha256"])
@@ -116,7 +119,8 @@ class MediaIntakeTest(unittest.TestCase):
         self.assertEqual(client.writes, 1)
 
     def test_invalid_url_or_image_never_writes_storage(self):
-        for values in ({"source_url": "http://unsafe.example/"}, {"image": "data:image/png;base64,AAAA"}):
+        for values in ({"source_url": "http://unsafe.example/"}, {"image": "data:image/png;base64,AAAA"},
+                       {"tags": ["x" * 41]}, {"tags": ["ok"] * 21}):
             client = Storage()
             with self.assertRaises(ValueError):
                 intake.dispatch({**payload(), **values}, client)
