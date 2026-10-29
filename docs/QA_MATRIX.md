@@ -832,8 +832,9 @@ Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing 
   [run 40836281242](https://github.com/dvajjala-ui/stickerdock/actions/runs/40836281242).
 - VISUAL PENDING: inspect light, dark and 200% text screenshots. A passing compile
   does not establish product polish or physical-device behavior.
-- HOSTED PENDING: the compatible Railway worker update is staged as a single
-  source-commit change. The connector returned `INVALID_ARGUMENT` when applying
-  it; dashboard deployment is pending. Advertise `openverse`, run a 2-image
-  Supabase delivery/read-back check and only then edit the daily plan. No
-  Openverse candidate is automatically approved or published.
+- HOSTED PENDING: Railway deployment `e9c1cce2-a916-44e2-90ec-a94200a2db2e`
+  reports `SUCCESS` at `0dd205f` after the owner applied the staged update.
+  The worker has not yet connected with its new capabilities; Admin rejected
+  the 2-image test without creating a job. After the next scheduled connection,
+  verify `openverse`, perform Supabase delivery/read-back and only then edit the
+  daily plan. No candidate is automatically approved or published.
