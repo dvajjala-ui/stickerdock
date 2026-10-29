@@ -13,6 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
@@ -386,7 +387,8 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        Text(pack.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false).clickable(onClick = onClick))
                         if (pack.kind == StickerKind.ANIMATED) {
                             Surface(
                                 shape = MaterialTheme.shapes.extraSmall,
@@ -404,13 +406,6 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
                         if (pack.rating == PackRating.MATURE) append(" · Private")
                     }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (onQuickAdd != null) {
-                    WhatsAppActionButton(
-                        stickerCount = stickerCount,
-                        enabled = true,
-                        onClick = onQuickAdd
-                    )
-                }
                 StickerDockNavIcon("Forward")
             }
             Row(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(MaterialTheme.colorScheme.surfaceContainerLow).padding(8.dp),
@@ -422,6 +417,11 @@ private fun VisualPackCard(pack: StickerPack, stickerCount: Int, previews: List<
                     else Box(Modifier.weight(1f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                         if (index == 0) StickerDockNavIcon("Create")
                     }
+                }
+            }
+            if (onQuickAdd != null) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    WhatsAppActionButton(stickerCount = stickerCount, enabled = true, onClick = onQuickAdd)
                 }
             }
         }
@@ -494,7 +494,7 @@ private fun GridPackCard(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).clickable(onClick = onClick)
                     )
                     if (pack.kind == StickerKind.ANIMATED) {
                         Surface(

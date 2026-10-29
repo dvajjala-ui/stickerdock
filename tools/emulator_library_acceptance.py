@@ -457,7 +457,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         assert scrolled_memory - initial_memory < 100 * 1024, "Scrolling retained over 100 MB of additional memory"
         self.launch(restart=True)
         self.wait_text("QA animated 000"); self.tap("QA animated 000")
-        self.wait_text("Tap to play")
+        self.wait_text("Tap to play · Hold to select")
         self.wait_text("Use in WhatsApp")
         self.screenshot("03-animated-posters")
         self.tap("QA sticker 00")
