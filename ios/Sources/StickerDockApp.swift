@@ -62,7 +62,7 @@ struct RootView: View {
     @State private var creatorPresented = false
     var body: some View {
         TabView(selection: $tab) {
-            NavigationStack { DiscoverView() }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
+            NavigationStack { DiscoverView(onSaved: { tab = .library }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
             NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
             NavigationStack {
                 LibraryView()

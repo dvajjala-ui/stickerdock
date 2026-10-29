@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DiscoverView: View {
+    var onSaved: () -> Void = {}
     @EnvironmentObject var model: LibraryModel
     @State private var query = ""
     @State private var kind = "ALL"
@@ -42,7 +43,7 @@ struct DiscoverView: View {
         }
         .navigationTitle("Discover").searchable(text: $query, prompt: "Search reactions")
         .task { await refresh() }.refreshable { await refresh() }
-        .sheet(item: $selected) { pack in NavigationStack { CatalogDetail(pack: pack) } }
+        .sheet(item: $selected) { pack in NavigationStack { CatalogDetail(pack: pack, onSaved: onSaved) } }
     }
     private func refresh() async {
         loading = true; failure = nil
@@ -84,6 +85,7 @@ private struct CatalogCard: View {
 
 private struct CatalogDetail: View {
     let pack: CatalogPack
+    let onSaved: () -> Void
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
     @State private var contents: [ImportedPack]?
@@ -123,6 +125,7 @@ private struct CatalogDetail: View {
                             _ = try await model.store.importPacks(contents, sourceKey: pack.id + ":" + pack.sha256)
                             model.notice = "Saved. Add to WhatsApp from your library when you choose."
                             dismiss()
+                            onSaved()
                         }
                     }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
                 } else {
