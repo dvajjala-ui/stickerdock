@@ -110,7 +110,7 @@ fun LibraryScreen(
                     )
                 }
             }
-            item {
+            item(key = "library-search") {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     LibrarySearch(searchText, onSearchChange, "monday mood, thanks, lol…", Modifier.weight(1f),
                         accessibilityLabel = "Search library", onSubmit = { recentSearches = searchHistory.record(it) })
