@@ -179,8 +179,12 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var whatsAppStatus by remember { mutableStateOf<Map<WhatsAppTarget, WhatsAppPackStatus>>(emptyMap()) }
         var whatsAppStatusRefresh by remember { mutableStateOf(0) }
         var activeWhatsAppTarget by rememberSaveable { mutableStateOf(WhatsAppTarget.PERSONAL) }
-        var personalInstalled by remember { mutableStateOf(true) }
-        var businessInstalled by remember { mutableStateOf(false) }
+        val personalInstalled = remember(whatsAppStatusRefresh) {
+            WhatsAppIntegration.installed(this@StickerDockPolishedActivity, WhatsAppTarget.PERSONAL)
+        }
+        val businessInstalled = remember(whatsAppStatusRefresh) {
+            WhatsAppIntegration.installed(this@StickerDockPolishedActivity, WhatsAppTarget.BUSINESS)
+        }
         var pendingWhatsAppTargetName by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingWhatsAppPackId by rememberSaveable { mutableStateOf<String?>(null) }
 

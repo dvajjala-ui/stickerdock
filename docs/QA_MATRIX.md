@@ -4,6 +4,8 @@
 
 [Signed release run 40888997829](https://github.com/dvajjala-ui/stickerdock/actions/runs/40888997829) built and signed version 0.12.0, then failed the real Android 15 emulator test while opening an animated pack. Its screenshot shows the list card title squeezed beside a large WhatsApp action; the automated tap on the title resolved to the card center and stayed in Library. The fix gives the pack title its own tap target and moves the WhatsApp action below the sticker previews so the name has room. The emulator check now expects the current combined animation/selection hint. A new source-bound signed run must pass before calling 0.12.0 released.
 
+The same screenshot showed “Personal WhatsApp active” even though the home screen used fixed `true`/`false` installation values. Library and Settings now use the existing package check used by WhatsApp handoff and refresh it when the app resumes. This removes a misleading installed-app claim and keeps the target switcher in sync with the device.
+
 ## October 29 HandNavigate source continuation
 
 [Actual Railway Flickr acceptance](HANDNAVIGATE_FLICKR_2026-10-29.md): 20/20 downloaded/stored candidates, twenty independent checksum/decoded-image read-backs, successful bounded batch exit, and a read-only hosted Admin check with all twenty previews and no 390px overflow/page errors. The daily plan was changed only after that acceptance. [Source-filter Web/API CI](https://github.com/dvajjala-ui/stickerdock/actions/runs/40760718870) passes; local backend 327/327. This does not prove multiple natural scheduled days, third-party reuse rights, source-to-sticker generation quality or new phone acceptance.

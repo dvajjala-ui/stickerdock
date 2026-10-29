@@ -25,6 +25,9 @@ data class WhatsAppPackStatus(
 object WhatsAppIntegration {
     private const val RESULT_COLUMN = "result"
 
+    fun installed(context: Context, target: WhatsAppTarget): Boolean =
+        isInstalled(context.packageManager, target.packageName)
+
     /** Fail with an actionable message before handing an incomplete pack to WhatsApp. */
     fun validatePack(pack: StickerPack, store: StickerStore, files: StickerFiles) {
         require(store.getPack(pack.id) != null) { "Pack no longer exists" }
@@ -50,7 +53,7 @@ object WhatsAppIntegration {
     }
 
     fun status(context: Context, packId: String, target: WhatsAppTarget): WhatsAppPackStatus {
-        if (!isInstalled(context.packageManager, target.packageName)) {
+        if (!installed(context, target)) {
             return WhatsAppPackStatus(installed = false, added = false)
         }
         return WhatsAppPackStatus(
