@@ -107,3 +107,6 @@ uses the existing atomic library commit. This is a copy, not a destructive
 move; cross-pack bulk operations and favorites parity are still open.
 Android's existing copy and move actions now enforce the same mature-to-mature
 destination rule in both the picker and file operation.
+The iPhone sticker detail puts the artwork first, gives the favorite action a
+clear current state, and uses a small state-change animation that respects
+Reduce Motion. The actions remain scrollable for larger text.

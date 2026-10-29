@@ -346,23 +346,49 @@ private struct StickerDetail: View {
     let sticker: SavedSticker
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var deleting = false
     @State private var editingMetadata = false
     @State private var choosingCopyTarget = false
     @State private var label = ""
     @State private var tags = ""
+    private var isFavorite: Bool {
+        model.packs.first(where: { $0.id == pack.id })?.stickers.first(where: { $0.id == sticker.id })?.favorite ?? sticker.favorite
+    }
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                StickerImage(url: model.mediaURL(pack, sticker), pixels: 512, animated: pack.kind == .ANIMATED).aspectRatio(1, contentMode: .fit)
-                Text(sticker.label).font(.title3).multilineTextAlignment(.center)
-                Button("Edit label and tags", systemImage: "tag") {
-                    label = sticker.label; tags = sticker.tags; editingMetadata = true
-                }
-                Button("Toggle favorite", systemImage: "heart") { model.run("Updating favorite") { try await model.store.toggleFavorite(packID: pack.id, stickerID: sticker.id); dismiss() } }
-                Button("Copy to another pack", systemImage: "square.on.square") { choosingCopyTarget = true }
-                Button("Delete sticker", systemImage: "trash", role: .destructive) { deleting = true }
-            }.padding().navigationTitle("Sticker preview").navigationBarTitleDisplayMode(.inline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    StickerImage(url: model.mediaURL(pack, sticker), pixels: 512, animated: pack.kind == .ANIMATED)
+                        .aspectRatio(1, contentMode: .fit).frame(maxWidth: 340).frame(maxWidth: .infinity)
+                        .padding(16).background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 28))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(sticker.label.isEmpty ? "Sticker" : sticker.label).font(.title2.bold())
+                        Text("In \(pack.name) · \(pack.kind == .ANIMATED ? "Animated" : "Static")")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Button {
+                        model.run("Updating favorite") { try await model.store.toggleFavorite(packID: pack.id, stickerID: sticker.id) }
+                    } label: {
+                        Label(isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: isFavorite ? "heart.fill" : "heart")
+                            .symbolEffect(.bounce, value: reduceMotion ? false : isFavorite)
+                            .frame(maxWidth: .infinity)
+                    }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
+                    VStack(spacing: 0) {
+                        Button { label = sticker.label; tags = sticker.tags; editingMetadata = true } label: {
+                            Label("Edit label and tags", systemImage: "tag").frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                        }
+                        Divider().padding(.leading, 16)
+                        Button { choosingCopyTarget = true } label: {
+                            Label("Copy to another pack", systemImage: "square.on.square").frame(maxWidth: .infinity, alignment: .leading).padding(16)
+                        }
+                    }.background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                        .disabled(model.busy != nil)
+                    Button("Delete sticker", systemImage: "trash", role: .destructive) { deleting = true }
+                        .padding(.vertical, 8).disabled(model.busy != nil)
+                }.padding()
+            }.background(Color(uiColor: .systemGroupedBackground))
+                .navigationTitle("Sticker preview").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
                 .confirmationDialog("Delete this sticker?", isPresented: $deleting) { Button("Delete", role: .destructive) { model.run("Removing sticker") { try await model.store.remove(packID: pack.id, stickerID: sticker.id); dismiss() } } }
                 .sheet(isPresented: $choosingCopyTarget) {
