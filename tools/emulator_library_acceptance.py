@@ -325,8 +325,9 @@ class LibraryAcceptance(ClipCreatorSmoke):
         before = self.counts()
 
         def open_options():
-            self.launch(restart=True); self.wait_text("Search library"); self.tap("Studio")
-            self.scroll_to_text("Import and backups"); self.tap("Import and backups")
+            self.launch(restart=True); self.wait_text("Search library")
+            self.tap("Library settings")
+            self.wait_text("Import and backups"); self.tap("Import and backups")
             self.scroll_to_text("Back up library"); self.tap("Back up library")
             self.wait_text("Back up your library")
 
