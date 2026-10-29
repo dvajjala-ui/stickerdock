@@ -58,7 +58,7 @@ class ClipCreatorSmoke(RecoverySmoke):
                  "app.stickerdock.duo/.StickerDockPolishedActivity")
         if from_create:
             self.wait_text("Search library")
-            self.tap("Create")
+            self.tap("Studio")
             self.scroll_to_text("Make an animated reaction")
         self.wait_text("Make an animated reaction")
         self.tap("Make an animated reaction")

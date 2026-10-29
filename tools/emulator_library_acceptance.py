@@ -77,7 +77,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         before = self.counts()
         for save in (False, True):
             self.launch(restart=True)
-            self.wait_text("Search library"); self.tap("Create")
+            self.wait_text("Search library"); self.tap("Studio")
             self.wait_text("Make stickers from photos")
             self.screenshot("15-create-screen")
             self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
@@ -325,7 +325,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         before = self.counts()
 
         def open_options():
-            self.launch(restart=True); self.wait_text("Search library"); self.tap("Create")
+            self.launch(restart=True); self.wait_text("Search library"); self.tap("Studio")
             self.scroll_to_text("Import and backups"); self.tap("Import and backups")
             self.scroll_to_text("Back up library"); self.tap("Back up library")
             self.wait_text("Back up your library")
