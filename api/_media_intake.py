@@ -88,6 +88,11 @@ def dispatch(payload, client=None):
     if not isinstance(original_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", original_sha):
         raise StudioError("Invalid original-image checksum")
     topic = safe_text(payload.get("topic"), "topic", 240, required=True)
+    title = safe_text(payload.get("title", ""), "title", 160)
+    tags = payload.get("tags", [])
+    if not isinstance(tags, list) or len(tags) > 20:
+        raise StudioError("Use up to 20 source tags")
+    tags = list(dict.fromkeys(safe_text(tag, "tag", 40, required=True) for tag in tags))
     raw, _, _ = decode_image(payload.get("image"))
     normalized = normalize_upload_image(raw)
     digest = hashlib.sha256(normalized).hexdigest()
@@ -104,6 +109,7 @@ def dispatch(payload, client=None):
     row = {"id": item_id, "collection_id": collection, "platform": source, "topic": topic,
            "source_url": source_url, "download_url": download_url,
            "original_sha256": original_sha, "stored_sha256": digest, "storage_path": path,
+           "title": title, "tags": tags,
            "rights_status": "UNREVIEWED", "generation_eligible": False}
     client.upload(PRIVATE_BUCKET, path, normalized, "image/webp")
     stored = client.download(PRIVATE_BUCKET, path)

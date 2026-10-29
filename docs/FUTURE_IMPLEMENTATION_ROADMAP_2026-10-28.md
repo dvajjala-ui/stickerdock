@@ -1,6 +1,6 @@
 # StickerDock × HandNavigate — Future Implementation Roadmap
 
-**Last updated: October 28, 2026**
+**Last updated: October 29, 2026**
 **Author role: Product owner perspective**
 
 This document is the continuation plan from where we stopped on October 28, 2026.
@@ -19,6 +19,8 @@ Every future agent session should read this file first.
 | Pinterest source | **Blocked** — `AUTH_REQUIRED` from Railway IP, needs interactive host |
 | Reddit source | **Blocked** — `AUTH_REQUIRED` from Railway IP, needs interactive host |
 | Imgflip daily yield | **Partial** — 1/20 in acceptance run due to dedup; needs broader topics |
+| Flickr hosted yield | **Verified once** — 20/20 stored and read back; multi-day natural-run evidence remains open |
+| Openverse source | **Implemented and locally live-checked** — 2/2 CC0/public-domain candidates; Railway rollout pending |
 | Oracle A1 VM | **No capacity** — Mumbai rejected; free network prepared; retry organically |
 | Candidate review | **Pending** — Imgflip candidates stored, unreviewed, `generation_eligible=false` |
 | Factory admission | **Not connected** — no approved candidate has fed Factory yet |
@@ -49,13 +51,13 @@ These are the minimum actions needed to verify the deployed infrastructure works
 - [ ] **Do not bulk-approve** without reviewing each image
 - [ ] **Pass criterion:** At least 5 candidates approved with confirmed reuse rights
 
-### 1.3 Broaden Imgflip topic plans
-- [ ] Add new Admin topic plans beyond "Daily animal reactions":
+### 1.3 Broaden the reviewed-source topic plan
+- [ ] Replace generic animal-only topics after the Openverse-compatible worker is hosted:
   - "Work and office reactions" (relatable workplace humor)
   - "Desi/Hinglish expressions" (Indian-context reactions)
   - "Festival and celebration moods" (Diwali, weekend, Friday vibes)
   - "Friendship and relationship reactions" (sending to friends on WhatsApp)
-- [ ] Each plan: Imgflip source and separate topic slots, within the shared 20-image daily budget across all plans. The free popular-template catalog is finite; broader topics do not guarantee twenty new images every day.
+- [ ] Prefer Openverse for reusable-source candidates and keep Flickr/Imgflip as separately reviewed inspiration pools. The shared daily budget remains 20 images across all plans.
 - [ ] **Pass criterion:** At least 3 new plans saved and enabled
 
 ---
@@ -68,22 +70,25 @@ Openverse (https://api.openverse.org/v1/) provides CC and public domain images.
 It does not require guest browsing, login bypass, or social account access.
 This directly addresses the 20/day yield gap without needing a better hosting IP.
 
-**HandNavigate changes needed:**
-- [ ] Add `openverse.cjs` adapter in `service/` — query Openverse v1 API by topic
-- [ ] Filter by license: CC0, CC BY, CC BY-SA only (no NC, no ND unless explicitly allowed)
-- [ ] Normalize to WebP, check dimensions (min 512×512 for sticker use)
-- [ ] Add `openverse` to the source-capability advertisement
-- [ ] Register `openverse` host in the allowed-redirect list
+**HandNavigate source completed:**
+- [x] Add `openverse.cjs` adapter in `service/` using anonymous topic search
+- [x] Filter to CC0 and public-domain marks, commercial/modification-compatible and non-mature candidates
+- [x] Fetch only through the fixed Openverse thumbnail origin; retain the original work as provenance
+- [x] Decode and validate the shared 25 MB/40 MP image bound, dedup and journaled delivery
+- [x] Add `openverse` to source-capability advertisement
+- [x] Preserve bounded title, creator and source-reported license hints
 
-**StickerDock changes needed:**
-- [ ] Add `openverse` as a valid platform in `media_intake_items`
-- [ ] Add Openverse filter option in Sources workspace
-- [ ] Add rights auto-annotation: CC license type from Openverse API response
+**StickerDock source workspace completed:**
+- [x] Add `openverse` as a valid source option without a schema-breaking platform enum
+- [x] Add Openverse filter option in Sources and Collections
+- [x] Store bounded title and source-reported license/creator hints in existing candidate metadata
+- [x] Keep manual origin verification and explicit approval; never auto-approve from an aggregator label
 
 **Qualification:**
-- [ ] 2-image exact-host Railway qualification test
-- [ ] Verify license type stored in provenance
-- [ ] Enable in daily plan only after qualification passes
+- [x] 2-image real keyless local qualification (`VERIFIED_LOCAL`)
+- [x] Unit/service coverage for fixed-origin download, unsafe-host rejection, metadata handoff and retries
+- [ ] Deploy the compatible worker to Railway and complete 2-image Supabase storage/read-back
+- [ ] Enable in the daily plan only after hosted qualification passes
 
 ### 2.2 Complete candidate → Factory admission
 

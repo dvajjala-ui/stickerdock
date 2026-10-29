@@ -338,11 +338,22 @@ private fun FavoriteStickerCard(result: StickerSearchResult, files: StickerFiles
 
 @Composable
 private fun LibraryOnboardingCard(busy: Boolean, onCreatePack: () -> Unit, onImportPhone: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Your library starts here", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Text("A pack for every conversation.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        ProductAction("Choose photos", "Make your first sticker pack", "Photo", !busy, onCreatePack)
-        TextButton(enabled = !busy, onClick = onImportPhone) { Text("Import from phone") }
+    Column(Modifier.fillMaxWidth().padding(vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        StickerDockBrandLockup()
+        Text("Build the reaction shelf you actually use.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        Text("Make a sticker from your photos or bring over your existing WhatsApp folders. Your library stays on this phone until you choose to share or back it up.",
+            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ProductAction("Choose photos", "Cut out a subject, add a caption and save your first pack", "Photo", !busy, onCreatePack)
+        OutlinedButton(enabled = !busy, onClick = onImportPhone, modifier = Modifier.fillMaxWidth()) {
+            StickerDockNavIcon("Import"); Spacer(Modifier.width(8.dp)); Text("Bring stickers from this phone")
+        }
+        Surface(shape = MaterialTheme.shapes.medium, color = MaterialTheme.colorScheme.secondaryContainer) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StickerDockNavIcon("Library")
+                Text("Local by default · no account required", style = MaterialTheme.typography.labelLarge)
+            }
+        }
     }
 }
 
@@ -550,10 +561,49 @@ fun LibraryFiltersSheet(
 fun CreateScreen(busy: Boolean, onPhotos: () -> Unit, onClip: () -> Unit, onImport: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.fillMaxHeight().widthIn(max = 800.dp), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { CreationCard("Make stickers from photos", "Your photos.\nYour reactions.", "Cut out a subject, add a caption and make a pack that's yours.", "Photo", !busy, onPhotos) }
-            item { CreationCard("Make an animated reaction", "Give it a little motion.", "Turn a video or GIF into a reaction worth sending.", "Video", !busy, onClip, prominent = false) }
-            item { Spacer(Modifier.height(8.dp)) }
-            item { TextButton(enabled = !busy, onClick = onImport) { Text("Import and backups") } }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Make one worth sending.", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("Pick media, shape the reaction, then save it into a real WhatsApp-ready pack.",
+                        style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            item { CreationFlowCard() }
+            item { CreationCard("Make stickers from photos", "Photo stickers, without the busywork.", "Choose several photos. StickerDock groups them, keeps the originals private and lets you edit each result before sending.", "Photo", !busy, onPhotos) }
+            item { CreationCard("Make an animated reaction", "Motion for the moments that need it.", "Trim a short clip, add a caption and preview the loop before anything is saved.", "Video", !busy, onClip, prominent = false) }
+            item {
+                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Already have stickers?", style = MaterialTheme.typography.titleMedium)
+                        Text("Import phone folders or ZIP packs from the library tools. Existing collections stay separate from creation.",
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextButton(enabled = !busy, onClick = onImport) { Text("Open import & backup tools") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreationFlowCard() {
+    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            listOf(
+                "1" to "Pick a photo, video or GIF",
+                "2" to "Cut out, crop and caption",
+                "3" to "Save to a pack and send"
+            ).forEach { (number, label) ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+                        Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                            Text(number, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    }
+                    Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                }
+            }
         }
     }
 }

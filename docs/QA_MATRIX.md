@@ -816,3 +816,22 @@ keep the same signing key.
 | Backup round trip | Static normalized WebP bytes, SHA-256, labels/tags and category remain exact; entries stage on disk within shared export/restore bounds |
 
 Test against Samsung Galaxy S24 Ultra and an Android emulator before publishing APK as production ready.
+
+## Product refresh and Openverse source — October 29
+
+- LOCAL: all 328 Python tests pass (7 environment/provider skips), including
+  Openverse source registration and bounded intake title/tag metadata. Admin
+  JavaScript syntax checks pass.
+- LOCAL LIVE: current HandNavigate source fetched and decoded 2/2 real keyless
+  Openverse candidates through the fixed API thumbnail origin. HandNavigate
+  37/37 core and 36/36 service tests pass. This is not hosted evidence.
+- ANDROID SOURCE: root branding, light/dark color tokens, first-library flow,
+  Create workflow, reviewed Discover explanation and Coming next sheet changed.
+  Visible Android/Admin encoding damage was removed.
+- CI PENDING: this computer has no Java runtime, so Android compile/unit tests,
+  APK assembly and screenshot artifacts must pass in the new GitHub Actions run.
+- VISUAL PENDING: inspect light, dark and 200% text screenshots. A passing compile
+  does not establish product polish or physical-device behavior.
+- HOSTED PENDING: deploy the compatible HandNavigate worker to Railway, advertise
+  `openverse`, run a 2-image Supabase delivery/read-back check and only then edit
+  the daily plan. No Openverse candidate is automatically approved or published.
