@@ -87,3 +87,13 @@ import while hiding the more common Create and Discover paths. Library now has a
 clearly labeled WhatsApp card, direct Create/Discover actions and removes inactive
 type filters when empty. Tab order matches Android: Library, Create, Discover.
 Fresh screenshot, larger-text and device acceptance remain required.
+
+## Sharing continuation
+
+The iPhone client now accepts the same `SD:` public-pack codes and
+`stickerdock://pack/…` links as Android. Discover resolves only the identifier
+against its current reviewed public catalog, offers an explicit preview and
+does not automatically save. Public pack detail can share a code and app link.
+Malformed or unavailable links get a clear error; private packs are still
+shared as an explicit ZIP. Unit and simulator checks cover the entry points;
+real messenger-to-app links and physical iPhone acceptance remain open.

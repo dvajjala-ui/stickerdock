@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
                 .task { do { try await model.refresh() } catch { model.error = error.localizedDescription } }
                 .onOpenURL { url in
                     if url.pathExtension.lowercased() == "zip" { model.importArchive(url) }
+                    else if let id = PublicPackLinks.parse(url.absoluteString) { model.incomingPublicPackID = id }
                     else { model.error = "Open StickerDock ZIP backups here. Use Create for photos or clips." }
                 }
         }
@@ -82,6 +83,7 @@ struct RootView: View {
             if let url = model.shareURL { ShareSheet(url: url) }
         }
         .operationFeedback(active: !settings && !creatorPresented)
+        .onChange(of: model.incomingPublicPackID) { _, id in if id != nil { tab = .discover } }
     }
 }
 

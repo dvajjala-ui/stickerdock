@@ -9,6 +9,7 @@ import SDWebImageWebPCoder
     @Published var error: String?
     @Published var notice: String?
     @Published var shareURL: URL?
+    @Published var incomingPublicPackID: String?
     let root: URL
     let store: LibraryStore
     let creator = MediaCreator()

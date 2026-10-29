@@ -35,6 +35,9 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         LSApplicationQueriesSchemes: [whatsapp]
+        CFBundleURLTypes:
+          - CFBundleURLName: app.stickerdock.pack
+            CFBundleURLSchemes: [stickerdock]
         LSSupportsOpeningDocumentsInPlace: true
         CFBundleDocumentTypes:
           - CFBundleTypeName: Sticker archives

@@ -9,6 +9,9 @@ struct DiscoverView: View {
     @State private var selected: CatalogPack?
     @State private var loading = false
     @State private var failure: String?
+    @State private var showCode = false
+    @State private var code = ""
+    @State private var codeError: String?
     private var visiblePacks: [CatalogPack] {
         model.catalog.filter { pack in
             (kind == "ALL" || pack.kinds?.contains(kind) == true) &&
@@ -45,7 +48,26 @@ struct DiscoverView: View {
             }.padding()
         }
         .navigationTitle("Discover").searchable(text: $query, prompt: "Search reactions")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+            Button { code = ""; showCode = true } label: { Image(systemName: "link") }.accessibilityLabel("Open pack code")
+        } }
         .task { await refresh() }.refreshable { await refresh() }
+        .task(id: model.incomingPublicPackID) {
+            guard let id = model.incomingPublicPackID else { return }
+            await openPack(id)
+            if model.incomingPublicPackID == id { model.incomingPublicPackID = nil }
+        }
+        .alert("Open pack code", isPresented: $showCode) {
+            TextField("SD:pack-code", text: $code).textInputAutocapitalization(.never).autocorrectionDisabled()
+            Button("Preview") {
+                guard let id = PublicPackLinks.parse(code) else { codeError = "Enter a valid StickerDock pack code or link."; return }
+                Task { await openPack(id) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Paste a StickerDock code or link to preview a public pack.") }
+        .alert("Pack unavailable", isPresented: Binding(get: { codeError != nil }, set: { if !$0 { codeError = nil } })) {
+            Button("OK") { codeError = nil }
+        } message: { Text(codeError ?? "") }
         .sheet(item: $selected) { pack in NavigationStack { CatalogDetail(pack: pack, onSaved: onSaved) } }
     }
     private func refresh() async {
@@ -54,6 +76,20 @@ struct DiscoverView: View {
         do { model.catalog = try await model.catalogClient.browse() }
         catch is CancellationError { }
         catch { failure = error.localizedDescription }
+    }
+    private func openPack(_ id: String) async {
+        loading = true
+        defer { loading = false }
+        do {
+            let entries = try await model.catalogClient.browse()
+            model.catalog = entries
+            guard let pack = entries.first(where: { $0.id == id }) else {
+                codeError = "This pack is unavailable or no longer public."
+                return
+            }
+            selected = pack
+        } catch is CancellationError {
+        } catch { codeError = "Couldn't check this pack. Check your connection and try again." }
     }
 }
 
@@ -141,6 +177,11 @@ private struct CatalogDetail: View {
             }.padding()
         }.navigationTitle(pack.name).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .topBarLeading) {
+                ShareLink(item: PublicPackLinks.shareText(name: pack.name, id: pack.id)) {
+                    Image(systemName: "square.and.arrow.up")
+                }.accessibilityLabel("Share pack code")
+            } }
             .sheet(item: $selectedSticker) { sticker in
                 NavigationStack {
                     VStack(spacing: 16) {
