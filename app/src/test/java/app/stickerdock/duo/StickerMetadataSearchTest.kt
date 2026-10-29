@@ -142,6 +142,20 @@ class StickerMetadataSearchTest {
         assertEquals(30, store.stickerCount(target.id))
     }
 
+    @Test
+    fun privateStickerCannotBeCopiedOrMovedIntoGeneralPack() {
+        val source = store.createPack("Private", rating = PackRating.MATURE)
+        val target = store.createPack("General", rating = PackRating.GENERAL)
+        val original = StickerItem("private", source.id, "private.webp", "private-hash", 1)
+        assertTrue(store.addSticker(original))
+        val files = StickerFiles(context, store)
+        for (move in listOf(false, true)) {
+            assertTrue(files.transferSticker(original, target.id, move) is ImportResult.Failed)
+        }
+        assertEquals(listOf(original.id), store.listStickers(source.id).map { it.id })
+        assertEquals(0, store.stickerCount(target.id))
+    }
+
     companion object {
         private const val DB_NAME = "stickerdock.db"
     }

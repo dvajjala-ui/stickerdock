@@ -1162,7 +1162,10 @@ class StickerDockPolishedActivity : ComponentActivity() {
 
         transferItems?.let { itemsToTransfer ->
             val sourcePack = itemsToTransfer.firstOrNull()?.let { source -> packs.firstOrNull { it.id == source.packId } }
-            val candidates = if (sourcePack == null) emptyList() else packs.filter { it.id != sourcePack.id && it.kind == sourcePack.kind }
+            val candidates = if (sourcePack == null) emptyList() else packs.filter {
+                it.id != sourcePack.id && it.kind == sourcePack.kind &&
+                    (sourcePack.rating != PackRating.MATURE || it.rating == PackRating.MATURE)
+            }
             StickerTransferSheet(
                 title = if (itemsToTransfer.size == 1) "Copy or move sticker" else "Copy or move ${itemsToTransfer.size} stickers",
                 packs = candidates,
