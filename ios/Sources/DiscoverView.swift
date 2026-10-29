@@ -7,6 +7,7 @@ struct DiscoverView: View {
     @State private var query = ""
     @State private var kind = "ALL"
     @State private var selected: CatalogPack?
+    @State private var continueAfterSave = false
     @State private var loading = false
     @State private var failure: String?
     @State private var showCode = false
@@ -68,7 +69,11 @@ struct DiscoverView: View {
         .alert("Pack unavailable", isPresented: Binding(get: { codeError != nil }, set: { if !$0 { codeError = nil } })) {
             Button("OK") { codeError = nil }
         } message: { Text(codeError ?? "") }
-        .sheet(item: $selected) { pack in NavigationStack { CatalogDetail(pack: pack, onSaved: onSaved) } }
+        .sheet(item: $selected, onDismiss: {
+            if continueAfterSave { continueAfterSave = false; onSaved() }
+        }) { pack in
+            NavigationStack { CatalogDetail(pack: pack, onSaved: { continueAfterSave = true }) }
+        }
     }
     private func refresh() async {
         loading = true; failure = nil
@@ -131,6 +136,7 @@ private struct CatalogDetail: View {
     @EnvironmentObject var model: LibraryModel
     @Environment(\.dismiss) private var dismiss
     @State private var contents: [ImportedPack]?
+    @State private var cover: Data?
     @State private var selectedSticker: CatalogStickerPreview?
     var body: some View {
         ScrollView {
@@ -165,12 +171,24 @@ private struct CatalogDetail: View {
                     Button("Save to library", systemImage: "tray.and.arrow.down") {
                         model.run("Saving pack") {
                             _ = try await model.store.importPacks(contents, sourceKey: pack.id + ":" + pack.sha256)
-                            model.notice = "Saved. Add to WhatsApp from your library when you choose."
-                            dismiss()
+                            try await model.refresh()
+                            model.notice = "Saved to your library. Choose a pack when you're ready for WhatsApp."
                             onSaved()
+                            dismiss()
                         }
                     }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
                 } else {
+                    if let cover {
+                        StickerImage(data: cover, pixels: 512)
+                            .aspectRatio(1, contentMode: .fit)
+                            .frame(maxWidth: 240).frame(maxWidth: .infinity)
+                            .padding(16)
+                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22))
+                    }
+                    if let count = pack.stickerCount {
+                        Text("\(count) stickers · \((pack.kinds ?? []).map { $0.capitalized }.joined(separator: " + "))")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
                     Text("Download this pack for a full preview. It won’t enter your library until you tap Save.").foregroundStyle(.secondary)
                     Button("Load full preview", systemImage: "eye") { model.run("Loading pack preview") { contents = try await model.catalogClient.download(pack) } }.buttonStyle(.borderedProminent).disabled(model.busy != nil)
                 }
@@ -195,6 +213,7 @@ private struct CatalogDetail: View {
                     .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { selectedSticker = nil } } }
                 }
             }
+            .task(id: pack.sha256) { cover = try? await model.catalogClient.preview(pack) }
     }
 }
 

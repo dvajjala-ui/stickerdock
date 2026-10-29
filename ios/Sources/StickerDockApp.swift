@@ -70,7 +70,7 @@ struct RootView: View {
                     }
             }.tabItem { Label("Library", systemImage: "square.grid.2x2") }.tag(HomeTab.library)
             NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
-            NavigationStack { DiscoverView(onSaved: { tab = .library }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
+            NavigationStack { DiscoverView(onSaved: { tab = .library; whatsAppHub = true }) }.tabItem { Label("Discover", systemImage: "sparkles") }.tag(HomeTab.discover)
         }
         .environment(\.creatorSheetPresentation, $creatorPresented)
         .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
@@ -78,6 +78,7 @@ struct RootView: View {
         .sheet(isPresented: $settings) { NavigationStack { SettingsView() } }
         .sheet(isPresented: $whatsAppHub) {
             NavigationStack { WhatsAppPacksView(onCreate: { whatsAppHub = false; tab = .create }) }
+                .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
         }
         .sheet(isPresented: Binding(get: { !settings && model.shareURL != nil }, set: { if !$0 && !settings { model.shareURL = nil } })) {
             if let url = model.shareURL { ShareSheet(url: url) }
@@ -94,9 +95,7 @@ private struct WhatsAppPacksView: View {
     var body: some View {
         List {
             Section {
-                Label("Your WhatsApp packs", systemImage: "message.fill")
-                    .font(.title2.bold()).foregroundStyle(.green)
-                Text("Choose a pack and confirm it in WhatsApp. Each pack needs at least three stickers.")
+                Text("Pick a pack to add to WhatsApp. You’ll confirm it there before it appears in your sticker tray.")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             if model.packs.isEmpty {
@@ -136,10 +135,11 @@ private struct WhatsAppPacksView: View {
                 }
             }
             Section {
-                Text("StickerDock sends its own packs. WhatsApp confirms the handoff; this app cannot manage other apps’ stickers or select an account within WhatsApp.")
+                Text("Each pack needs at least three stickers. If you use multiple accounts inside one WhatsApp app, choose the account in WhatsApp.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle("WhatsApp")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: String.self) { PackView(id: $0) }

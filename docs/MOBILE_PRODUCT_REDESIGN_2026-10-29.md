@@ -110,3 +110,9 @@ destination rule in both the picker and file operation.
 The iPhone sticker detail puts the artwork first, gives the favorite action a
 clear current state, and uses a small state-change animation that respects
 Reduce Motion. The actions remain scrollable for larger text.
+
+## Saved-pack continuity
+
+After saving a reviewed Discover pack, iPhone refreshes the library and opens
+the WhatsApp pack chooser. The user still chooses the pack and confirms inside
+WhatsApp. The chooser now uses concise instructions and the app's own tint.
