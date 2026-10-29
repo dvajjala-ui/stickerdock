@@ -58,6 +58,7 @@ struct RootView: View {
     @EnvironmentObject var model: LibraryModel
     @State private var tab: HomeTab = .library
     @State private var settings = false
+    @State private var whatsAppHub = false
     @State private var creatorPresented = false
     var body: some View {
         TabView(selection: $tab) {
@@ -65,17 +66,86 @@ struct RootView: View {
             NavigationStack { CreatorView() }.tabItem { Label("Create", systemImage: "plus.app") }.tag(HomeTab.create)
             NavigationStack {
                 LibraryView()
-                    .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") } }
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button { whatsAppHub = true } label: { Label("WhatsApp", systemImage: "message.fill") }
+                                .accessibilityLabel("WhatsApp packs")
+                        }
+                        ToolbarItem(placement: .topBarTrailing) { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Settings and backup") }
+                    }
             }.tabItem { Label("Library", systemImage: "square.grid.2x2") }.tag(HomeTab.library)
         }
         .environment(\.creatorSheetPresentation, $creatorPresented)
-        .tint(.indigo)
+        .tint(Color(red: 0.25, green: 0.35, blue: 0.04))
         .safeAreaInset(edge: .bottom) { OperationProgressBar() }
         .sheet(isPresented: $settings) { NavigationStack { SettingsView() } }
+        .sheet(isPresented: $whatsAppHub) {
+            NavigationStack { WhatsAppPacksView(onCreate: { whatsAppHub = false; tab = .create }) }
+        }
         .sheet(isPresented: Binding(get: { !settings && model.shareURL != nil }, set: { if !$0 && !settings { model.shareURL = nil } })) {
             if let url = model.shareURL { ShareSheet(url: url) }
         }
         .operationFeedback(active: !settings && !creatorPresented)
+    }
+}
+
+private struct WhatsAppPacksView: View {
+    @EnvironmentObject var model: LibraryModel
+    @Environment(\.dismiss) private var dismiss
+    let onCreate: () -> Void
+    var body: some View {
+        List {
+            Section {
+                Label("Your WhatsApp packs", systemImage: "message.fill")
+                    .font(.title2.bold()).foregroundStyle(.green)
+                Text("Choose a pack and confirm it in WhatsApp. Each pack needs at least three stickers.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            if model.packs.isEmpty {
+                Section {
+                    ContentUnavailableView {
+                        Label("No packs yet", systemImage: "square.stack.3d.up")
+                    } description: {
+                        Text("Create or import a pack, then come back here to add it to WhatsApp.")
+                    } actions: {
+                        Button("Create stickers", action: onCreate).buttonStyle(.borderedProminent)
+                    }
+                }
+            } else {
+                Section("Your library") {
+                    ForEach(model.packs) { pack in
+                        HStack(spacing: 12) {
+                            if let first = pack.stickers.first {
+                                StickerImage(url: model.mediaURL(pack, first)).frame(width: 52, height: 52)
+                            } else {
+                                Image(systemName: "square.stack.3d.up").frame(width: 52, height: 52)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(pack.name).font(.headline).lineLimit(2)
+                                Text(pack.stickers.count < 3 ? "\(pack.stickers.count) stickers · add \(3 - pack.stickers.count) more" : "\(pack.stickers.count) stickers · \(pack.kind == .ANIMATED ? "Animated" : "Static")")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 4)
+                            if pack.stickers.count >= 3 {
+                                Button("Add") { dismiss(); model.addToWhatsApp(pack) }
+                                    .buttonStyle(.borderedProminent).disabled(model.busy != nil)
+                                    .accessibilityLabel("Add \(pack.name) to WhatsApp")
+                            } else {
+                                NavigationLink("Open", value: pack.id)
+                            }
+                        }
+                    }
+                }
+            }
+            Section {
+                Text("StickerDock sends its own packs. WhatsApp confirms the handoff; this app cannot manage other apps’ stickers or select an account within WhatsApp.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .navigationTitle("WhatsApp")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: String.self) { PackView(id: $0) }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
     }
 }
 

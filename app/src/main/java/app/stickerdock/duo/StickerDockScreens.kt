@@ -568,9 +568,9 @@ fun CreateScreen(busy: Boolean, onPhotos: () -> Unit, onClip: () -> Unit, onImpo
                         style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            item { CreationFlowCard() }
             item { CreationCard("Make stickers from photos", "Photo stickers, without the busywork.", "Choose several photos. StickerDock groups them, keeps the originals private and lets you edit each result before sending.", "Photo", !busy, onPhotos) }
             item { CreationCard("Make an animated reaction", "Motion for the moments that need it.", "Trim a short clip, add a caption and preview the loop before anything is saved.", "Video", !busy, onClip, prominent = false) }
+            item { CreationFlowCard() }
             item {
                 Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -902,6 +902,52 @@ private fun StickerTile(
 fun WideLibraryPlaceholder(onCreatePack: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         EmptyStateCard("Choose a pack", "Select a pack on the left to preview and manage its stickers without leaving your library.", "Create new pack", onCreatePack)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WhatsAppHubSheet(packs: List<StickerPack>, counts: Map<String, Int>, busy: Boolean,
+    onPack: (StickerPack) -> Unit, onAdd: (StickerPack) -> Unit, onCreate: () -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.fillMaxWidth().heightIn(max = 600.dp).padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(shape = CircleShape, color = WhatsAppGreen, contentColor = androidx.compose.ui.graphics.Color.White) {
+                    Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) { StickerDockNavIcon("WhatsApp") }
+                }
+                Column {
+                    Text("Your WhatsApp packs", style = MaterialTheme.typography.headlineSmall)
+                    Text("Choose a pack to add", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text("WhatsApp asks you to confirm each pack. If both WhatsApp and Business are installed, choose the app when adding.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (packs.isEmpty()) {
+                EmptyStateCard("No packs yet", "Create or import a pack with at least three stickers to use it in WhatsApp.", "Create stickers", onCreate)
+            } else {
+                LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(packs, key = { it.id }) { candidate ->
+                        val count = counts[candidate.id] ?: 0
+                        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(candidate.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(if (count < 3) "$count stickers · add ${3 - count} more" else "$count stickers · ${if (candidate.kind == StickerKind.ANIMATED) "Animated" else "Static"}",
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (count < 3) TextButton(enabled = !busy, onClick = { onPack(candidate) }) { Text("Open") }
+                                else FilledTonalButton(enabled = !busy, onClick = { onAdd(candidate) }) { Text("Add") }
+                            }
+                        }
+                    }
+                }
+            }
+            Text("StickerDock can send its own packs; it cannot manage stickers from other apps or choose between accounts inside one WhatsApp app.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 

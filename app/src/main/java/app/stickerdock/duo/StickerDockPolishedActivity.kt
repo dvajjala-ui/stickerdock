@@ -104,6 +104,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
         var showCloud by remember { mutableStateOf(false) }
         var showSettings by remember { mutableStateOf(false) }
         var showRoadmap by remember { mutableStateOf(false) }
+        var showWhatsAppHub by remember { mutableStateOf(false) }
         var pendingPhotoUris by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
         var photoSaveError by rememberSaveable { mutableStateOf<String?>(null) }
         var pendingSharedFiles by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
@@ -666,6 +667,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
                             modifier = Modifier.semantics { contentDescription = "Back" }) { StickerDockNavIcon("Back") }
                     },
                     actions = {
+                        if (pack == null && section == PolishedHomeSection.LIBRARY) {
+                            TextButton(onClick = { showWhatsAppHub = true }) {
+                                StickerDockNavIcon("WhatsApp")
+                                Spacer(Modifier.width(4.dp))
+                                Text("WhatsApp")
+                            }
+                        }
                         IconButton(onClick = { showSettings = true }, modifier = Modifier.semantics { contentDescription = "Library settings" }) {
                             StickerDockNavIcon("More")
                         }
@@ -923,6 +931,13 @@ class StickerDockPolishedActivity : ComponentActivity() {
             onRoadmap = { showSettings = false; showRoadmap = true },
             onDismiss = { showSettings = false })
         if (showRoadmap) ProductRoadmapSheet(onDismiss = { showRoadmap = false })
+        if (showWhatsAppHub) WhatsAppHubSheet(
+            packs = packs, counts = counts, busy = busy,
+            onPack = { candidate -> showWhatsAppHub = false; selectedId = candidate.id },
+            onAdd = { candidate -> showWhatsAppHub = false; quickAddToWhatsApp(candidate) },
+            onCreate = { showWhatsAppHub = false; sectionName = PolishedHomeSection.CREATE.name },
+            onDismiss = { showWhatsAppHub = false }
+        )
 
         if (pendingPhotoUris.isNotEmpty()) PhotoPackSheet(pendingPhotoUris.size, packs, counts, busy, photoSaveError,
             onSave = { title, target ->
