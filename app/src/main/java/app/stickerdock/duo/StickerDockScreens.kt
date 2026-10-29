@@ -591,7 +591,14 @@ fun CreateScreen(
                 }
             }
 
-            // AI Prompt Studio Card
+            // Put local creation first so the two core workflows are visible
+            // before optional generation on a small phone screen.
+            item {
+                CreationCard("Make stickers from photos", "Smart cutout from photos", "Pick camera or gallery photos. Automatic cutout, stroke outline and custom captions.", "Photo", !busy, onPhotos, prominent = true)
+            }
+            item {
+                CreationCard("Make an animated reaction", "Looped moving sticker", "Trim a video or GIF, add text overlay, and convert into a 512×512 animated WebP.", "Video", !busy, onClip, prominent = false)
+            }
             item {
                 AiStudioCard(
                     promptText = prompt,
@@ -599,14 +606,6 @@ fun CreateScreen(
                     onGenerate = { onGenerateAi?.invoke(prompt) },
                     busy = busy
                 )
-            }
-
-            // Media creators
-            item {
-                CreationCard("Make stickers from photos", "Smart cutout from photos", "Pick camera or gallery photos. Automatic cutout, stroke outline and custom captions.", "Photo", !busy, onPhotos, prominent = true)
-            }
-            item {
-                CreationCard("Make an animated reaction", "Looped moving sticker", "Trim a video or GIF, add text overlay, and convert into a 512×512 animated WebP.", "Video", !busy, onClip, prominent = false)
             }
             item {
                 Surface(

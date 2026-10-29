@@ -78,7 +78,7 @@ class LibraryAcceptance(ClipCreatorSmoke):
         for save in (False, True):
             self.launch(restart=True)
             self.wait_text("Search library"); self.tap("Studio")
-            self.wait_text("Make stickers from photos")
+            self.scroll_to_text("Make stickers from photos")
             self.screenshot("15-create-screen")
             self.wait_text("Make stickers from photos"); self.tap("Make stickers from photos")
             self.wait_text("Show roots")
