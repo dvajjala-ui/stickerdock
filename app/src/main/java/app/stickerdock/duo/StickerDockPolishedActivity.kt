@@ -591,7 +591,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
             operation("Generating AI reaction") {
                 withContext(Dispatchers.IO) {
                     val existingPack = store.listPacks().firstOrNull { it.name.equals("AI Reactions", ignoreCase = true) }
-                        ?: store.createPack("AI Reactions", StickerKind.STATIC, PackRating.GENERAL, PackCategory.MEMES)
+                        ?: store.createPack("AI Reactions", StickerKind.STATIC, PackRating.GENERAL, PackCategory.REACTIONS)
                     
                     val bitmap = android.graphics.Bitmap.createBitmap(512, 512, android.graphics.Bitmap.Config.ARGB_8888)
                     val canvas = android.graphics.Canvas(bitmap)

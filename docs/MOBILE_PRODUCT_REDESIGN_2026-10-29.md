@@ -116,3 +116,43 @@ Reduce Motion. The actions remain scrollable for larger text.
 After saving a reviewed Discover pack, iPhone refreshes the library and opens
 the WhatsApp pack chooser. The user still chooses the pack and confirms inside
 WhatsApp. The chooser now uses concise instructions and the app's own tint.
+
+## Full v0.12.0 Mobile Architecture & Craft Overhaul
+
+Following product owner direction, the entire mobile experience across Android and iOS
+was restructured into an intentional, high-craft 4-destination architecture:
+
+1. **Discover (✦ Spotlight & AI Drops)**:
+   - High-contrast hero banner with curated featured drops and animation indicators.
+   - Quick category chips: `All packs`, `✦ AI Drops`, `Static`, and `Animated ⚡`.
+   - Artwork-first cards with 1-tap "Preview & Save" and direct WhatsApp handoff.
+
+2. **Studio (✦ AI Sticker Studio & Media Creators)**:
+   - Radiant interactive AI prompt card allowing users to describe situations, memes,
+     or Hinglish reactions with instant on-device 512×512 WebP synthesis into an "AI Reactions" pack.
+   - Popular situation chips: `Cat drinking chai`, `Sarcastic boss reaction`, `Monday morning mood`,
+     `Bollywood drama`, `Confused doggo`, `Victory dance`.
+   - Magic cutout from photos and looped moving sticker creation from videos/GIFs.
+   - Empty pack creation with custom metadata and privacy ratings.
+
+3. **Library (Your Reactions Shelf)**:
+   - Top-level `WhatsAppConnectHero` with active installation detection (Personal vs Business),
+     active target switcher, and 1-tap management.
+   - Tactile emerald WhatsApp action buttons (`#25D366`) on every pack card with live state
+     feedback (`+ Add to WhatsApp` vs `In WhatsApp ✓` vs `X/3 Stickers needed`).
+   - Unified search across situations, tags, captions, and pack names with toggle between
+     stickers and packs, and grid/list switching.
+   - Device-local favorites with quick remove and undo recovery.
+
+4. **Settings & Tools Hub**:
+   - Clean, purposeful workspace matching the Admin portal.
+   - Direct sections for: WhatsApp Integration, Import & Migration (folder and ZIP),
+     Backup & Cloud Storage (full editable backups and portable sticker archives),
+     Privacy & Vault (private mature content toggle), and System Health/Cache.
+
+5. **Iconography & Motion**:
+   - High-craft custom vector icons with fill and stroke variants (`Discover`, `Studio`,
+     `Library`, `Settings`, `WhatsApp`, `Verified`, `Trending`).
+   - Tactile press physics with spring damping, smooth screen transitions, and respect
+     for platform Reduce Motion settings.
+
