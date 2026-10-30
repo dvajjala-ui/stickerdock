@@ -10,9 +10,12 @@ images remained. [Read-only re-audit](https://github.com/dvajjala-ui/stickerdock
 counted 18 protected and zero removable images. The [storage scan](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033530549)
 measured 42.09 MB total. Local Python discovery passed 329 tests (7 skipped) after
 the workbench source selection change. JavaScript syntax and diff checks passed.
-The source workspace browser fixture now covers an empty workbench, choosing a
-reviewed image for a pack, and opening it for AI generation; CI/browser results
-are required before marking that UI flow green.
+The [source-bound Web/API run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41034225813)
+passed, including the real-browser fixture for an empty workbench, choosing a
+reviewed image for a pack, and opening it for AI generation. The hosted Admin
+also showed the new empty workbench prompt and zero Sources rows after deploy.
+These checks did not create or publish a real sticker from a newly uploaded
+image; that end-to-end owner acceptance remains open.
 
 [Dry run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021463086)
 fingerprinted 174 unapproved private candidate rows/files. The matching
