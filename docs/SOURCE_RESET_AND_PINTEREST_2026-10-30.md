@@ -48,7 +48,12 @@ guest browsing from its network. A different cloud host, free proxy or new
 login does not establish reliable access or reuse permission. HandNavigate's
 earlier owner-assisted local browser run proved a bounded download path on that
 computer, not unattended hosted collection. The current Pinterest OAuth
-connection is read-only and shows the owner's boards/Pin links live. A fresh production check on October 30 returned `connected` and listed the `Quick Saves` board; that board had no Pins, so there are currently no live Pin ideas to browse.
+connection is read-only and shows the owner's boards/Pin links live. The Admin
+can also display provider-supplied Pin thumbnails in that live view, linked to
+the original Pin; it does not save those image bytes. A fresh production check
+on October 30 returned `connected` and listed the `Quick Saves` board; that
+board had no Pins, so actual thumbnail rendering has only fixture coverage
+until the owner saves a Pin there.
 
 [Pinterest developer guidelines](https://policy.pinterest.com/en/developer-guidelines)
 prohibit automated scraping without express permission, archiving information

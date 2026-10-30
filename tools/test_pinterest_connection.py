@@ -54,12 +54,16 @@ class PinterestConnectionTest(unittest.TestCase):
                 with self.assertRaises(ValueError):connection.oauth_complete("code=x&state="+state,cookie,self.client)
             provider.assert_not_called()
 
-    def test_live_browse_returns_links_without_persisting_provider_content(self):
-        with patch.dict(os.environ, {"PINTEREST_ACCESS_TOKEN":"test-token"}), patch.object(connection,"provider",return_value={"items":[{"id":"123456789", "title":"Reaction", "media":{"images":{"url":"https://example.com/image.jpg"}}}],"bookmark":"next"}):
+    def test_live_browse_returns_safe_thumbnails_without_persisting_provider_content(self):
+        with patch.dict(os.environ, {"PINTEREST_ACCESS_TOKEN":"test-token"}), patch.object(connection,"provider",return_value={"items":[{"id":"123456789", "title":"Reaction", "media":{"images":{"400x300":{"url":"https://i.pinimg.com/400x300/abc.jpg"}}}}],"bookmark":"next"}):
             result=connection.browse(self.client,{"board_id":"987654321"})
         self.assertEqual(result["items"][0]["url"], "https://www.pinterest.com/pin/123456789/")
+        self.assertEqual(result["items"][0]["thumbnail"], "https://i.pinimg.com/400x300/abc.jpg")
         self.assertNotIn("media",json.dumps(result))
         self.assertEqual(self.client.objects,{})
+        with patch.dict(os.environ, {"PINTEREST_ACCESS_TOKEN":"test-token"}), patch.object(connection,"provider",return_value={"items":[{"id":"123456789", "media":{"images":{"400x300":{"url":"https://untrusted.example/track.jpg"}}}}]}):
+            unsafe=connection.browse(self.client,{"board_id":"987654321"})
+        self.assertNotIn("thumbnail",unsafe["items"][0])
 
     def test_status_never_exposes_credentials_and_disconnect_overrides_environment(self):
         with patch.dict(os.environ,{"PINTEREST_ACCESS_TOKEN":"environment-secret"}):

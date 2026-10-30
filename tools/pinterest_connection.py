@@ -127,8 +127,21 @@ def browse(client, payload):
         identity = str(item.get("id", ""))
         if not re.fullmatch(r"\d{5,25}", identity):
             continue
-        items.append({"id": identity, "name": str((item.get("title") if board else item.get("name")) or "")[:240],
-                      "url": "https://www.pinterest.com/pin/" + identity + "/" if board else ""})
+        entry = {"id": identity, "name": str((item.get("title") if board else item.get("name")) or "")[:240],
+                 "url": "https://www.pinterest.com/pin/" + identity + "/" if board else ""}
+        if board:
+            images = ((item.get("media") or {}).get("images") or {}) if isinstance(item.get("media"), dict) else {}
+            if isinstance(images, dict):
+                for size in ("400x300", "150x150", "600x"):
+                    candidate = images.get(size)
+                    candidate = candidate.get("url") if isinstance(candidate, dict) else None
+                    if not isinstance(candidate, str) or len(candidate) > 2000:
+                        continue
+                    parsed = urllib.parse.urlsplit(candidate)
+                    if parsed.scheme == "https" and parsed.hostname == "i.pinimg.com" and not parsed.username and not parsed.password:
+                        entry["thumbnail"] = candidate  # Live response only; never persisted.
+                        break
+        items.append(entry)
     return {"items": items, "bookmark": data.get("bookmark"), "pins": bool(board)}
 
 
