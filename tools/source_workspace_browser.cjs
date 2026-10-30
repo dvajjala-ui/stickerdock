@@ -7,7 +7,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'),assert=req
     browser=await chromium.launch({headless:true,...(process.platform==='win32'?{channel:'chrome'}:{})});
     const page=await browser.newPage({viewport:{width:1360,height:960}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
     const image='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5XkAAAAASUVORK5CYII=';
-    let item={id:'12345678-1234-1234-1234-123456789abc',version:1,title:'Happy cat',topic:'cat reactions',platform:'pinterest',rights_status:'UNREVIEWED',generation_eligible:false,source_url:'https://www.pinterest.com/pin/123/',archived:false};let approvals=0,uploads=0;
+    let item={id:'12345678-1234-1234-1234-123456789abc',version:1,title:'Original reaction',topic:'reaction portrait',platform:'licensed',rights_status:'UNREVIEWED',generation_eligible:false,source_url:'https://commons.wikimedia.org/wiki/File:Original_reaction.jpg',archived:false};let approvals=0,uploads=0;
     await page.route('**/api/admin',async route=>{const p=route.request().postDataJSON();let result;
       if(p.action==='health')result={admin_ready:true,checks:[]};
       else if(p.action==='overview')result={packs:[],factory_packs:[],runs:[],requests:[],events:[],briefs:[],settings:{enabled:true,daily_target:40,batch_size:5},catalog:{packs:[]},catalog_base:'https://example.invalid/'};
@@ -26,7 +26,9 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'),assert=req
     fs.mkdirSync('work/source-workspace-browser',{recursive:true});await page.screenshot({path:'work/source-workspace-browser/desktop.png',fullPage:false,animations:'disabled'});
     await page.getByRole('button',{name:'Collections & plans',exact:true}).click();await page.getByRole('heading',{name:'New collection'}).waitFor();assert.equal(await page.getByRole('heading',{name:'Downloaded image library'}).count(),0);assert.equal(await page.getByLabel('Flickr public tag feed').isChecked(),true);await page.getByLabel('Owned topic search').check();assert.equal(await page.getByLabel('Owned topic search').isChecked(),true);await page.getByText('No worker running now',{exact:true}).waitFor();await page.getByText(/10:00 Asia\/Kolkata \(Railway\)/).waitFor();
     await page.locator('nav [data-page=connections]').click();await page.getByRole('heading',{name:'Coming soon',exact:true}).waitFor();
-    await page.locator('nav [data-page=sources]').click();await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>getComputedStyle(document.getElementById('sidebar')).transform==='matrix(1, 0, 0, 1, -230, 0)');await page.screenshot({path:'work/source-workspace-browser/mobile.png',fullPage:false,animations:'disabled'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
+    item={...item,platform:'pinterest',source_url:'https://www.pinterest.com/pin/123/'};
+    await page.locator('nav [data-page=sources]').click();await page.getByText('Pinterest reference only. Upload your own original to create stickers.').waitFor();assert.equal(await page.getByRole('button',{name:'Create sticker',exact:true}).count(),0);
+    await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>getComputedStyle(document.getElementById('sidebar')).transform==='matrix(1, 0, 0, 1, -230, 0)');await page.screenshot({path:'work/source-workspace-browser/mobile.png',fullPage:false,animations:'disabled'});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
     console.log('Sources upload, admission, collection separation, roadmap and 390px layout passed with fixture APIs.');
   }finally{await browser?.close();server.kill();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
