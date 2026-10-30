@@ -36,6 +36,15 @@ def image():
 
 
 class SourceWorkspaceTest(unittest.TestCase):
+    def test_pinterest_reference_cannot_be_admitted_or_used_even_with_a_rights_claim(self):
+        store=Store();row=sources.upload(store,{'image':image(),'title':'Original reaction','rights':'REFERENCE_ONLY'})['item']
+        store.rows[row['id']]['platform']='pinterest'
+        with self.assertRaisesRegex(ValueError,'live references only'):
+            sources.admit(store,{'id':row['id'],'version':row['version'],'license':'USER_OWNED',
+                'permission_note':'I claim I made this image.','quality_checked':True})
+        with self.assertRaisesRegex(ValueError,'live references only'):
+            sources.approved_credit(store,{**row,'platform':'pinterest','rights_status':'APPROVED','generation_eligible':True})
+
     def test_source_filters_include_registered_platforms_and_keep_the_exact_database_filter(self):
         options=[{'id':'flickr','name':'Flickr public tag feed'},{'id':'custom-1234567890abcdef','name':'Owned gallery'}]
         with patch.object(sources,'rows',return_value=[]) as query,patch.object(control,'source_options',return_value=options):

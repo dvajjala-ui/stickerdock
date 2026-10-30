@@ -1,4 +1,21 @@
-# StickerDock development handoff — updated October 29, 2026
+# StickerDock development handoff — updated October 30, 2026
+
+## October 30 source reset and Pinterest boundary
+
+The owner rejected the old generic image inbox. The active Flickr cat/dog daily
+plan was archived. A two-stage GitHub Actions reset audited and then deleted
+all 174 private HandNavigate candidate rows and their 174 candidate files,
+freeing 14,775,498 bytes. Production Admin now returns zero active/archived
+candidate rows and zero active daily plans. A new storage scan reports 62.73 MB
+across the private and public Factory buckets. See
+[the exact run links, quota and source options](SOURCE_RESET_AND_PINTEREST_2026-10-30.md).
+Previously generated artwork, published packs, and private phone libraries were
+outside the reset. The hosted Railway worker still cannot collect Pinterest or
+Reddit guest results. Pinterest's connected OAuth is live reference browsing;
+Pin pixels must not be approved for distributable sticker generation. Use
+independently owned or licensed originals through Sources upload. The source
+admission API now enforces the Pinterest boundary as well as the UI.
+
 
 October 29 current state: [Flickr collection passed 20/20 on the actual Railway host](HANDNAVIGATE_FLICKR_2026-10-29.md), with independent Supabase image read-back and a successful bounded process exit. Daily animal collection now uses Flickr cat/dog tags at 10:00 India time. HandNavigate 0.9.0 is a verified portable preview. Current Sources filters include Flickr/custom worker recipes; 328 backend tests and source-bound CI pass. Natural multi-day yield and rights/quality admission remain open. Older hosting records below are superseded where this dated acceptance explicitly completes them.
 

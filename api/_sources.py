@@ -18,6 +18,8 @@ def receipt_path(identity):
 
 
 def approved_credit(client, row):
+    if row and row.get('platform') == 'pinterest':
+        raise StudioError('Pinterest Pins are live references only. Upload your own original image instead.')
     if not row or row.get('archived') or row.get('rights_status') != 'APPROVED' or not row.get('generation_eligible'):
         raise StudioError('Source has not been approved for generation')
     raw = client.download(PRIVATE_BUCKET, receipt_path(row['id']))
@@ -42,6 +44,8 @@ def admit(client, payload):
     row = client.find('media_intake_items', 'id', identity)
     if not row or row.get('archived') or row.get('version') != payload.get('version'):
         raise StudioError('Refresh this source before approving it')
+    if row['platform'] == 'pinterest':
+        raise StudioError('Pinterest Pins are live references only. Upload your own original image instead.')
     license = payload.get('license')
     if license not in LICENSES or payload.get('quality_checked') is not True:
         raise StudioError('Confirm reusable rights and visual quality before generation')

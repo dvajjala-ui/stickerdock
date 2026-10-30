@@ -2,11 +2,11 @@
 
 October 30: **Android 0.12.0 (build 22)** is [published](https://github.com/dvajjala-ui/stickerdock/releases/tag/android-v0.12.0) after [signed APK and Android 15 emulator acceptance](https://github.com/dvajjala-ui/stickerdock/actions/runs/40933890345). The public APK digest matches the release manifest and [acceptance record](https://github.com/dvajjala-ui/stickerdock/releases/download/android-v0.12.0/acceptance.json). The emulator exercised a 10,000-sticker library, photo/video creation, brush edits, favorites, shared packs, and editable backup export/restore. Physical WhatsApp/Business and Galaxy acceptance remain open; see [the QA matrix](docs/QA_MATRIX.md).
 
-October 30: [HandNavigate 0.9.3 portable preview](https://github.com/dvajjala-ui/handNavigation/releases/tag/desktop-v0.9.3) is available. Its Railway collector has the bounded Openverse paging and strict rights-key fix deployed. [Flickr collection remains verified on the actual Railway host](docs/HANDNAVIGATE_FLICKR_2026-10-29.md): twenty photos were stored, and every Supabase image was fetched back and checked. The daily animal plan uses Flickr cat/dog tags at 10:00 India time, twenty total. Sources supports Flickr/custom platform filters; downloaded candidates stay pending review. Pinterest/Reddit datacenter blocks and multi-day natural-run acceptance remain open.
+October 30: [HandNavigate 0.9.3 portable preview](https://github.com/dvajjala-ui/handNavigation/releases/tag/desktop-v0.9.3) is available. Its Railway collector has the bounded Openverse paging and strict rights-key fix deployed. [Flickr collection passed on the actual Railway host](docs/HANDNAVIGATE_FLICKR_2026-10-29.md), but the owner rejected the generic cat/dog images. The animal daily plan is now archived. A [fingerprint-bound reset](docs/SOURCE_RESET_AND_PINTEREST_2026-10-30.md) removed 174 old candidate rows/files; the live Sources inbox is empty. No daily collection plan is active. Pinterest/Reddit guest access remains blocked on Railway; Pinterest's official connection is for live references, while owned originals can be uploaded to Sources for sticker generation.
 
 Current source adds a keyless Openverse CC0/public-domain candidate adapter and an Android product refresh using StickerDock's ink/volt-lime launcher identity. The local live check verified 2/2 real Openverse images; Railway rollout succeeded, while Openverse hosted Supabase read-back is still pending. Openverse labels remain review hints, never automatic rights approval. See [product refresh and Openverse evidence](docs/PRODUCT_REFRESH_OPENVERSE_2026-10-29.md).
 
-October 28 workspace update: Admin now has one **Sources** library with upload,
+October 28 workspace update (historical implementation record): Admin now has one **Sources** library with upload,
 drop/paste, source/usage filters, previews, explicit generation approval and Trash;
 **Stickers & packs**, **Runs & automation**, and **Connections & roadmap** have
 separate purposes. Approved source images can enter Creator and are preferred
@@ -14,10 +14,10 @@ by Factory photo generation. The scheduled hosted worker stored two Imgflip
 images, but Pinterest/Reddit blocked guest access from GitHub's network.
 The [acceptance record](docs/ADMIN_SOURCES_AND_HOSTED_COLLECTION_2026-10-28.md)
 and [researched hosting options](docs/HANDNAVIGATE_HOSTING_OPTIONS_2026-10-28.md)
-explain the remaining exact-host setup. Oracle's Mumbai A1 attempt was blocked by
-capacity. A [bounded Railway collector](docs/HANDNAVIGATE_RAILWAY_2026-10-28.md)
-is prepared within the owner's $5–$10/month budget; deployment confirmation and
-exact-host source qualification remain pending. Native ARM and AMD64 container,
+explain the original exact-host setup. Oracle's Mumbai A1 attempt was blocked by
+capacity. The [bounded Railway collector](docs/HANDNAVIGATE_RAILWAY_2026-10-28.md)
+was subsequently deployed within the owner's $5–$10/month budget; Flickr passed
+on that host, while Pinterest/Reddit guest access failed. Native ARM and AMD64 container,
 worker API, Windows package and StickerDock Web/API checks pass.
 
 October 28: **Android 0.11.6 (build 21)** is

@@ -1,5 +1,17 @@
 # StickerDock verification checklist
 
+## October 30 source inbox reset
+
+[Dry run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021463086)
+fingerprinted 174 unapproved private candidate rows/files. The matching
+[apply run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021593352)
+deleted all 174 and verified the candidate storage paths were absent.
+Production Admin returned zero active and zero archived intake rows and zero
+active daily plans. The [follow-up storage scan](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021728479)
+measured 62.73 MB. This does not validate Pinterest/Reddit hosted collection,
+image quality, rights, or any physical WhatsApp device flow.
+
+
 ## October 29 Android pack navigation regression
 
 [Signed release run 40888997829](https://github.com/dvajjala-ui/stickerdock/actions/runs/40888997829) built and signed version 0.12.0, then failed the real Android 15 emulator test while opening an animated pack. Its screenshot shows the list card title squeezed beside a large WhatsApp action; the automated tap on the title resolved to the card center and stayed in Library. The fix gives the pack title its own tap target and moves the WhatsApp action below the sticker previews so the name has room. The emulator check now expects the current combined animation/selection hint. A new source-bound signed run must pass before calling 0.12.0 released.
