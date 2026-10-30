@@ -16,6 +16,9 @@ reviewed image for a pack, and opening it for AI generation. The hosted Admin
 also showed the new empty workbench prompt and zero Sources rows after deploy.
 These checks did not create or publish a real sticker from a newly uploaded
 image; that end-to-end owner acceptance remains open.
+The matching [Android debug build](https://github.com/dvajjala-ui/stickerdock/actions/runs/41034225939)
+passed for the same code commit. This is a CI build result, not a physical
+WhatsApp device acceptance result.
 
 [Dry run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021463086)
 fingerprinted 174 unapproved private candidate rows/files. The matching
