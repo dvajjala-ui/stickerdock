@@ -1,0 +1,47 @@
+name: Reset unused legacy inbox images
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Remove only unreferenced, non-user-owned legacy inbox images
+        type: boolean
+        default: false
+      expected_count:
+        description: Exact removable image count from the dry audit
+        type: string
+        required: false
+      expected_sha:
+        description: Exact inventory SHA-256 from the dry audit
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: reset-unused-legacy-inbox
+  cancel-in-progress: false
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://qqicsllktmcmvmzplsxl.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_HOST: ${{ vars.SUPABASE_DB_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'psycopg[binary]==3.2.10'
+      - name: Audit or reset unused legacy images
+        env:
+          APPLY: ${{ inputs.apply }}
+          EXPECTED_COUNT: ${{ inputs.expected_count }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          if [ "$APPLY" = true ]; then
+            python -m tools.reset_legacy_inbox --apply --expected-count "$EXPECTED_COUNT" --expected-sha "$EXPECTED_SHA"
+          else
+            python -m tools.reset_legacy_inbox
+          fi
