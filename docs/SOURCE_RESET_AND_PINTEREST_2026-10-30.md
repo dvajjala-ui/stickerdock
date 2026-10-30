@@ -66,10 +66,13 @@ marked `USER_OWNED` despite its Pinterest origin. The owner can still use live
 Pin links for inspiration, and can independently upload their own original
 artwork or an image with explicit reuse permission.
 
-Reddit guest search is likewise blocked on the current host. A Reddit image
-requires verification at its original source and a compatible creator license
-or permission before Factory use. This is a rights review, not a Reddit login
-requirement for the app owner. No hosted Reddit success is claimed.
+Reddit guest search is likewise blocked on the current host. [Reddit's developer
+help](https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data)
+says hosted provider IPs require valid OAuth or a logged-in session, and its
+[Data API guide](https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki)
+requires OAuth for API access. A Reddit image also needs verification at its
+original source and a compatible creator license or permission before Factory
+use. No hosted Reddit success or approved Reddit API app is claimed.
 
 ## Workflow that works without running a local collector
 

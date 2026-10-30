@@ -10,7 +10,7 @@ from api._shared import StudioError, safe_text
 
 SOURCE_OPTIONS = [
     {'id':'pinterest','name':'Pinterest references','description':'Owner-assisted browser references only. The hosted Railway guest session is blocked; Pins cannot become distributable sticker sources.'},
-    {'id':'reddit','name':'Reddit','description':'Owner-assisted image-post search. The hosted Railway guest session is currently blocked; each image needs rights review.'},
+    {'id':'reddit','name':'Reddit','description':'Hosted IPs require Reddit OAuth or a logged-in session. The current Railway guest session is blocked; each image also needs rights review.'},
     {'id':'imgflip','name':'Imgflip meme templates','description':'Name matches in the free popular-template catalog. Requires an updated worker advertising Imgflip support.'},
     {'id':'flickr','name':'Flickr public tag feed','description':'Recent public photos matching comma-separated tags (all tags must match), using provider-advertised photo URLs. Requires an updated worker; reuse rights are reviewed per image.'},
     {'id':'openverse','name':'Openverse CC / public-domain search','description':'Keyless image search filtered to CC0 and public-domain candidates. Source license metadata is a review hint, not automatic approval.'},
