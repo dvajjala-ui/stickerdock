@@ -2,6 +2,16 @@
 
 ## October 30 source reset and Pinterest boundary
 
+Second cleanup: [the fingerprint-bound legacy inbox reset](SOURCE_RESET_AND_PINTEREST_2026-10-30.md)
+removed 105 unused older `inbox/` images and their metadata (21,651,101 image
+bytes). It preserved 18 referenced, owner-owned, or derivative-related images.
+The Admin AI workbench and pack creation now start from reviewed images selected
+in **Sources** rather than the older inbox listing. Source approval invalidation
+also removes the image from the current selection. A post-reset audit counted
+18 protected inbox images and zero removable; the storage scan measured
+42.09 MB in the two Factory buckets. Do not claim the 18 preserved images were deleted
+or that they are newly approved for generation.
+
 The owner rejected the old generic image inbox. The active Flickr cat/dog daily
 plan was archived. A two-stage GitHub Actions reset audited and then deleted
 all 174 private HandNavigate candidate rows and their 174 candidate files,

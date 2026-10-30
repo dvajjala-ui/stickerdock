@@ -28,6 +28,33 @@ downloaded Pin files are gone from the HandNavigate candidate inbox; any older
 independent Factory assets remain subject to their own rights and quality
 review.
 
+### Older Factory inbox cleanup
+
+The first reset did not touch the separate `inbox/` image library used by the
+older AI workbench. A second [read-only audit](https://github.com/dvajjala-ui/stickerdock/actions/runs/41032552792)
+found 123 images. It protected 18 images because they were referenced by a
+pack/job, were marked owner-owned, or were needed by a protected derivative.
+The remaining 105 were unused: 90 `pinterest-unofficial` reference images and
+15 `licensed-library` images. The fingerprint was
+`410207de0b8e37a2cfc5a41c148ae0245127f26cf6fb41e0d72cd8635e2c65b4`.
+
+The matching [apply run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033043732)
+removed **105 images and 105 metadata files**, freeing **21,651,101 image
+bytes**. It verified that removed objects were absent and all 18 protected
+images remained. The private audit manifest is
+`maintenance/legacy-inbox-reset-41033043732.json`. Existing packs, creator
+jobs, and owner-owned originals were preserved. This does not imply the 18
+protected images are appropriate for new stickers. The Admin workbench now
+starts from images selected in the reviewed **Sources** page, so old inbox
+files are no longer offered in its source picker.
+
+The [post-reset read-only audit](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033527637)
+counted **18 inbox images, all protected, with zero removable images**. The
+[new storage scan](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033530549)
+measured **42.09 MB** across the two Factory buckets: 40.83 MB private and
+1.26 MB public. The quota variable is still unset, so this remains a usage
+report rather than a percentage or billing-plan verification.
+
 The [storage scan before reset](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021118576)
 reported 76.74 MiB total. The [scan after reset](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021728479)
 reported **62.73 MiB** total: 61.47 MiB private and 1.26 MiB public. These
@@ -83,8 +110,10 @@ use. No hosted Reddit success or approved Reddit API app is claimed.
    the owner created and checked. Otherwise leave it as a reference and review
    permission before generation.
 3. The image is private until explicitly used. From the approved source card,
-   choose **Create sticker** or **Create pack**, review the result, and publish
-   only a pack that meets rights, content and quality checks.
+   choose **Create sticker**, **Create pack**, or **Select for pack** to combine
+   several reviewed images. The AI workbench starts with a Sources prompt until
+   a reviewed image is selected. Review the result and publish only a pack that
+   meets rights, content and quality checks.
 4. For open-licensed discovery, use Openverse or Flickr as candidate research;
    check the source work and license individually. The old daily animal plan is
    intentionally off until a visual-quality gate and topic list produce useful

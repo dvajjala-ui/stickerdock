@@ -2,6 +2,18 @@
 
 ## October 30 source inbox reset
 
+The [legacy inbox dry run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41032552792)
+fingerprinted 123 older images: 105 removable and 18 protected. Its matching
+[apply run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033043732)
+removed 105 images plus 105 metadata files and verified that 18 protected
+images remained. [Read-only re-audit](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033527637)
+counted 18 protected and zero removable images. The [storage scan](https://github.com/dvajjala-ui/stickerdock/actions/runs/41033530549)
+measured 42.09 MB total. Local Python discovery passed 329 tests (7 skipped) after
+the workbench source selection change. JavaScript syntax and diff checks passed.
+The source workspace browser fixture now covers an empty workbench, choosing a
+reviewed image for a pack, and opening it for AI generation; CI/browser results
+are required before marking that UI flow green.
+
 [Dry run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021463086)
 fingerprinted 174 unapproved private candidate rows/files. The matching
 [apply run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41021593352)

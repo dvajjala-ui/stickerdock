@@ -75,7 +75,7 @@ def creator_source(client, payload):
     path = 'inbox/' + row['stored_sha256'] + '.webp'
     client.upload(PRIVATE_BUCKET, 'source-metadata/' + row['stored_sha256'] + '.json', json.dumps(credit).encode(), 'application/json')
     client.upload(PRIVATE_BUCKET, path, raw, 'image/webp')
-    return {'path': path, 'name': credit['title'], 'size':len(raw)}
+    return {'path': path, 'name': credit['title'], 'size':len(raw), 'intake_id': row['id']}
 
 
 def upload(client, payload):
