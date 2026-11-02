@@ -61,6 +61,22 @@ class TrendIntelligenceTest(unittest.TestCase):
         self.assertEqual(len(brief["topic_plans"]), 1)
         self.assertIn("Browser search HTTP 429; RSS/owner topics used", brief["warnings"])
 
+    def test_india_trends_uses_recent_linked_news_without_copying_media(self):
+        xml = b'''<rss xmlns:ht="https://trends.google.com/trending/rss"><channel>
+          <item><title>Old trend</title><pubDate>Sun, 11 Oct 2026 00:00:00 GMT</pubDate>
+            <ht:news_item><ht:news_item_title>Old story</ht:news_item_title><ht:news_item_url>https://news.example/old</ht:news_item_url></ht:news_item></item>
+          <item><title>Cricket final</title><pubDate>Wed, 14 Oct 2026 00:00:00 GMT</pubDate>
+            <ht:picture>https://images.example/third-party.jpg</ht:picture>
+            <ht:news_item><ht:news_item_title>India final preview</ht:news_item_title><ht:news_item_url>https://news.example/final</ht:news_item_url></ht:news_item></item>
+        </channel></rss>'''
+        with patch.object(trends, "fetch_bytes", return_value=xml):
+            items, warnings = trends.rss_items(["https://trends.google.com/trending/rss?geo=IN"], NOW, ["TRENDING", "INDIA"])
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["source_url"], "https://news.example/final")
+        self.assertIn("Cricket final", items[0]["sticker_angle"])
+        self.assertNotIn("picture", str(items))
+
 
 if __name__ == "__main__":
     unittest.main()

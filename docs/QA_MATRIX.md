@@ -2,7 +2,7 @@
 
 ## November 2 core-flow changes
 
-See [the current journey and hosted findings](CORE_JOURNEY_AND_AUTOMATION_2026-11-02.md). The catalog cleanup read-back found zero public packs after five exact-ID unpublish/archive operations. Source candidate read-back found 20 new Imgflip/Flickr unreviewed items. Focused Factory, trend and Admin unit tests passed locally (82 tests); JavaScript syntax checks passed. Android compilation, signed APK publication and physical S24 Ultra original/cloned/Business/in-app-account acceptance are not yet verified for this change.
+See [the current journey and hosted findings](CORE_JOURNEY_AND_AUTOMATION_2026-11-02.md). The catalog cleanup read-back found zero public packs after five exact-ID unpublish/archive operations. Source candidate read-back found 20 new Imgflip/Flickr unreviewed items. Local backend tests passed 334 with seven skips; [Web/API CI passed](https://github.com/dvajjala-ui/stickerdock/actions/runs/41440286538). The [hosted Factory run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41440547190) passed with `waiting_for_sources`, zero new drafts and no generation. Signed Android 0.12.1 compiled. The first [emulator attempt and rerun](https://github.com/dvajjala-ui/stickerdock/actions/runs/41439560977) failed first at a Pixel Launcher ANR, then at a stale assertion after reaching the new WhatsApp sheet; the assertion is corrected for the next run. Signed APK publication and physical S24 Ultra original/cloned/Business/in-app-account acceptance are not yet verified for this change.
 
 ## October 30 source inbox reset
 

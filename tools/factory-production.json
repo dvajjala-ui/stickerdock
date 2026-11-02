@@ -19,7 +19,7 @@
     "TRENDING",
     "INDIA"
   ],
-  "feeds": ["https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=1"],
+  "feeds": ["https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=1", "https://trends.google.com/trending/rss?geo=IN"],
   "references": [],
   "media_library": {
     "enabled": true,

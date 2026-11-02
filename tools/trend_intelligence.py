@@ -8,14 +8,16 @@ explicit fallback. No article text or third-party artwork is copied.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
 import os
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 
-from daily_stickers import references
+from daily_stickers import fetch_bytes, references
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-oss-20b"
@@ -168,13 +170,44 @@ def validate_items(raw: object, categories: list[str]) -> list[dict]:
 
 
 def rss_items(feeds: list[str], now: float, categories: list[str]) -> tuple[list[dict], list[str]]:
-    sources, warnings = references(feeds, [], now)
+    trend_feeds = [feed for feed in feeds if urllib.parse.urlsplit(feed).hostname == "trends.google.com"
+                   and urllib.parse.urlsplit(feed).path == "/trending/rss"]
+    sources, warnings = references([feed for feed in feeds if feed not in trend_feeds], [], now)
     category = "TRENDING" if "TRENDING" in categories else (
         "TECHNOLOGY" if "TECHNOLOGY" in categories else categories[0])
     items = [{"category": category, "title": source["title"],
         "sticker_angle": "Make a short, witty Hinglish chat reaction grounded in this India event; avoid false claims or jokes about victims",
         "source_url": source["url"], "published_at": source.get("published", "")}
         for source in sources]
+    namespace = {"ht": "https://trends.google.com/trending/rss"}
+    for feed in trend_feeds:
+        try:
+            parsed = urllib.parse.urlsplit(_https_url(feed))
+            if urllib.parse.parse_qs(parsed.query).get("geo") != ["IN"]:
+                raise ValueError("Only India trends are supported")
+            root = ET.fromstring(fetch_bytes(feed, headers={"User-Agent": "StickerDock/0.1"}))
+            for entry in root.findall(".//item")[:20]:
+                query = _text(entry.findtext("title"), 100)
+                published = entry.findtext("pubDate")
+                if not query or not published:
+                    continue
+                stamp = parsedate_to_datetime(published)
+                if stamp.tzinfo is None:
+                    stamp = stamp.replace(tzinfo=timezone.utc)
+                if not 0 <= now - stamp.timestamp() <= 48 * 3600:
+                    continue
+                # Google supplies linked news for a search trend. Use its link
+                # as research context; never copy thumbnails or article bodies.
+                for news in entry.findall("ht:news_item", namespace):
+                    title = _text(news.findtext("ht:news_item_title", namespaces=namespace), 240)
+                    link = news.findtext("ht:news_item_url", namespaces=namespace)
+                    if title and link:
+                        items.append({"category": category, "title": title,
+                            "sticker_angle": f"Original witty Hinglish reaction to today's India search trend '{query}'; avoid factual claims and victims",
+                            "source_url": _https_url(link), "published_at": published})
+                        break
+        except (ValueError, TypeError, ET.ParseError, OSError):
+            warnings.append("India trends feed was unavailable or invalid; skipped")
     return items, warnings
 
 
