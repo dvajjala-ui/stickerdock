@@ -6,7 +6,7 @@ import time
 from supabase_factory import SupabaseFactory, SupabaseError
 
 
-def due(client, target=40, budget=16, now=None):
+def due(client, target=40, budget=16, now=None, force_content_refresh=False):
     now = time.time() if now is None else now
     try:
         settings = client.find("factory_settings", "id", "default")
@@ -42,6 +42,8 @@ def due(client, target=40, budget=16, now=None):
         return True, "Resume completed output storage/migration without a new AI request"
     if run.get("attempts", 0) >= budget:
         return False, "Daily request budget reached"
+    if force_content_refresh and (metrics.get("waiting_for_sources") or metrics.get("waiting_for_news")):
+        return True, "Refresh content or sources after an explicit manual run"
     recovery = metrics.get("recovery") or {}
     retry_at = max(metrics.get("next_request_at", 0), recovery.get("retry_at", 0))
     if now < retry_at:
@@ -50,7 +52,8 @@ def due(client, target=40, budget=16, now=None):
 
 
 if __name__ == "__main__":
-    should_run, reason = due(SupabaseFactory(), int(os.environ.get("FACTORY_DAILY_TARGET", "40")))
+    should_run, reason = due(SupabaseFactory(), int(os.environ.get("FACTORY_DAILY_TARGET", "40")),
+                             force_content_refresh=os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch")
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
         with open(output, "a", encoding="utf-8") as handle:

@@ -143,6 +143,19 @@ class GeneratorRecoveryTest(unittest.TestCase):
         client.rows[("factory_settings", "default")]["enabled"] = False
         self.assertFalse(factory_preflight.due(client, now=NOW)[0])
 
+    def test_manual_preflight_refreshes_source_wait_but_not_provider_or_budget(self):
+        client = FakeSupabase()
+        run = {"day": DAY, "generated": 0, "attempts": 0,
+               "groq_metrics": {"next_request_at": NOW + 9900, "waiting_for_sources": True}}
+        client.rows[("factory_runs", DAY)] = run
+        self.assertFalse(factory_preflight.due(client, now=NOW)[0])
+        self.assertTrue(factory_preflight.due(client, now=NOW, force_content_refresh=True)[0])
+        run["groq_metrics"] = {"next_request_at": NOW + 9900}
+        self.assertFalse(factory_preflight.due(client, now=NOW, force_content_refresh=True)[0])
+        run["groq_metrics"]["waiting_for_news"] = True
+        run["attempts"] = 16
+        self.assertFalse(factory_preflight.due(client, now=NOW, force_content_refresh=True)[0])
+
     def test_fresh_runners_recover_then_finish_forty_with_normal_intervals(self):
         client = FakeSupabase()
         config = {"daily_target": 40, "batch_size": 5, "modes": ["illustration"], "interval_seconds": 10800}
