@@ -431,7 +431,7 @@ class ProductionWorkerTest(unittest.TestCase):
             refs=Path(temporary)/"reference-images"
             refs.mkdir(exist_ok=True)
             (refs/"owned.png").write_bytes(png_bytes())
-            (refs/"library.json").write_text(json.dumps({"assets":[{"file":"owned.png","license":"CC0","source_url":"https://example.org/owned"}]}))
+            (refs/"library.json").write_text(json.dumps({"assets":[{"file":"owned.png","license":"CC0","intake_id":"verified-source","source_url":"https://example.org/owned"}]}))
             result=worker.configure(config,Path(temporary),NOW)
             self.assertEqual(result["modes"],["photo"])
             self.assertEqual(result["allowed_media_files"],["owned.png"])
@@ -443,7 +443,7 @@ class ProductionWorkerTest(unittest.TestCase):
             assets = [
                 {"file": "cat.png", "license": "CC0", "title": "Yawning cat"},
                 {"file": "space.png", "license": "PUBLIC_DOMAIN", "title": "Hubble ultra deep field"},
-                {"file": "uploaded.png", "license": "USER_OWNED", "source": "creator-studio",
+                {"file": "uploaded.png", "license": "USER_OWNED", "intake_id": "verified-upload", "source": "creator-studio",
                  "purpose": "SOURCE", "title": "My original photo"},
                 {"file": "result.png", "license": "USER_OWNED", "source": "creator-studio",
                  "purpose": "RESULT", "title": "Funny cat AI result"},
@@ -456,7 +456,25 @@ class ProductionWorkerTest(unittest.TestCase):
             result = worker.configure({"modes": ["photo"], "require_real_media": True,
                                        "require_reaction_media": True,
                                        "vision_model": "test-vision"}, Path(temporary), NOW)
-            self.assertEqual(result["allowed_media_files"], ["cat.png", "uploaded.png"])
+            self.assertEqual(result["allowed_media_files"], ["uploaded.png"])
+
+    def test_empty_owner_topics_do_not_restore_disabled_defaults(self):
+        settings = {"topics": [], "content_categories": ["TRENDING", "INDIA"]}
+        config = {"topics": ["TECHNOLOGY | Old default"], "content_categories": ["TECHNOLOGY"]}
+        self.assertEqual(worker.content_settings(config, settings)["topics"], [])
+
+    def test_source_shortage_creates_brief_without_crashing_schedule(self):
+        client = FakeSupabase()
+        client.rows[("factory_settings", "default")] = {"enabled": True,
+            "daily_target": 40, "batch_size": 5, "topics": [], "rating": "GENERAL",
+            "content_categories": ["TRENDING", "INDIA"], "discovery_enabled": False}
+        with tempfile.TemporaryDirectory() as temporary:
+            summary = worker.run_production({"daily_target": 40, "batch_size": 5,
+                "modes": ["photo"], "vision_model": "test-vision", "require_real_media": True,
+                "topics": ["TECHNOLOGY | Old default"]}, Path(temporary), client, NOW)
+        self.assertEqual(summary["status"], "waiting_for_sources")
+        self.assertEqual(client.find("factory_runs", "day", DAY)["attempts"], 0)
+        self.assertEqual(client.find("content_briefs", "day", DAY)["custom_topics"], [])
 
     def test_daily_brief_drives_categories_and_complete_pack_auto_migrates(self):
         client = FakeSupabase()
@@ -558,6 +576,7 @@ class ProductionWorkerTest(unittest.TestCase):
             (directory / "state.json").write_text(json.dumps({"records": [
                 {"rating": "GENERAL", "file": "old.webp", "caption": "Previous"}]}))
             summary = worker.run_production({"modes": ["illustration"]}, runtime, client, NOW, generator)
+        self.assertEqual(summary["status"], "waiting_for_news")
         self.assertTrue(summary["warnings"])
         self.assertEqual(client.rows[("factory_settings", "default")]["rating"], "MATURE")
 

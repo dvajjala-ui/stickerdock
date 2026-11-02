@@ -177,7 +177,7 @@ fun WhatsAppConnectHero(
                             personalInstalled && businessInstalled -> "Both WhatsApp & Business detected"
                             personalInstalled -> "Personal WhatsApp active"
                             businessInstalled -> "WhatsApp Business active"
-                            else -> "Install WhatsApp to send packs"
+                            else -> "WhatsApp not detected here · try a pack to choose your app"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

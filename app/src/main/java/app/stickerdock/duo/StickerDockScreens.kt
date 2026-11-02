@@ -896,6 +896,7 @@ fun PackDetailScreen(
     whatsAppStatus: Map<WhatsAppTarget, WhatsAppPackStatus>,
     onWhatsApp: () -> Unit,
     onBusiness: () -> Unit,
+    onChooseWhatsApp: () -> Unit,
     onManageSticker: (StickerItem) -> Unit,
     onToggleSelection: (StickerItem) -> Unit,
     onStartSelection: (StickerItem) -> Unit,
@@ -990,27 +991,29 @@ fun PackDetailScreen(
                             val personal = whatsAppStatus[WhatsAppTarget.PERSONAL]
                             val business = whatsAppStatus[WhatsAppTarget.BUSINESS]
                             val personalLabel = when {
-                                personal?.installed == false -> "WhatsApp not installed"
+                                personal?.installed == false -> "Try WhatsApp"
                                 personal?.added == true -> "Open WhatsApp"
                                 else -> "Add to WhatsApp"
                             }
                             val businessLabel = when {
-                                business?.installed == false -> "Business not installed"
+                                business?.installed == false -> "Try Business"
                                 business?.added == true -> "Open Business"
                                 else -> "Add to Business"
                             }
                             if (maxWidth < 420.dp) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(enabled = !busy && stickers.size in 3..30 && personal?.installed == true, onClick = onWhatsApp, modifier = Modifier.fillMaxWidth()) { Text(personalLabel) }
-                                    OutlinedButton(enabled = !busy && stickers.size in 3..30 && business?.installed == true, onClick = onBusiness, modifier = Modifier.fillMaxWidth()) { Text(businessLabel) }
+                                    Button(enabled = !busy && stickers.size in 3..30, onClick = onWhatsApp, modifier = Modifier.fillMaxWidth()) { Text(personalLabel) }
+                                    OutlinedButton(enabled = !busy && stickers.size in 3..30, onClick = onBusiness, modifier = Modifier.fillMaxWidth()) { Text(businessLabel) }
                                 }
                             } else {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(enabled = !busy && stickers.size in 3..30 && personal?.installed == true, onClick = onWhatsApp, modifier = Modifier.weight(1f)) { Text(personalLabel) }
-                                    OutlinedButton(enabled = !busy && stickers.size in 3..30 && business?.installed == true, onClick = onBusiness, modifier = Modifier.weight(1f)) { Text(businessLabel) }
+                                    Button(enabled = !busy && stickers.size in 3..30, onClick = onWhatsApp, modifier = Modifier.weight(1f)) { Text(personalLabel) }
+                                    OutlinedButton(enabled = !busy && stickers.size in 3..30, onClick = onBusiness, modifier = Modifier.weight(1f)) { Text(businessLabel) }
                                 }
                             }
                         }
+                        TextButton(enabled = !busy && stickers.size in 3..30, onClick = onChooseWhatsApp,
+                            modifier = Modifier.fillMaxWidth()) { Text("Choose WhatsApp app") }
                     }
                 }
                 WhatsAppTarget.entries.filter { whatsAppStatus[it]?.added == true }.forEach { target ->

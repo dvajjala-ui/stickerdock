@@ -42,7 +42,7 @@ import kotlinx.coroutines.withContext
 private enum class PolishedHomeSection(val label: String) {
     FACTORY("Discover"),
     CREATE("Studio"),
-    LIBRARY("Library"),
+    LIBRARY("My stickers"),
     SETTINGS("Settings"),
     IMPORT("Import")
 }
@@ -546,7 +546,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
             }
         }
 
-        fun launchWhatsApp(packToInstall: StickerPack, target: WhatsAppTarget, addAgain: Boolean = false) {
+        fun launchWhatsApp(packToInstall: StickerPack, target: WhatsAppTarget? = null, addAgain: Boolean = false) {
             if (busy) return
             busyLabel = "Preparing WhatsApp pack"
             scope.launch {
@@ -554,20 +554,21 @@ class StickerDockPolishedActivity : ComponentActivity() {
                 try {
                     val status = withContext(Dispatchers.IO) {
                         WhatsAppIntegration.validatePack(packToInstall, store, files)
-                        WhatsAppIntegration.status(this@StickerDockPolishedActivity, packToInstall.id, target)
+                        target?.let { WhatsAppIntegration.status(this@StickerDockPolishedActivity, packToInstall.id, it) }
                     }
-                    require(status.installed) { "${target.label} is not installed on this phone" }
-                    if (status.added && !addAgain) {
-                        val openIntent = packageManager.getLaunchIntentForPackage(target.packageName)
-                            ?: error("Unable to open ${target.label}")
+                    if (status?.added == true && !addAgain) {
+                        val resolvedTarget = requireNotNull(target)
+                        val openIntent = packageManager.getLaunchIntentForPackage(resolvedTarget.packageName)
+                            ?: error("Unable to open ${resolvedTarget.label}")
                         startActivity(openIntent)
                     } else {
-                        pendingWhatsAppTargetName = target.name
+                        pendingWhatsAppTargetName = target?.name
                         pendingWhatsAppPackId = packToInstall.id
-                        whatsAppInstaller.launch(WhatsAppStickerProvider.installIntent(packToInstall, target.packageName))
+                        val request = WhatsAppStickerProvider.installIntent(packToInstall, target?.packageName)
+                        whatsAppInstaller.launch(if (target == null) Intent.createChooser(request, "Choose WhatsApp app") else request)
                     }
                 } catch (_: ActivityNotFoundException) {
-                    failure = "Update ${target.label} to enable sticker packs, then try again."
+                    failure = "No compatible WhatsApp sticker receiver was found. Update WhatsApp and try again."
                 } catch (e: Exception) {
                     failure = e.message ?: "Unable to add sticker pack"
                 } finally { busyLabel = null }
@@ -582,7 +583,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     WhatsAppTarget.entries.filter { WhatsAppIntegration.status(this@StickerDockPolishedActivity, candidate.id, it).installed }
                 }
                 when {
-                    installed.isEmpty() -> snackbar.showSnackbar("Install WhatsApp or WhatsApp Business to add this pack.")
+                    installed.isEmpty() -> launchWhatsApp(candidate)
                     installed.size == 1 -> launchWhatsApp(candidate, installed.single())
                     installed.contains(activeWhatsAppTarget) -> launchWhatsApp(candidate, activeWhatsAppTarget)
                     else -> quickAddPack = candidate
@@ -758,6 +759,10 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                 Spacer(Modifier.width(4.dp))
                                 Text("WhatsApp")
                             }
+                            IconButton(onClick = { sectionName = PolishedHomeSection.CREATE.name },
+                                modifier = Modifier.semantics { contentDescription = "Create stickers" }) {
+                                StickerDockNavIcon("Create")
+                            }
                         }
                         IconButton(onClick = { showSettings = true }, modifier = Modifier.semantics { contentDescription = "Library settings" }) {
                             StickerDockNavIcon("More")
@@ -771,11 +776,11 @@ class StickerDockPolishedActivity : ComponentActivity() {
                     BoxWithConstraints {
                         if (maxWidth < 720.dp) {
                             NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-                                PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
+                                PolishedHomeSection.entries.filter { it == PolishedHomeSection.LIBRARY || it == PolishedHomeSection.FACTORY }.forEach { destination ->
                                     NavigationBarItem(
                                         selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
                                         onClick = { sectionName = destination.name },
-                                        icon = { StickerDockNavIcon(destination.label) },
+                                        icon = { StickerDockNavIcon(if (destination == PolishedHomeSection.LIBRARY) "Library" else destination.label) },
                                         label = { Text(destination.label) }
                                     )
                                 }
@@ -803,14 +808,14 @@ class StickerDockPolishedActivity : ComponentActivity() {
                         if (rail) {
                             NavigationRail {
                                 Spacer(Modifier.height(12.dp))
-                                PolishedHomeSection.entries.filter { it != PolishedHomeSection.IMPORT }.forEach { destination ->
+                                PolishedHomeSection.entries.filter { it == PolishedHomeSection.LIBRARY || it == PolishedHomeSection.FACTORY }.forEach { destination ->
                                     NavigationRailItem(
                                         selected = section == destination || (section == PolishedHomeSection.IMPORT && importReturnSectionName == destination.name),
                                         onClick = {
                                             sectionName = destination.name
                                             if (destination != PolishedHomeSection.LIBRARY) selectedId = null
                                         },
-                                        icon = { StickerDockNavIcon(destination.label) },
+                                        icon = { StickerDockNavIcon(if (destination == PolishedHomeSection.LIBRARY) "Library" else destination.label) },
                                         label = { Text(destination.label) }
                                     )
                                 }
@@ -868,6 +873,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                                 whatsAppStatus,
                                                 { launchWhatsApp(pack, WhatsAppTarget.PERSONAL) },
                                                 { launchWhatsApp(pack, WhatsAppTarget.BUSINESS) },
+                                                { launchWhatsApp(pack) },
                                                 { managingSticker = it },
                                                 { item -> selectedStickerIds = if (item.id in selectedStickerIds) selectedStickerIds - item.id else selectedStickerIds + item.id },
                                                 { item -> selectedStickerIds = selectedStickerIds + item.id },
@@ -898,6 +904,7 @@ class StickerDockPolishedActivity : ComponentActivity() {
                                     whatsAppStatus,
                                     { launchWhatsApp(pack, WhatsAppTarget.PERSONAL) },
                                     { launchWhatsApp(pack, WhatsAppTarget.BUSINESS) },
+                                    { launchWhatsApp(pack) },
                                     { managingSticker = it },
                                     { item -> selectedStickerIds = if (item.id in selectedStickerIds) selectedStickerIds - item.id else selectedStickerIds + item.id },
                                     { item -> selectedStickerIds = selectedStickerIds + item.id },
@@ -1054,6 +1061,8 @@ class StickerDockPolishedActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()) { Text("WhatsApp") }
                         OutlinedButton(onClick = { quickAddPack = null; launchWhatsApp(candidate, WhatsAppTarget.BUSINESS) },
                             modifier = Modifier.fillMaxWidth()) { Text("WhatsApp Business") }
+                        OutlinedButton(onClick = { quickAddPack = null; launchWhatsApp(candidate) },
+                            modifier = Modifier.fillMaxWidth()) { Text("Choose WhatsApp app") }
                     }
                 }, confirmButton = {}, dismissButton = { TextButton(onClick = { quickAddPack = null }) { Text("Cancel") } })
         }

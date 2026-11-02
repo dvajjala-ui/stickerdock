@@ -105,7 +105,7 @@ def _content(response: dict) -> str:
 def browser_research(key: str, model: str, categories: list[str], custom_topics: list[str], day: str) -> str:
     prompt = (
         f"Today is {day} UTC. Research fresh, widely discussed topics for an original "
-        "reaction-sticker and meme calendar aimed mainly at India and a global audience. "
+        "reaction-sticker and meme calendar about current events in India only. "
         f"Cover only these categories: {', '.join(categories)}. Owner topics: "
         f"{json.dumps(custom_topics)}. Use reputable primary or major-news sources. For every "
         "item include a direct public HTTPS source URL and publication date. Avoid rumors, "
@@ -172,7 +172,7 @@ def rss_items(feeds: list[str], now: float, categories: list[str]) -> tuple[list
     category = "TRENDING" if "TRENDING" in categories else (
         "TECHNOLOGY" if "TECHNOLOGY" in categories else categories[0])
     items = [{"category": category, "title": source["title"],
-        "sticker_angle": "Create an original, friendly reaction to this timely topic",
+        "sticker_angle": "Make a short, witty Hinglish chat reaction grounded in this India event; avoid false claims or jokes about victims",
         "source_url": source["url"], "published_at": source.get("published", "")}
         for source in sources]
     return items, warnings
@@ -214,8 +214,7 @@ def build_brief(config: dict, now: float, key: str | None = None) -> dict:
                       "topic": item["sticker_angle"] + ": " + item["title"],
                       "source": item["source_url"]})
     if not plans:
-        plans = [{"category": "EVERYDAY", "pack_category": "REACTIONS",
-                  "topic": "Original everyday reaction stickers in Hinglish", "source": "fallback"}]
+        warnings.append("No fresh India news was verified; generation will wait rather than use generic fallback topics")
     references_doc = [{"title": item["title"], "url": item["source_url"],
                        "published": item.get("published_at", "")} for item in items]
     return {"day": day, "status": "ready", "source_mode": source_mode,

@@ -1,4 +1,8 @@
-# StickerDock development handoff — updated October 30, 2026
+# StickerDock development handoff — updated November 2, 2026
+
+## November 2 core flow and Factory repair
+
+Read [the current product, live-state and acceptance record](CORE_JOURNEY_AND_AUTOMATION_2026-11-02.md) first. It supersedes the older cat/dog daily-plan and published-catalog statements below. The live Railway cron is running with an empty queue; the scheduled StickerDock Factory failed on an empty-topic fallback to disabled categories. This pass fixes that fallback, removes generic image/news defaults, adds a source-wait state, simplifies the primary Admin and Android navigation, and adds a WhatsApp chooser fallback. Five legacy public packs were unpublished and archived; read-back found zero public packs. Physical Galaxy/WhatsApp acceptance and fresh hosted Factory execution remain open.
 
 ## October 30 source reset and Pinterest boundary
 

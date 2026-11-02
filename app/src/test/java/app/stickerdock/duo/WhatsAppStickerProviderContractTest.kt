@@ -73,6 +73,16 @@ class WhatsAppStickerProviderContractTest {
     }
 
     @Test
+    fun chooserIntentKeepsTheOfficialPackExtrasWithoutPinningAnApp() {
+        val pack = StickerPack(id = "clone-pack", name = "Clone test", version = 1, createdAt = 1234)
+        val intent = WhatsAppStickerProvider.installIntent(pack)
+        assertEquals(WhatsAppStickerProvider.ACTION_ENABLE, intent.action)
+        assertEquals(null, intent.`package`)
+        assertEquals("clone-pack", intent.getStringExtra("sticker_pack_id"))
+        assertEquals(WhatsAppStickerProvider.AUTHORITY, intent.getStringExtra("sticker_pack_authority"))
+    }
+
+    @Test
     fun repeatedQueriesAndAssetOpensRemainUsableAfterScopedDatabaseClose() {
         val context = RuntimeEnvironment.getApplication()
         context.deleteDatabase("stickerdock.db")

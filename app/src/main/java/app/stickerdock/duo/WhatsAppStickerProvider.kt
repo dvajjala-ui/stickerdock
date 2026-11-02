@@ -20,8 +20,8 @@ class WhatsAppStickerProvider : ContentProvider() {
             "sticker_pack_privacy_policy_website", "sticker_pack_license_agreement_website",
             "image_data_version", "whatsapp_will_not_cache_stickers", "animated_sticker_pack")
         val STICKER_COLUMNS = arrayOf("sticker_file_name", "sticker_emoji", "sticker_accessibility_text")
-        fun installIntent(pack: StickerPack, packageName: String) = Intent(ACTION_ENABLE).apply {
-            setPackage(packageName)
+        fun installIntent(pack: StickerPack, packageName: String? = null) = Intent(ACTION_ENABLE).apply {
+            if (packageName != null) setPackage(packageName)
             putExtra("sticker_pack_id", pack.id)
             putExtra("sticker_pack_authority", AUTHORITY)
             putExtra("sticker_pack_name", pack.name)

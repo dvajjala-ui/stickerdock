@@ -1,5 +1,9 @@
 # StickerDock verification checklist
 
+## November 2 core-flow changes
+
+See [the current journey and hosted findings](CORE_JOURNEY_AND_AUTOMATION_2026-11-02.md). The catalog cleanup read-back found zero public packs after five exact-ID unpublish/archive operations. Source candidate read-back found 20 new Imgflip/Flickr unreviewed items. Focused Factory, trend and Admin unit tests passed locally (82 tests); JavaScript syntax checks passed. Android compilation, signed APK publication and physical S24 Ultra original/cloned/Business/in-app-account acceptance are not yet verified for this change.
+
 ## October 30 source inbox reset
 
 The [legacy inbox dry run](https://github.com/dvajjala-ui/stickerdock/actions/runs/41032552792)

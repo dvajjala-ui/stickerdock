@@ -1,0 +1,40 @@
+# StickerDock core journey and automation — 2 November 2026
+
+## Product decision
+
+The first release journey has two entrances and one finish:
+
+1. **My stickers:** choose a phone folder, import without losing existing packs, find a sticker or pack, then tap **Use in WhatsApp**.
+2. **Discover:** browse a pack, preview its actual stickers, save it to My stickers, then tap **Use in WhatsApp**.
+
+The finish is WhatsApp's own add-pack confirmation and a check in its sticker tray. StickerDock cannot silently install a pack into WhatsApp. The [official Android sample](https://github.com/WhatsApp/stickers/blob/main/Android/README.md) requires a user action and WhatsApp confirmation. Static and animated stickers remain in separate 3–30 sticker packs.
+
+The phone acceptance target is a Galaxy S24 Ultra with original WhatsApp and Samsung Dual Messenger's second WhatsApp. Also test WhatsApp Business and WhatsApp's own in-app account switcher. The official pack intent addresses an app/package, not a named account inside one WhatsApp installation. The unpinned chooser is an attempt to surface a cloned receiver; only a physical phone test can establish whether Samsung exposes it and whether the clone can read StickerDock's provider. [Samsung describes the clone as a second app with separate data](https://www.samsung.com/us/support/answer/ANS10001650/).
+
+## Live findings and changes in this pass
+
+- The 2 November scheduled Factory failed before image generation. Its hosted stack trace ended at `parse_custom_topic`: empty Admin topics were replaced with old defaults containing disabled categories. The worker now respects an intentional empty list. Settings reject a newly entered topic whose category is disabled.
+- The old default production file seeded cat/dog photos and global technology news. It now has no stock image queue, no cat/dog Commons search, and the BBC India RSS feed. The news research prompt is India-specific. If no fresh India item is verified, no evergreen/generic fallback is invented.
+- The worker accepts only admitted source-workspace image IDs for real-media generation; a legacy locally cached image no longer becomes eligible because its manifest says CC0. If source images are missing, the scheduled run records `waiting_for_sources` and exits successfully without an AI request. Admin still gets the dated news brief. Its next check waits about three hours to avoid needless dependency installation every 15 minutes.
+- The live Railway HandNavigate cron did start on 1 and 2 November. Its log said `queue_empty`: the two saved daily plans were archived. Railway therefore works for supported keyless collection, but it cannot produce images with no active plan. The actual host previously saved Flickr images; Pinterest and Reddit guest browsing returned `AUTH_REQUIRED` from that host. A different free host is not proven to change that. Owner-assisted desktop collection is the practical fallback for an authorized source, with Pinterest remaining inspiration rather than distributable pixels.
+- The 2 November live Sources list contained 20 new Imgflip/Flickr **unreviewed** candidates. Three Flickr items had `topic=adult`, meaning the search term, not a verified mature-content label. The UI now says `Search: adult`. No such candidate is generation-eligible until its rights and quality are checked. This is also why “all sources directly become stickers” cannot be safely implemented for a public app.
+- The live catalog still had five old generic/animal packs. All five were un-published with exact ID/version checks and archived on 2 November; a read-back found zero public catalog packs. Private pack archives remain recoverable. Older factory drafts and existing phone downloads were not erased.
+- The Android detail view now offers direct WhatsApp, Business, and a package-neutral chooser even when the installed-package check returns false. Its bottom navigation now shows only **My stickers** and **Discover**; creation stays one tap away in the header, and settings are in the header. This changes code only until a new Android build and S24 Ultra acceptance pass.
+- Admin navigation keeps the four daily destinations visible: Overview, Sources, Stickers & packs, Runs & automation. Planning, AI, catalog and operations remain under More tools. Archived/rejected packs are hidden in the default active-work filter and remain retrievable.
+
+## What still needs implementation and acceptance
+
+1. **Physical phone:** install the next signed APK on the S24 Ultra. Import a personal WhatsApp folder and Dual Messenger folder through the Android document picker; verify 1,000+ WebP, duplicate handling, cancel/retry, process restart, static/animated separation, and exact sticker count. Test add/confirm/tray in original WhatsApp, cloned WhatsApp, Business, and both in-app accounts. Record which receiver actually opened. Never claim independent routing to two in-app accounts unless WhatsApp exposes it.
+2. **Content input:** upload at least three owned or independently licensed, visually suitable reaction images in Sources, or admit specific candidates after checking the original rights. Verify the next scheduled India brief and sticker generation on the hosted worker. Keep news articles as context, never copy article images, slogans, logos or dialogue into stickers. Avoid false claims and jokes about victims.
+3. **Sticker-first pipeline:** create independent sticker rows with source ID/version, source rights, caption, tags, content rating and artwork hash. Group approved sticker rows into packs later using the pack-size/type rules. Current Admin still stores stickers inside pack ZIPs and its editing screen is pack-first. This requires a schema migration, backfill and compatibility tests before replacing the existing pack storage.
+4. **Automatic delivery:** eligible finished packs should appear in the app's Discover feed without a separate owner publish click, after automated asset, rights, content and format checks are real. This must not include unreviewed third-party files or private/mature packs. The WhatsApp add step always remains a user action.
+5. **Railway collection:** choose a concrete non-generic plan and test it on the hosted worker. No daily plan is active now. Pinterest and Reddit require a permitted access route; the current guest route is blocked. A manual sync may be used for user-owned material. The current Hobby project stays within its existing 1 CPU/2 GB, daily cron and 5 GB volume limits; cost and monthly usage need fresh account evidence before raising resources.
+6. **Visual polish:** verify the two-tab Android navigation and pack chooser on device; then adjust typography, actual sticker imagery, motion and empty states based on screenshots. The empty Discover catalog is intentional until good packs exist. Do not fill it with generic stock packs.
+
+## Research used for flow
+
+[Sticker.ly's official flow](https://sticker.ly/?isiOS=false&lang=en) emphasizes create/edit/share and [its Play listing](https://play.google.com/store/apps/details?id=com.snowcorp.stickerly.android) emphasizes pack discovery and direct WhatsApp export. StickerDock's useful distinction is private, reliable phone migration plus a small current India reaction feed with clear image rights. A large catalog is not evidence of usefulness if users cannot find and add a pack they would actually send.
+
+## Verification boundary
+
+Focused Python tests and JavaScript syntax checks run locally in this pass. An Android toolchain/ADB was not available on this machine; CI compile and device behavior must be reported separately. Hosted worker, catalog and source counts above are point-in-time read-backs, not ongoing guarantees.

@@ -556,8 +556,16 @@ def save_settings(client, payload):
         raise ValueError("Choose 1–10 unique content categories")
     if "ADULT_HUMOR" in categories and rating != "MATURE":
         raise ValueError("Adult humor requires a private MATURE Factory run")
+    normalized_topics = [text(topic, "topic", 240) for topic in topics]
+    for topic in normalized_topics:
+        prefix, separator, detail = topic.partition("|")
+        if separator and prefix.strip().upper() in CONTENT_CATEGORIES:
+            if prefix.strip().upper() not in categories:
+                raise ValueError("A custom topic uses a disabled category")
+            if not detail.strip():
+                raise ValueError("Custom topic text is required after the category")
     values = {"id": "default", "enabled": payload["enabled"], "daily_target": target, "batch_size": batch,
-              "topics": [text(topic, "topic", 240) for topic in topics],
+              "topics": normalized_topics,
               "discovery_enabled": payload.get("discovery_enabled", True),
               "auto_migrate_completed": payload.get("auto_migrate_completed", True),
               "rating": rating, "content_categories": categories}

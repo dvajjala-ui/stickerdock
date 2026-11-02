@@ -38,7 +38,7 @@ def content_settings(config, controls):
     return {"rating": controls.get("rating", config.get("rating", "GENERAL")),
             "content_categories": (controls.get("content_categories") or
                                    config.get("content_categories") or DEFAULT_CATEGORIES),
-            "topics": controls.get("topics") or config.get("topics", []),
+            "topics": controls["topics"] if "topics" in controls else config.get("topics", []),
             "feeds": config.get("feeds", []),
             "discovery_enabled": controls.get("discovery_enabled", True)}
 
@@ -566,7 +566,8 @@ def configure(config, runtime, now):
     if config.get("require_real_media"):
         manifest_path = references / "library.json"
         assets = json.loads(manifest_path.read_text()).get("assets", []) if manifest_path.exists() else []
-        allowed = [item["file"] for item in assets if item.get("license") in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
+        allowed = [item["file"] for item in assets if item.get("intake_id")
+                   and item.get("license") in {"CC0", "PUBLIC_DOMAIN", "USER_OWNED"}
                    and item.get("purpose") not in {"REFERENCE", "RESULT"}
                    and not str(item.get("source", "")).startswith("pinterest")
                    and ("pinterest.com" not in str(item.get("source_url", "")) or item.get("admission_verified") is True)
@@ -737,7 +738,7 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         config["daily_target"] = controls["daily_target"]
         config["batch_size"] = controls["batch_size"]
         config["rating"] = controls.get("rating", config.get("rating", "GENERAL"))
-        if controls.get("topics"):
+        if "topics" in controls:
             config["topics"] = controls["topics"]
     runtime.mkdir(parents=True, exist_ok=True)
     safe_restore(client.download(PRIVATE_BUCKET, STATE_OBJECT, missing_ok=True), runtime)
@@ -786,13 +787,53 @@ def run_production(config, runtime, client, now=None, generator=run_generator):
         if config.get('source_workspace') is True:
             from api._sources import sync_factory_sources
             sync_factory_sources(client,runtime)
-        configured = configure(config, runtime, now)
+        try:
+            configured = configure(config, runtime, now)
+        except ValueError as error:
+            if "Real-image generation needs licensed photos/clips" not in str(error):
+                raise
+            # A source shortage is an actionable queue state, not a crashed
+            # scheduled job. Still refresh the dated India news brief.
+            brief = None
+            if controls:
+                _, brief = ensure_content_brief(client, config, controls, now)
+            day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+            ready_drafts = (migrate_ready_batches(client, generated, day, config["batch_size"])
+                if controls and controls.get("auto_migrate_completed") is True else [])
+            previous = client.find("factory_runs", "day", day) or {}
+            message = "Waiting for admitted original or licensed reaction images. Add sources in Admin > Sources."
+            client.upsert("factory_runs", [{"day": day, "status": "running",
+                "target": config["daily_target"], "generated": previous.get("generated", 0),
+                "attempts": previous.get("attempts", 0), "last_result": message,
+                "groq_metrics": {**(previous.get("groq_metrics") or {}),
+                                 "waiting_for_sources": True,
+                                 "next_request_at": now + config.get("interval_seconds", 9900)}}], "day")
+            return {"day": day, "status": "waiting_for_sources", "result": message,
+                    "content_source": brief["source_mode"] if brief else None,
+                    "inbox_added": inbox_added, "closed_previous_days": closed_previous_days,
+                    "admin_draft_ids": ready_drafts, "warnings": deferred}
         if controls:
             # Admin controls take precedence over workflow defaults.
             configured["daily_target"] = controls["daily_target"]
             configured["batch_size"] = controls["batch_size"]
             configured["rating"] = controls.get("rating", configured["rating"])
             configured, brief = ensure_content_brief(client, configured, controls, now)
+            if configured.get("topic_plans") == []:
+                day = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+                ready_drafts = (migrate_ready_batches(client, generated, day, configured["batch_size"])
+                    if controls.get("auto_migrate_completed") is True else [])
+                previous = client.find("factory_runs", "day", day) or {}
+                message = "Waiting for verified current India news. No generic fallback stickers were generated."
+                client.upsert("factory_runs", [{"day": day, "status": "running",
+                    "target": configured["daily_target"], "generated": previous.get("generated", 0),
+                    "attempts": previous.get("attempts", 0), "last_result": message,
+                    "groq_metrics": {**(previous.get("groq_metrics") or {}),
+                                     "waiting_for_news": True,
+                                     "next_request_at": now + config.get("interval_seconds", 9900)}}], "day")
+                return {"day": day, "status": "waiting_for_news", "result": message,
+                        "content_source": brief["source_mode"], "inbox_added": inbox_added,
+                        "closed_previous_days": closed_previous_days,
+                        "admin_draft_ids": ready_drafts, "warnings": deferred}
         mirror_licensed_inputs(client, runtime)
         if config.get('source_workspace') is True:
             pending_path=generated/datetime.fromtimestamp(now,timezone.utc).date().isoformat()/'state.json'

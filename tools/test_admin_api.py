@@ -456,6 +456,13 @@ class AdminApiTest(unittest.TestCase):
         saved = self.client.find("factory_settings", "id", "default")
         self.assertEqual(saved["rating"], "MATURE")
 
+    def test_settings_reject_topics_from_disabled_categories(self):
+        payload = {"enabled": True, "daily_target": 40, "batch_size": 5,
+                   "topics": ["TECHNOLOGY | Gadgets"],
+                   "content_categories": ["TRENDING", "INDIA"]}
+        with self.assertRaisesRegex(ValueError, "disabled category"):
+            admin.save_settings(self.client, payload)
+
     def test_foreign_browser_origin_is_rejected_before_dispatch(self):
         request = object.__new__(handler)
         request.headers = {"Host": "stickerdock.vercel.app", "Origin": "https://other.example"}
