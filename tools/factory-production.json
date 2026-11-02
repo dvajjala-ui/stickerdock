@@ -19,7 +19,7 @@
     "TRENDING",
     "INDIA"
   ],
-  "feeds": ["https://feeds.bbci.co.uk/news/world/asia/india/rss.xml"],
+  "feeds": ["https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=1"],
   "references": [],
   "media_library": {
     "enabled": true,
