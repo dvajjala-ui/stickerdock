@@ -779,7 +779,7 @@ fun SettingsScreen(
                             StickerDockBrandLockup(compact = true)
                             Spacer(Modifier.weight(1f))
                             Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                                Text("v0.12.0", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                Text("v${BuildConfig.VERSION_NAME}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                             }
                         }
