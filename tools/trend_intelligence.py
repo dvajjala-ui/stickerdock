@@ -203,8 +203,10 @@ def build_brief(config: dict, now: float, key: str | None = None) -> dict:
                 source_mode = "groq_browser_search"
             else:
                 warnings.append("Browser search returned no validated items; RSS/owner topics used")
-        except (OSError, ValueError, KeyError, TypeError, urllib.error.HTTPError):
-            warnings.append("Browser search was unavailable or invalid; RSS/owner topics used")
+        except urllib.error.HTTPError as error:
+            warnings.append(f"Browser search HTTP {error.code}; RSS/owner topics used")
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            warnings.append(f"Browser search {type(error).__name__}; RSS/owner topics used")
     elif config.get("discovery_enabled", True):
         warnings.append("GROQ_TRENDS_API_KEY is not configured; RSS/owner topics used")
     items = items[:24]

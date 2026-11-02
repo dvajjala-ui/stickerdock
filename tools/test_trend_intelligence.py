@@ -48,6 +48,19 @@ class TrendIntelligenceTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             trends.parse_custom_topic("POLITICS | Parliament reaction", ["CREATIVE"])
 
+    def test_browser_failure_keeps_rss_and_reports_http_status(self):
+        import urllib.error
+        source = [{"title": "India event", "url": "https://example.com/india-event",
+                   "published": "Wed, 14 Oct 2026 00:00:00 GMT"}]
+        with patch.object(trends, "references", return_value=(source, [])), \
+                patch.object(trends, "browser_research", side_effect=urllib.error.HTTPError(
+                    "https://api.example.com", 429, "limited", {}, None)):
+            brief = trends.build_brief({"rating": "GENERAL", "content_categories": ["TRENDING", "INDIA"],
+                                        "topics": [], "feeds": ["https://example.com/feed"]}, NOW, key="key")
+        self.assertEqual(brief["source_mode"], "rss")
+        self.assertEqual(len(brief["topic_plans"]), 1)
+        self.assertIn("Browser search HTTP 429; RSS/owner topics used", brief["warnings"])
+
 
 if __name__ == "__main__":
     unittest.main()
